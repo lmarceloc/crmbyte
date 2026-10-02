@@ -5,6 +5,7 @@ import { BarChart3, Loader2 } from "lucide-react"
 
 import { RequireRole } from "@/components/auth/require-role"
 import { Funil } from "@/components/cadencias/funil"
+import { RelatorioNegocios } from "@/components/desempenho/relatorio-negocios"
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/client"
 
@@ -48,6 +49,7 @@ function Cartao({ titulo, valor, detalhe }: { titulo: string; valor: number | st
 }
 
 function Pagina() {
+  const [aba, setAba] = useState<"cadencias" | "negocios">("cadencias")
   const [cadencias, setCadencias] = useState<{ id: string; name: string }[]>([])
   const [pessoas, setPessoas] = useState<{ user_id: string; full_name: string }[]>([])
   const [cadenciaId, setCadenciaId] = useState("")
@@ -123,10 +125,26 @@ function Pagina() {
       <div className="flex items-start gap-3">
         <BarChart3 className="mt-1 h-6 w-6 text-primary" />
         <div>
-          <h1 className="text-xl font-semibold">Desempenho das cadências</h1>
-          <p className="text-sm text-muted-foreground">Enviados, abertos, cliques e o resultado que você marcou em cada lead.</p>
+          <h1 className="text-xl font-semibold">Desempenho</h1>
+          <p className="text-sm text-muted-foreground">Cadências de e-mail e resultado dos negócios por empresa.</p>
         </div>
       </div>
+
+      <div className="flex gap-1 border-b">
+        {([["cadencias", "Cadências"], ["negocios", "Negócios por empresa"]] as const).map(([id, rotulo]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setAba(id)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm ${aba === id ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground"}`}
+          >
+            {rotulo}
+          </button>
+        ))}
+      </div>
+
+      {aba === "negocios" && <RelatorioNegocios />}
+      {aba === "cadencias" && (<>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="space-y-1 text-xs text-muted-foreground">
@@ -242,6 +260,7 @@ function Pagina() {
           </p>
         </>
       )}
+      </>)}
     </div>
   )
 }

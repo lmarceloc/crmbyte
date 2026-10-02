@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     if (!corpo.success) return validationFailed(corpo.error);
     const admin = supabaseAdmin();
     if (corpo.data.action === "configure") {
-      await configurarChave(admin, ctx.accountId, corpo.data.api_key);
+      await configurarChave(admin, ctx.accountId, ctx.userId, corpo.data.api_key);
       return json({ configured: true });
     }
     const campanha = await criarBuscaSimples(admin, ctx.accountId, ctx.userId, corpo.data.request_id, corpo.data.search);

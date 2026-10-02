@@ -1,10 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { decrypt, encrypt } from "@/lib/whatsapp/encryption";
 import * as apify from "./apify";
 import { ProspectingError } from "./errors";
 import { comLock } from "./locks";
 import type { B2bSearchInput } from "./schemas";
-import { buscarPessoas, tregKey } from "./treg";
+import { buscarPessoas } from "./treg";
+import { obterChave, salvarChave } from "@/lib/integracoes/chaves";
 
 type Admin = SupabaseClient;
 
@@ -14,26 +14,18 @@ export const mensagemGenerica =
 // ---------- Apify: credencial por conta
 
 export async function chaveApify(admin: Admin, accountId: string): Promise<string> {
-  const { data } = await admin
-    .from("prospecting_settings")
-    .select("credential_encrypted")
-    .eq("account_id", accountId)
-    .maybeSingle();
-  if (!data) throw new ProspectingError("Configure a chave de busca antes de extrair empresas.", 422);
-  try {
-    return decrypt(data.credential_encrypted);
-  } catch {
-    throw new ProspectingError("Não foi possível abrir a chave de busca. Salve a configuração novamente.", 422);
-  }
+  const chave = await obterChave(admin, accountId, "apify");
+  if (!chave) throw new ProspectingError("Cadastre a chave do Apify em Configurações → Chaves de API.", 422);
+  return chave;
 }
 
-export async function configurarChave(admin: Admin, accountId: string, apiKey: string) {
+export async function configurarChave(admin: Admin, accountId: string, userId: string, apiKey: string) {
   await apify.validarChave(apiKey); // recusa ANTES de salvar
-  const { error } = await admin.from("prospecting_settings").upsert(
-    { account_id: accountId, credential_encrypted: encrypt(apiKey), updated_at: new Date().toISOString() },
-    { onConflict: "account_id" },
-  );
-  if (error) throw new ProspectingError(mensagemGenerica, 500);
+  try {
+    await salvarChave(admin, accountId, userId, "apify", apiKey);
+  } catch {
+    throw new ProspectingError(mensagemGenerica, 500);
+  }
 }
 
 // ---------- campanha (idempotente por request_id)
@@ -112,7 +104,8 @@ export async function criarBuscaB2b(
   return comLock(admin, accountId, async () => {
     const existente = await campanhaExistente(admin, accountId, input.request_id);
     if (existente) return existente;
-    if (!tregKey()) throw new ProspectingError("A Prospecção B2B não está configurada nesta instalação.", 503);
+    const tregChave = await obterChave(admin, accountId, "treg");
+    if (!tregChave) throw new ProspectingError("Cadastre a chave da Treg em Configurações → Chaves de API.", 422);
 
     const { data: camp, error } = await admin
       .from("prospecting_campaigns")
@@ -131,6 +124,7 @@ export async function criarBuscaB2b(
 
     try {
       const { leads, custoUsd } = await buscarPessoas(
+        tregChave,
         { limit: input.search.limit, title: input.search.title, company_domain: input.search.company_domain },
         input.search.budget_usd,
       );
@@ -215,10 +209,5 @@ export async function listarProspeccao(admin: Admin, accountId: string, kind: "s
 }
 
 export async function temChaveApify(admin: Admin, accountId: string): Promise<boolean> {
-  const { data } = await admin
-    .from("prospecting_settings")
-    .select("account_id")
-    .eq("account_id", accountId)
-    .maybeSingle();
-  return !!data;
+  return !!(await obterChave(admin, accountId, "apify"));
 }

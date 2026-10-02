@@ -27,6 +27,7 @@ import {
   type ProdutoDoCatalogo,
 } from "./deal-products-section";
 import { formatMoeda } from "@/lib/money";
+import { MOTIVOS_PERDA } from "@/lib/deals/motivos-perda";
 import {
   Sheet,
   SheetContent,
@@ -100,6 +101,8 @@ export function DealForm({
 
   const [saving, setSaving] = useState(false);
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
+  const [lostReason, setLostReason] = useState("");
+  const [lostNote, setLostNote] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -575,10 +578,18 @@ export function DealForm({
 
   async function handleStatusChange(status: DealStatus) {
     if (!deal) return;
+    if (status === "lost" && !lostReason) {
+      toast.error("Escolha o motivo da perda");
+      return;
+    }
     setStatusAction(status);
     const { error } = await supabase
       .from("deals")
-      .update({ status })
+      .update(
+        status === "lost"
+          ? { status, lost_reason: lostReason, lost_note: lostNote.trim() || null }
+          : { status },
+      )
       .eq("id", deal.id);
     setStatusAction(null);
     if (error) {
@@ -828,6 +839,28 @@ export function DealForm({
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Status
                 </p>
+                {deal.status !== "lost" && (
+                  <div className="space-y-2">
+                    <select
+                      value={lostReason}
+                      onChange={(e) => setLostReason(e.target.value)}
+                      className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                      aria-label="Motivo da perda"
+                    >
+                      <option value="">Motivo da perda (se for perder)…</option>
+                      {MOTIVOS_PERDA.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    {lostReason && (
+                      <Input
+                        value={lostNote}
+                        onChange={(e) => setLostNote(e.target.value)}
+                        placeholder="Detalhe (opcional)"
+                      />
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button
                     type="button"

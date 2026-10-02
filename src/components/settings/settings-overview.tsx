@@ -210,6 +210,11 @@ export function SettingsOverview({
       subtitle: 'Catálogo de produtos e valores',
     },
     {
+      section: 'apikeys',
+      loading: false,
+      subtitle: 'Apify e Treg (prospecção)',
+    },
+    {
       section: 'fields',
       loading: countsLoading,
       subtitle:

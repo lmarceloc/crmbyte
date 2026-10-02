@@ -15,23 +15,18 @@ export interface Lead {
   emailVerified: boolean;
 }
 
-export function tregKey(): string | null {
-  return process.env.TREG_API_KEY?.trim() || null;
-}
-
 interface RespostaTreg {
   output?: unknown;
   _treg?: { charged_micro?: number };
 }
 
 async function chamar(
+  key: string,
   tool: string,
   corpo: unknown,
   timeoutMs: number,
   maxCostUsd?: number,
 ): Promise<{ output: unknown; custoUsd: number }> {
-  const key = tregKey();
-  if (!key) throw new ProspectingError("TREG_API_KEY não configurada nesta instalação.", 503);
   const headers: Record<string, string> = {
     "X-Treg-Token": key,
     "Content-Type": "application/json",
@@ -157,28 +152,30 @@ export function normalizeLead(raw: unknown): Lead | null {
 // ---------- operações
 
 export async function buscarPessoas(
+  key: string,
   p: { limit: number; title?: string; company_domain?: string },
   maxCostUsd: number,
 ): Promise<{ leads: Lead[]; custoUsd: number }> {
   const corpo: Record<string, unknown> = { limit: p.limit };
   if (p.title) corpo.title = p.title;
   if (p.company_domain) corpo.company_domain = p.company_domain;
-  const { output, custoUsd } = await chamar("treg.people.search", corpo, 60_000, maxCostUsd);
+  const { output, custoUsd } = await chamar(key, "treg.people.search", corpo, 60_000, maxCostUsd);
   const pessoas = obj(output)?.people;
   const leads = Array.isArray(pessoas) ? pessoas.map(normalizeLead).filter((l): l is Lead => !!l) : [];
   return { leads, custoUsd };
 }
 
 export async function acharEmail(
+  key: string,
   fullName: string,
   domain: string,
 ): Promise<{ email: string | null; custoUsd: number }> {
-  const { output, custoUsd } = await chamar("treg.people.email.find", { full_name: fullName, domain }, 90_000);
+  const { output, custoUsd } = await chamar(key, "treg.people.email.find", { full_name: fullName, domain }, 90_000);
   const email = obj(output)?.email;
   return { email: typeof email === "string" && email.includes("@") ? email.trim().toLowerCase() : null, custoUsd };
 }
 
-export async function verificarEmail(email: string): Promise<{ valido: boolean; custoUsd: number }> {
-  const { output, custoUsd } = await chamar("treg.people.email.verify", { email }, 30_000);
+export async function verificarEmail(key: string, email: string): Promise<{ valido: boolean; custoUsd: number }> {
+  const { output, custoUsd } = await chamar(key, "treg.people.email.verify", { email }, 30_000);
   return { valido: obj(output)?.valid === true, custoUsd };
 }

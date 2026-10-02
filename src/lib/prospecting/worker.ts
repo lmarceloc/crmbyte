@@ -6,7 +6,8 @@ import { chaveApify } from "./service";
 import { ProspectingError } from "./errors";
 import { obterOuCriarEmpresa } from "@/lib/companies";
 import { comLock } from "./locks";
-import { acharEmail, tregKey, verificarEmail, type Lead } from "./treg";
+import { acharEmail, verificarEmail, type Lead } from "./treg";
+import { obterChave } from "@/lib/integracoes/chaves";
 
 type Admin = SupabaseClient;
 
@@ -89,6 +90,8 @@ async function contatoB2b(
 }
 
 export async function revelarEmails(admin: Admin, camp: Campanha): Promise<number> {
+  const tregChave = await obterChave(admin, camp.account_id, "treg");
+  if (!tregChave) return 0;
   const budget = Number(camp.search?.budget_usd ?? 1);
   let custo = Number(camp.cost_usd ?? 0);
   let feitos = 0;
@@ -126,11 +129,11 @@ export async function revelarEmails(admin: Admin, camp: Campanha): Promise<numbe
       continue;
     }
     try {
-      const achado = await acharEmail(lead.fullName, lead.companyDomain);
+      const achado = await acharEmail(tregChave, lead.fullName, lead.companyDomain);
       custo += achado.custoUsd;
       let valido = false;
       if (achado.email) {
-        const v = await verificarEmail(achado.email);
+        const v = await verificarEmail(tregChave, achado.email);
         custo += v.custoUsd;
         valido = v.valido;
       }
@@ -254,7 +257,6 @@ export async function processarProspeccao(admin: Admin): Promise<ResultadoDoTick
             await sincronizarBusca(admin, c);
             r.sincronizadas++;
           }
-          if (!tregKey()) return;
           const b2b = campanhas.filter((c) => c.kind === "b2b" && c.search_status === "succeeded");
           for (const c of b2b.slice(0, CAMPANHAS_POR_RODADA)) {
             r.reveladas += await revelarEmails(admin, c);

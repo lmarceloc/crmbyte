@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
 import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -124,12 +125,7 @@ export function ProspectingPanel({ kind }: { kind: Kind }) {
 
       {data && (
         <>
-          {kind === "b2b" && !data.configured && (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-              A Prospecção B2B não está configurada nesta instalação. Peça para quem administra definir TREG_API_KEY.
-            </div>
-          )}
-          {kind === "simples" && !data.configured && <ApifyKeyForm onSaved={load} />}
+          {!data.configured && <ChaveForm provider={kind === "b2b" ? "treg" : "apify"} onSaved={load} />}
 
           <SearchForm kind={kind} disabled={!data.configured} onCreated={(c) => { setSelected(c.id); load() }} />
 
@@ -174,17 +170,18 @@ export function ProspectingPanel({ kind }: { kind: Kind }) {
   )
 }
 
-function ApifyKeyForm({ onSaved }: { onSaved: () => void }) {
+function ChaveForm({ provider, onSaved }: { provider: "apify" | "treg"; onSaved: () => void }) {
   const [key, setKey] = useState("")
   const [busy, setBusy] = useState(false)
+  const nome = provider === "treg" ? "Treg" : "Apify"
   async function save() {
     setBusy(true)
-    const r = await fetch("/api/prospecting", {
-      method: "POST",
+    const r = await fetch("/api/integracoes/chaves", {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "configure", api_key: key }),
+      body: JSON.stringify({ provider, api_key: key }),
     })
-    const d = await r.json()
+    const d = await r.json().catch(() => ({}))
     setBusy(false)
     if (!r.ok) return toast.error(d.error ?? "Falha ao salvar a chave.")
     setKey("")
@@ -193,10 +190,13 @@ function ApifyKeyForm({ onSaved }: { onSaved: () => void }) {
   }
   return (
     <div className="space-y-2 rounded-lg border p-4">
-      <Label htmlFor="apify-key">Chave de busca (Apify)</Label>
-      <p className="text-xs text-muted-foreground">Validada antes de salvar e guardada cifrada. Nunca é exibida de novo.</p>
+      <Label htmlFor="chave-api">Chave da {nome}</Label>
+      <p className="text-xs text-muted-foreground">
+        Guardada cifrada e nunca exibida de novo. Também pode ser gerenciada em{" "}
+        <Link href="/settings?tab=apikeys" className="underline">Configurações → Chaves de API</Link>.
+      </p>
       <div className="flex gap-2">
-        <Input id="apify-key" type="password" value={key} onChange={(e) => setKey(e.target.value)} />
+        <Input id="chave-api" type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} />
         <Button onClick={save} disabled={busy || key.trim().length < 10}>
           {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salvar
         </Button>
