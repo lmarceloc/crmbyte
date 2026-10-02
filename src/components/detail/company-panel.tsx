@@ -2,11 +2,14 @@
 
 import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
 import { linkWhatsapp } from "@/lib/whatsapp-link"
-import { useCallback } from "react"
-import { Building2, Calendar, Globe, Layers, Link2, Mail, Users } from "lucide-react"
+import { useCallback, useState } from "react"
+import { Building2, Calendar, Globe, Layers, Link2, Mail, Plus, UserPlus, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ContatosDoNegocio } from "@/components/companies/contatos-do-negocio"
+import { NovoNegocioForm } from "@/components/companies/novo-negocio-form"
+import { useCan } from "@/hooks/use-can"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/currency"
 import { TemperatureBadge } from "@/components/pipelines/temperature-badge"
@@ -53,6 +56,8 @@ interface NegocioLinha {
   currency: string | null
   temperature: DealTemperature | null
   stage: { name: string } | { name: string }[] | null
+  /** Agregado do PostgREST: `[{ count }]` com os contatos do negócio. */
+  deal_contacts: { count: number }[] | null
 }
 interface Dados {
   empresa: Empresa
@@ -64,6 +69,11 @@ interface Dados {
 
 export function CompanyPanel({ id }: { id: string }) {
   const { push } = useDetailPanel()
+  const podeEditar = useCan("send-messages")
+  // Empresa → negócio → contato, tudo na aba Negócios: o formulário do negócio novo
+  // e a lista de contatos de UM negócio (o que acabou de nascer abre sozinho).
+  const [novoAberto, setNovoAberto] = useState(false)
+  const [contatosDe, setContatosDe] = useState<{ id: string; title: string } | null>(null)
 
   const buscar = useCallback(async (): Promise<Dados> => {
     const db = createClient()
@@ -72,7 +82,7 @@ export function CompanyPanel({ id }: { id: string }) {
       db.from("contacts").select("id,name,email,phone,job_title").eq("company_id", id).order("name"),
       db
         .from("deals")
-        .select("id,title,status,value,currency,temperature,stage:pipeline_stages(name)")
+        .select("id,title,status,value,currency,temperature,stage:pipeline_stages(name),deal_contacts(count)")
         .eq("company_id", id)
         .order("created_at", { ascending: false }),
     ])
@@ -207,24 +217,79 @@ export function CompanyPanel({ id }: { id: string }) {
             )}
           </TabsContent>
 
-          <TabsContent value="negocios" className="p-5">
+          <TabsContent value="negocios" className="space-y-3 p-5">
+            {podeEditar && !novoAberto && (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setContatosDe(null)
+                    setNovoAberto(true)
+                  }}
+                >
+                  <Plus /> Novo negócio
+                </Button>
+              </div>
+            )}
+            {novoAberto && (
+              <NovoNegocioForm
+                empresa={{ id: empresa.id, name: empresa.name }}
+                onCancelar={() => setNovoAberto(false)}
+                onCriado={(novo) => {
+                  setNovoAberto(false)
+                  setContatosDe(novo)
+                  void recarregar()
+                }}
+              />
+            )}
             {negocios.length === 0 ? (
-              <Vazio>Nenhum negócio desta empresa.</Vazio>
+              !novoAberto && <Vazio>Nenhum negócio desta empresa.</Vazio>
             ) : (
               <ul className="divide-y rounded-lg border">
-                {negocios.map((n) => (
-                  <li key={n.id}>
-                    <button type="button" onClick={() => push({ type: "deal", id: n.id })} className="flex w-full items-center gap-3 p-3 text-left hover:bg-muted/50">
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{n.title}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {ROTULO_STATUS_NEGOCIO[n.status] ?? n.status} · {um(n.stage)?.name ?? "—"} · {formatCurrency(n.value, n.currency ?? undefined)}
-                        </span>
-                      </span>
-                      <TemperatureBadge value={n.temperature} />
-                    </button>
-                  </li>
-                ))}
+                {negocios.map((n) => {
+                  const nContatos = n.deal_contacts?.[0]?.count ?? 0
+                  return (
+                    <li key={n.id}>
+                      <div className="flex items-center">
+                        <button type="button" onClick={() => push({ type: "deal", id: n.id })} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left hover:bg-muted/50">
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">{n.title}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {ROTULO_STATUS_NEGOCIO[n.status] ?? n.status} · {um(n.stage)?.name ?? "—"} · {formatCurrency(n.value, n.currency ?? undefined)} · {nContatos} {nContatos === 1 ? "contato" : "contatos"}
+                            </span>
+                          </span>
+                          <TemperatureBadge value={n.temperature} />
+                        </button>
+                        {podeEditar && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="mr-2 size-8 shrink-0"
+                            aria-label={`Contatos de ${n.title}`}
+                            title="Contatos do negócio"
+                            onClick={() => setContatosDe(contatosDe?.id === n.id ? null : { id: n.id, title: n.title })}
+                          >
+                            <UserPlus className="size-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {contatosDe?.id === n.id && (
+                        <div className="border-t p-3">
+                          <ContatosDoNegocio
+                            key={n.id}
+                            empresa={{ id: empresa.id, name: empresa.name }}
+                            negocio={{ id: n.id, title: n.title }}
+                            onMudou={() => void recarregar()}
+                            onFechar={() => setContatosDe(null)}
+                          />
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </TabsContent>
