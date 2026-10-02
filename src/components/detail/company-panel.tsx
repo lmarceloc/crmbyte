@@ -8,6 +8,7 @@ import { Building2, Calendar, Globe, Layers, Link2, Mail, Plus, UserPlus, Users 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ContatosDoNegocio } from "@/components/companies/contatos-do-negocio"
+import { NovoContatoForm } from "@/components/companies/novo-contato-form"
 import { NovoNegocioForm } from "@/components/companies/novo-negocio-form"
 import { useCan } from "@/hooks/use-can"
 import { createClient } from "@/lib/supabase/client"
@@ -74,6 +75,8 @@ export function CompanyPanel({ id }: { id: string }) {
   // e a lista de contatos de UM negócio (o que acabou de nascer abre sozinho).
   const [novoAberto, setNovoAberto] = useState(false)
   const [contatosDe, setContatosDe] = useState<{ id: string; title: string } | null>(null)
+  // Aba Contatos: criar ou vincular um contato da empresa sem sair do painel.
+  const [novoContatoAberto, setNovoContatoAberto] = useState(false)
 
   const buscar = useCallback(async (): Promise<Dados> => {
     const db = createClient()
@@ -195,9 +198,26 @@ export function CompanyPanel({ id }: { id: string }) {
             </Secao>
           </TabsContent>
 
-          <TabsContent value="contatos" className="p-5">
+          <TabsContent value="contatos" className="space-y-3 p-5">
+            {podeEditar && !novoContatoAberto && (
+              <div className="flex justify-end">
+                <Button type="button" size="sm" variant="outline" onClick={() => setNovoContatoAberto(true)}>
+                  <Plus /> Novo contato
+                </Button>
+              </div>
+            )}
+            {novoContatoAberto && (
+              <NovoContatoForm
+                empresa={{ id: empresa.id, name: empresa.name }}
+                onCancelar={() => setNovoContatoAberto(false)}
+                onFeito={() => {
+                  setNovoContatoAberto(false)
+                  void recarregar()
+                }}
+              />
+            )}
             {contatos.length === 0 ? (
-              <Vazio>Nenhum contato vinculado a esta empresa.</Vazio>
+              !novoContatoAberto && <Vazio>Nenhum contato vinculado a esta empresa.</Vazio>
             ) : (
               <ul className="divide-y rounded-lg border">
                 {contatos.map((c) => (
