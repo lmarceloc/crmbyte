@@ -3,8 +3,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as apify from "./apify";
 import { chaveApify } from "./service";
-import { ProspectingError } from "./errors";
-import { obterOuCriarEmpresa } from "@/lib/companies";
+import { MSG_PEDIU_PARA_SAIR, ProspectingError } from "./errors";
+import { criarContatoB2b } from "./contato-b2b";
 import { comLock } from "./locks";
 import { acharEmail, verificarEmail, type Lead } from "./treg";
 import { obterChave } from "@/lib/integracoes/chaves";
@@ -46,47 +46,17 @@ async function contatoB2b(
   lead: Lead,
   email: string,
 ): Promise<string | null> {
-  const { data: existente } = await admin
-    .from("contacts")
-    .select("id,email_unsubscribed_at")
-    .eq("account_id", camp.account_id)
-    .ilike("email", email)
-    .limit(1)
-    .maybeSingle();
-  if (existente) return existente.email_unsubscribed_at ? null : existente.id;
-
-  const userId = camp.created_by ?? (await contaOwner(admin, camp.account_id));
-  if (!userId) throw new Error("Conta sem usuário responsável para criar o contato.");
-  const companyId = await obterOuCriarEmpresa(admin, camp.account_id, userId, {
-    nome: lead.companyName,
-    website: lead.companyDomain ? `https://${lead.companyDomain}` : null,
-  });
-  const { data, error } = await admin
-    .from("contacts")
-    .insert({
-      account_id: camp.account_id,
-      user_id: userId,
-      phone: "",
-      name: lead.fullName,
-      email,
-      company: lead.companyName,
-      company_id: companyId,
-      job_title: lead.title,
-      linkedin_url: lead.linkedin,
-      source: "prospecting",
-      source_metadata: {
-        campaign_id: camp.id,
-        lead_key: lead.key,
-        company_name: lead.companyName,
-        company_domain: lead.companyDomain,
-        location: lead.location,
-      },
-      consent: { legitimate_interest: { ref: camp.search.legal_basis_ref ?? null } },
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
-  return data.id;
+  return criarContatoB2b(
+    admin,
+    {
+      campaignId: camp.id,
+      accountId: camp.account_id,
+      legalBasisRef: camp.search.legal_basis_ref ?? null,
+      quemCria: async () => camp.created_by ?? (await contaOwner(admin, camp.account_id)),
+    },
+    lead,
+    email,
+  );
 }
 
 export async function revelarEmails(admin: Admin, camp: Campanha): Promise<number> {
@@ -142,7 +112,7 @@ export async function revelarEmails(admin: Admin, camp: Campanha): Promise<numbe
       } else {
         const contactId = await contatoB2b(admin, camp, lead, achado.email);
         if (!contactId) {
-          await pular(cand.id, "Este contato pediu para não ser contatado.");
+          await pular(cand.id, MSG_PEDIU_PARA_SAIR);
         } else {
           await admin
             .from("prospecting_candidates")

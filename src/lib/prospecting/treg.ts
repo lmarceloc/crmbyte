@@ -96,6 +96,12 @@ function dominio(v: unknown): string | null {
   return d ? d.slice(0, 255) : null;
 }
 
+/** Mesmo que `dominio`, sem o `www.`: é o domínio que o localizador de e-mail aceita. */
+function dominioLimpo(v: unknown): string | null {
+  const d = dominio(v);
+  return d ? d.replace(/^www\./, "") : null;
+}
+
 function linkedin(v: unknown): string | null {
   const s = str(v, 500);
   if (!s) return null;
@@ -108,7 +114,17 @@ function linkedin(v: unknown): string | null {
   }
 }
 
-export function normalizeLead(raw: unknown): Lead | null {
+/**
+ * O que a PRÓPRIA busca já sabe do lead. Alguns provedores respondem só "quem é"
+ * e não ecoam o que foi perguntado: o leadmagic (`role-finder`) é consultado por
+ * cargo + domínio e devolve nome, LinkedIn e empresa, sem o cargo.
+ */
+export interface DicasDaBusca {
+  title?: string | null;
+  companyDomain?: string | null;
+}
+
+export function normalizeLead(raw: unknown, dicas: DicasDaBusca = {}): Lead | null {
   const p = obj(raw);
   if (!p) return null;
   const company = obj(p.company);
@@ -120,13 +136,15 @@ export function normalizeLead(raw: unknown): Lead | null {
   const fullName =
     str(p.fullName, 200) ??
     str(p.full_name, 200) ??
+    str(p.name, 200) ??
     str([str(p.firstName, 100), str(p.lastName, 100)].filter(Boolean).join(" "), 200) ??
     str([str(p.first_name, 100), str(p.last_name, 100)].filter(Boolean).join(" "), 200);
   if (!fullName) return null;
 
-  const companyDomain = dominio(
-    company?.domain ?? p.company_domain ?? p.companyDomain ?? p.email_domain ?? p.company_url,
-  );
+  const companyDomain =
+    dominio(company?.domain ?? p.company_domain ?? p.companyDomain ?? p.email_domain ?? p.company_url) ??
+    dominioLimpo(p.company_website ?? p.companyWebsite) ??
+    dominioLimpo(dicas.companyDomain);
   const location =
     str(p.location, 300) ??
     (loc ? str([loc.city, loc.state, loc.country].filter((x) => typeof x === "string" && x).join(", "), 300) : null) ??
@@ -139,17 +157,42 @@ export function normalizeLead(raw: unknown): Lead | null {
   return {
     key,
     fullName,
-    title: primeiroStr(300, jobTitle?.title, p.title, p.job_title),
+    title: primeiroStr(300, jobTitle?.title, p.title, p.job_title, dicas.title),
     companyName: primeiroStr(300, company?.name, p.company_name, p.companyName),
     companyDomain,
     location,
-    linkedin: linkedin(social?.linkedin ?? urls?.linkedin ?? p.employee_linkedin ?? p.linkedin),
+    linkedin: linkedin(
+      social?.linkedin ?? urls?.linkedin ?? p.employee_linkedin ?? p.linkedin ?? p.profile_url ?? p.profileUrl ?? p.linkedin_url,
+    ),
     email: null,
     emailVerified: false,
   };
 }
 
 // ---------- operações
+
+/**
+ * Extrai as linhas de pessoa do `output` de `treg.people.search`. O formato varia
+ * com o provedor que a Treg escolheu:
+ *
+ * - `{ people: [...] }` — lusha, quickenrich, aviato;
+ * - `[...]` — lista pura;
+ * - UM objeto plano de pessoa — leadmagic (`people/role-finder`, escolhido quando
+ *   a busca traz cargo + domínio): `{ name, profile_url, first_name, last_name,
+ *   company_name, company_website, message, credits_consumed }`.
+ *
+ * O terceiro caso passava como "zero resultados": sem `people`, a lista ficava
+ * vazia, a busca fechava `succeeded` com 0 achados e o lead pago sumia sem erro.
+ * Objeto sem pessoa (`message: "Role Not Found"`) chega aqui e é descartado por
+ * `normalizeLead`, que exige um nome.
+ */
+export function extractPeopleRows(output: unknown): Bruto[] {
+  if (Array.isArray(output)) return output.map(obj).filter((r): r is Bruto => !!r);
+  const o = obj(output);
+  if (!o) return [];
+  if (Array.isArray(o.people)) return o.people.map(obj).filter((r): r is Bruto => !!r);
+  return "people" in o ? [] : [o];
+}
 
 export async function buscarPessoas(
   key: string,
@@ -160,8 +203,10 @@ export async function buscarPessoas(
   if (p.title) corpo.title = p.title;
   if (p.company_domain) corpo.company_domain = p.company_domain;
   const { output, custoUsd } = await chamar(key, "treg.people.search", corpo, 60_000, maxCostUsd);
-  const pessoas = obj(output)?.people;
-  const leads = Array.isArray(pessoas) ? pessoas.map(normalizeLead).filter((l): l is Lead => !!l) : [];
+  const dicas = { title: p.title, companyDomain: p.company_domain };
+  const leads = extractPeopleRows(output)
+    .map((linha) => normalizeLead(linha, dicas))
+    .filter((l): l is Lead => !!l);
   return { leads, custoUsd };
 }
 
