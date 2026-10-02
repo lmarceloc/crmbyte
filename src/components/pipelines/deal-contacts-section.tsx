@@ -8,6 +8,7 @@ import type { Contact } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { erroDoContatoNovo } from "@/lib/contato-obrigatorio";
 
 export interface MembroDoNegocio {
   contactId: string;
@@ -49,8 +50,11 @@ export function DealContactsSection({
   const porId = new Map(contatos.map((c) => [c.id, c]));
   const naoVinculados = contatos.filter((c) => !membros.some((m) => m.contactId === c.id));
 
+  // Nome e e-mail para salvar; telefone é opcional.
+  const podeCriar = erroDoContatoNovo({ nome, email }) === null;
+
   async function criar() {
-    if (!nome.trim()) return;
+    if (!podeCriar) return;
     setSalvando(true);
     try {
       await onCriar({ nome: nome.trim(), email: email.trim(), telefone: telefone.trim() });
@@ -159,12 +163,12 @@ export function DealContactsSection({
       {criando ? (
         <div className="space-y-2 rounded-md border border-border/60 bg-background/40 p-2">
           <div className="grid gap-1.5">
-            <Label className="text-xs text-muted-foreground">Nome</Label>
+            <Label className="text-xs text-muted-foreground">Nome *</Label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} className="border-border bg-muted text-foreground" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">E-mail</Label>
+              <Label className="text-xs text-muted-foreground">E-mail *</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="border-border bg-muted text-foreground" />
             </div>
             <div className="grid gap-1.5">
@@ -176,7 +180,7 @@ export function DealContactsSection({
             <Button type="button" size="sm" variant="ghost" onClick={() => setCriando(false)} disabled={salvando}>
               Cancelar
             </Button>
-            <Button type="button" size="sm" onClick={criar} disabled={salvando || !nome.trim()}>
+            <Button type="button" size="sm" onClick={criar} disabled={salvando || !podeCriar}>
               {salvando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Criar e adicionar"}
             </Button>
           </div>

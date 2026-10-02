@@ -1,11 +1,10 @@
 // Contato criado ou vinculado a partir da aba "Contatos" do painel da empresa.
 //
 // Mesma ideia do negócio: o contato nasce já da empresa (`contacts.company_id`),
-// sem o vendedor sair do painel. Só o nome é obrigatório — como no cadastro
-// rápido do negócio e na prospecção B2B, que também criam contato sem telefone
-// (`phone` vazio não entra no índice único).
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// sem o vendedor sair do painel. Nome e e-mail são obrigatórios (regra única em
+// `contato-obrigatorio.ts`); telefone e cargo são opcionais — `phone` vazio não
+// entra no índice único.
+import { erroDoContatoNovo } from "./contato-obrigatorio";
 
 export interface ContatoDaEmpresaEntrada {
   nome: string;
@@ -21,7 +20,7 @@ export interface ContatoDaEmpresaLinha {
   account_id: string;
   user_id: string;
   name: string;
-  email: string | null;
+  email: string;
   phone: string;
   job_title: string | null;
   company: string;
@@ -32,17 +31,17 @@ export interface ContatoDaEmpresaLinha {
 export function montarContatoDaEmpresa(
   e: ContatoDaEmpresaEntrada,
 ): { ok: true; contato: ContatoDaEmpresaLinha } | { ok: false; erro: string } {
+  const erro = erroDoContatoNovo({ nome: e.nome, email: e.email });
+  if (erro) return { ok: false, erro };
   const nome = e.nome.trim();
-  if (!nome) return { ok: false, erro: "Dê um nome ao contato." };
   const email = (e.email ?? "").trim();
-  if (email && !EMAIL.test(email)) return { ok: false, erro: "E-mail inválido." };
   return {
     ok: true,
     contato: {
       account_id: e.accountId,
       user_id: e.userId,
       name: nome,
-      email: email || null,
+      email,
       phone: (e.telefone ?? "").trim(),
       job_title: (e.cargo ?? "").trim() || null,
       company: e.empresa.name,

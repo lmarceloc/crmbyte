@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { montarContatoDaEmpresa, vinculoDoContato } from "./contato-da-empresa";
 
 const empresa = { id: "emp-1", name: "Sylvamo" };
-const base = { nome: "  Henrique Godoy  ", empresa, accountId: "acc-1", userId: "usr-1" };
+const base = { nome: "  Henrique Godoy  ", email: "h@sylvamo.com", empresa, accountId: "acc-1", userId: "usr-1" };
 
 describe("montarContatoDaEmpresa", () => {
   it("cria o contato já da empresa, com nome e cargo aparados", () => {
@@ -23,19 +23,20 @@ describe("montarContatoDaEmpresa", () => {
     });
   });
 
-  it("só o nome é obrigatório: e-mail, telefone e cargo vazios viram null / vazio", () => {
+  it("nome e e-mail bastam: telefone e cargo vazios viram vazio / null", () => {
     const r = montarContatoDaEmpresa(base);
-    expect(r.ok && r.contato).toMatchObject({ email: null, phone: "", job_title: null, company_id: "emp-1" });
+    expect(r.ok && r.contato).toMatchObject({ email: "h@sylvamo.com", phone: "", job_title: null, company_id: "emp-1" });
   });
 
   it("recusa nome vazio ou só espaços", () => {
-    expect(montarContatoDaEmpresa({ ...base, nome: "   " })).toEqual({ ok: false, erro: "Dê um nome ao contato." });
+    expect(montarContatoDaEmpresa({ ...base, nome: "   " })).toEqual({ ok: false, erro: "Informe o nome do contato." });
   });
 
-  it("recusa e-mail que não parece e-mail, mas aceita o campo vazio", () => {
+  it("recusa contato sem e-mail, ou com e-mail que não parece e-mail", () => {
+    expect(montarContatoDaEmpresa({ ...base, email: "" })).toEqual({ ok: false, erro: "Informe o e-mail do contato." });
+    expect(montarContatoDaEmpresa({ ...base, email: undefined }).ok).toBe(false);
     expect(montarContatoDaEmpresa({ ...base, email: "sem-arroba" })).toEqual({ ok: false, erro: "E-mail inválido." });
     expect(montarContatoDaEmpresa({ ...base, email: "a@b" }).ok).toBe(false);
-    expect(montarContatoDaEmpresa({ ...base, email: "" }).ok).toBe(true);
   });
 });
 
