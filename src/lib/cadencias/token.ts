@@ -4,14 +4,16 @@
 import crypto from "crypto";
 import { z } from "zod";
 
-export type FinalidadeDoToken = "pixel" | "descadastro";
+export type FinalidadeDoToken = "pixel" | "descadastro" | "clique";
 
 const payloadSchema = z.object({
-  fin: z.enum(["pixel", "descadastro"]),
+  fin: z.enum(["pixel", "descadastro", "clique"]),
   enrollment_id: z.string().uuid(),
   account_id: z.string().uuid(),
   cadence_id: z.string().uuid(),
   passo_id: z.string(),
+  /** destino assinado do link rastreado (só finalidade "clique") */
+  url: z.string().max(2000).optional(),
 });
 export type PayloadDoToken = z.infer<typeof payloadSchema>;
 

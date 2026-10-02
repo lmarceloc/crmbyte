@@ -88,6 +88,21 @@ export function assuntoDaResposta(passos: Passo[], ultimoPassoId: string | null,
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 export const corpoEmHtml = (corpo: string) => esc(corpo).replace(/\n/g, "<br>\n");
 
+/**
+ * Transforma URLs do corpo em links rastreados (redirecionador assinado).
+ * Opera sobre o HTML já escapado: `&amp;` volta a `&` no destino e o texto
+ * visível continua sendo a URL original.
+ */
+export function linkificarComRastreio(htmlEscapado: string, tokenDe: (url: string) => string, base: string): string {
+  return htmlEscapado.replace(/https?:\/\/[^\s<>"']+/g, (visivel) => {
+    const limpo = visivel.replace(/[.,;:!?)]+$/, "")
+    const resto = visivel.slice(limpo.length)
+    const destino = limpo.replace(/&amp;/g, "&")
+    if (destino.length > 1800) return visivel
+    return `<a href="${base}/api/cadencias/click/${tokenDe(destino)}">${limpo}</a>${resto}`
+  })
+}
+
 // ---------- persistência ----------
 
 async function evento(
@@ -265,7 +280,11 @@ async function executarEmail(
   const assinatura = caixa?.signatureHtml?.trim() ?? "";
 
   const html =
-    corpoEmHtml(corpo) +
+    linkificarComRastreio(
+      corpoEmHtml(corpo),
+      (url) => assinarToken({ ...tokenBase, fin: "clique", url }),
+      base,
+    ) +
     (assinatura ? `<div style="margin-top:16px">${assinatura}</div>` : "") +
     `<p style="margin-top:24px;font-size:11px;color:#888">Não quer mais receber estes e-mails? <a href="${urlDescadastro}">Descadastrar</a></p>` +
     `<img src="${urlPixel}" width="1" height="1" alt="" style="display:none" />`;

@@ -15,6 +15,8 @@ interface Inscricao {
   motivo_parada: string | null
   emails_enviados: number
   aberturas: number
+  cliques: number
+  resultado: "com_interesse" | "sem_interesse" | "agendado" | null
   proximo_em: string
   deals: { title: string } | { title: string }[] | null
   contacts: { name: string | null } | { name: string | null }[] | null
@@ -63,6 +65,21 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
     }, 300)
     return () => clearTimeout(t)
   }, [busca, ativa, podeInscrever])
+
+  async function marcarResultado(inscricaoId: string, valor: string) {
+    const resultado = valor === "" ? null : valor
+    const res = await fetch(`/api/cadencias/${cadenciaId}/inscricoes/${inscricaoId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ resultado }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) return toast.error(body?.error ?? "Falha ao marcar o resultado.")
+    if (resultado === "sem_interesse" || resultado === "agendado")
+      toast.success("Resultado marcado — a sequência deste lead foi encerrada.")
+    else toast.success("Resultado atualizado")
+    carregar()
+  }
 
   async function inscrever(id: string) {
     setInscrevendo(id)
@@ -123,20 +140,22 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
               <th className="p-2">Situação</th>
               <th className="p-2">E-mails</th>
               <th className="p-2">Aberturas</th>
+              <th className="p-2">Cliques</th>
+              <th className="p-2">Resultado</th>
               <th className="p-2">Próximo passo</th>
             </tr>
           </thead>
           <tbody>
             {lista === null && (
               <tr>
-                <td colSpan={6} className="p-4 text-center">
+                <td colSpan={8} className="p-4 text-center">
                   <Loader2 className="mx-auto size-4 animate-spin" />
                 </td>
               </tr>
             )}
             {lista?.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                <td colSpan={8} className="p-4 text-center text-muted-foreground">
                   Ninguém inscrito ainda.
                 </td>
               </tr>
@@ -151,6 +170,20 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
                 </td>
                 <td className="p-2">{i.emails_enviados}</td>
                 <td className="p-2">{i.aberturas}</td>
+                <td className="p-2">{i.cliques}</td>
+                <td className="p-2">
+                  <select
+                    className="h-7 rounded-md border bg-background px-1.5 text-xs"
+                    value={i.resultado ?? ""}
+                    disabled={!podeInscrever}
+                    onChange={(e) => marcarResultado(i.id, e.target.value)}
+                  >
+                    <option value="">—</option>
+                    <option value="com_interesse">Com interesse</option>
+                    <option value="sem_interesse">Sem interesse</option>
+                    <option value="agendado">Agendado</option>
+                  </select>
+                </td>
                 <td className="p-2">
                   {i.status === "ativa" ? new Date(i.proximo_em).toLocaleString("pt-BR") : "—"}
                 </td>

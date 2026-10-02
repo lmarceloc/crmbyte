@@ -9,6 +9,7 @@ import { useTotalUnread } from "@/hooks/use-total-unread";
 import {
   Building2,
   Crown,
+  BarChart3,
   Flame,
   Mail,
   Search,
@@ -102,6 +103,7 @@ const navItems: NavItem[] = [
   { href: "/flows", label: "Fluxos", icon: Workflow, beta: true },
   { href: "/cadencias", label: "Cadências", icon: Mail, minRole: "agent" },
   { href: "/hot-leads", label: "Leads quentes", icon: Flame, minRole: "agent" },
+  { href: "/desempenho", label: "Desempenho", icon: BarChart3, minRole: "agent" },
   { href: "/caixas-de-envio", label: "Caixas de envio", icon: Mail, minRole: "admin" },
   { href: "/prospecting", label: "Prospecção", icon: Search, minRole: "admin" },
   { href: "/prospecting/b2b", label: "Prospecção B2B", icon: Building2, minRole: "admin" },

@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: Params) {
     const { data, error } = await ctx.supabase
       .from("email_cadence_enrollments")
       .select(
-        "id,deal_id,contact_id,status,motivo_parada,origem,passo_atual_id,proximo_em,emails_enviados,aberturas,cliques,concluida_em,parada_em,created_at, deals(title), contacts(name)",
+        "id,deal_id,contact_id,status,motivo_parada,origem,passo_atual_id,proximo_em,emails_enviados,aberturas,cliques,resultado,concluida_em,parada_em,created_at, deals(title), contacts(name)",
       )
       .eq("cadence_id", id)
       .order("created_at", { ascending: false })
