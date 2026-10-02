@@ -3,7 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { obterOuCriarEmpresa } from "@/lib/companies";
 import { findExistingContact, isUniqueViolation } from "@/lib/contacts/dedupe";
 import type { Prospect } from "./apify";
-import { ProspectingError } from "./errors";
+import { MSG_PEDIU_PARA_SAIR, ProspectingError } from "./errors";
+import { criarContatoB2b } from "./contato-b2b";
+import { avaliarImportacaoB2b } from "./importavel";
 import { comLock } from "./locks";
 import type { Lead } from "./treg";
 
@@ -80,7 +82,7 @@ export async function importarCandidatos(
 
     const { data: cands } = await admin
       .from("prospecting_candidates")
-      .select("*, prospecting_campaigns!inner(id,name,kind)")
+      .select("*, prospecting_campaigns!inner(id,name,kind,search)")
       .eq("account_id", p.accountId)
       .eq("prospecting_campaigns.kind", p.kind)
       .in("id", p.candidateIds);
@@ -95,13 +97,33 @@ export async function importarCandidatos(
           res.already++;
           continue;
         }
-        const camp = c.prospecting_campaigns as { id: string; name: string };
+        const camp = c.prospecting_campaigns as { id: string; name: string; search: { legal_basis_ref?: string } | null };
         let contactId: string | null = c.contact_id;
 
         if (p.kind === "b2b") {
           if (!contactId) {
-            res.skipped.push({ id: c.id, reason: "Só leads com e-mail verificado vão para o funil." });
-            continue;
+            // Sem e-mail verificado o contato ainda não existe: nasce aqui, com a
+            // base legal da busca e o que o lead tem (nome, cargo, empresa, LinkedIn).
+            const avaliacao = avaliarImportacaoB2b(c);
+            if (!avaliacao.ok) {
+              res.skipped.push({ id: c.id, reason: avaliacao.motivo });
+              continue;
+            }
+            const base = camp.search?.legal_basis_ref ?? null;
+            if (!base) {
+              res.skipped.push({ id: c.id, reason: "A busca não guardou a base legal (legítimo interesse) deste lead." });
+              continue;
+            }
+            contactId = await criarContatoB2b(
+              admin,
+              { campaignId: camp.id, accountId: p.accountId, legalBasisRef: base, quemCria: async () => p.userId },
+              c.data as Lead,
+              null,
+            );
+            if (!contactId) {
+              res.skipped.push({ id: c.id, reason: MSG_PEDIU_PARA_SAIR });
+              continue;
+            }
           }
         } else {
           const prospect = c.data as Prospect;
@@ -153,7 +175,7 @@ export async function importarCandidatos(
           .eq("account_id", p.accountId)
           .maybeSingle();
         if (!contato || contato.email_unsubscribed_at) {
-          res.skipped.push({ id: c.id, reason: "Este contato pediu para não ser contatado." });
+          res.skipped.push({ id: c.id, reason: MSG_PEDIU_PARA_SAIR });
           continue;
         }
 

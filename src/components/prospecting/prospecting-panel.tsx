@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
 import { linkWhatsapp } from "@/lib/whatsapp-link"
+import { leadB2bImportavel } from "@/lib/prospecting/importavel"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { ExternalLink, Loader2 } from "lucide-react"
@@ -115,7 +116,7 @@ export function ProspectingPanel({ kind }: { kind: Kind }) {
         <h1 className="text-xl font-semibold">{kind === "b2b" ? "Prospecção B2B" : "Prospecção simples"}</h1>
         <p className="text-sm text-muted-foreground">
           {kind === "b2b"
-            ? "Encontre pessoas por cargo e/ou domínio da empresa. Só entram leads com e-mail comercial verificado."
+            ? "Encontre pessoas por cargo e/ou domínio da empresa. Lead com e-mail comercial verificado vira contato sozinho; o que ficar sem e-mail ainda pode ser importado para o funil."
             : "Encontre empresas por nicho e região (Google Maps), com telefone, site e e-mails."}
         </p>
       </div>
@@ -298,7 +299,7 @@ function SearchForm({
             <Input required minLength={3} value={f.legal_basis_ref} onChange={(e) => set("legal_basis_ref", e.target.value)} placeholder="Ex.: LIA-2026-04 — prospecção B2B de transportadoras" />
           </Field>
           <p className="mt-1 text-xs text-muted-foreground">
-            Só entram leads com e-mail verificado; a quantidade final pode ser menor que o limite. Pelo menos cargo ou domínio é obrigatório.
+            O e-mail de cada lead é procurado e verificado; quem ficar sem e-mail pode ser importado para o funil só com nome, cargo, empresa e LinkedIn. A quantidade final pode ser menor que o limite. Pelo menos cargo ou domínio é obrigatório.
           </p>
         </div>
       ) : (
@@ -343,7 +344,7 @@ function CampaignDetail({
   const [importIds, setImportIds] = useState<string[] | null>(null)
   const [marcados, setMarcados] = useState<Set<string>>(new Set())
   const pendentes = candidates
-    .filter((c) => !c.deal_id && (kind === "simples" ? !!c.phone : !!c.contact_id))
+    .filter((c) => (kind === "simples" ? !c.deal_id && !!c.phone : leadB2bImportavel(c)))
     .map((c) => c.id)
   // seleção efetiva: ignora quem já foi importado desde que foi marcado
   const selecionados = pendentes.filter((id) => marcados.has(id))
@@ -472,7 +473,7 @@ function Row({
   const link = safeLink(kind === "b2b" ? d.linkedin : d.maps_url)
   const site = kind === "simples" ? safeLink(d.website) : null
   const emails = Array.isArray(d.emails) ? (d.emails as string[]) : []
-  const canImport = !c.deal_id && (kind === "simples" ? !!c.phone : !!c.contact_id)
+  const canImport = kind === "simples" ? !c.deal_id && !!c.phone : leadB2bImportavel(c)
   return (
     <tr className={marcado ? "bg-primary/5" : undefined}>
       <td className="p-2">
