@@ -210,6 +210,11 @@ export function SettingsOverview({
       subtitle: 'Catálogo de produtos e valores',
     },
     {
+      section: 'motivos',
+      loading: false,
+      subtitle: 'Motivos para negócios perdidos',
+    },
+    {
       section: 'apikeys',
       loading: false,
       subtitle: 'Apify e Treg (prospecção)',

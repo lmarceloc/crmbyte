@@ -28,13 +28,13 @@ const SECOES: { id: SecaoId; rotulo: string }[] = [
 type ColunaId = "total" | "abertos" | "ganhos" | "perdidos" | "vendido" | "ticket" | "perdido" | "aberto" | "conversao"
 const COLUNAS: { id: ColunaId; rotulo: string }[] = [
   { id: "total", rotulo: "Negócios" },
-  { id: "abertos", rotulo: "Em aberto" },
+  { id: "abertos", rotulo: "Em aberto (qtd)" },
   { id: "ganhos", rotulo: "Ganhos" },
   { id: "perdidos", rotulo: "Perdidos" },
   { id: "vendido", rotulo: "Total vendido" },
   { id: "ticket", rotulo: "Ticket médio" },
   { id: "perdido", rotulo: "Total perdido" },
-  { id: "aberto", rotulo: "Valor em aberto" },
+  { id: "aberto", rotulo: "Em aberto (valor)" },
   { id: "conversao", rotulo: "Conversão" },
 ]
 
@@ -71,7 +71,7 @@ export function RelatorioNegocios() {
   const [busca, setBusca] = useState("")
   const [secoes, setSecoes] = useState<Set<SecaoId>>(new Set(["resumo", "empresas", "motivos"]))
   const [colunas, setColunas] = useState<Set<ColunaId>>(
-    new Set(["total", "ganhos", "perdidos", "vendido", "ticket", "perdido"]),
+    new Set(["total", "abertos", "aberto", "ganhos", "perdidos", "vendido", "ticket", "perdido"]),
   )
   const [abertas, setAbertas] = useState<Set<string>>(new Set())
 
@@ -257,6 +257,7 @@ export function RelatorioNegocios() {
               ["Negócios", `${tot.total} (${tot.abertos} em aberto)`],
               ["Total vendido", moeda(tot.vendido)],
               ["Ticket médio", tot.ganhos ? moeda(tot.ticketMedio) : "—"],
+              ["Valor em aberto", moeda(tot.valorAberto)],
               ["Ganhos", String(tot.ganhos)],
               ["Perdidos", String(tot.perdidos)],
               ["Total perdido", moeda(tot.perdido)],

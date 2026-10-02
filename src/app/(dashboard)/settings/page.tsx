@@ -16,6 +16,7 @@ import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel'
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { ProductsSettings } from '@/components/settings/products-settings';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
+import { LossReasonsSettings } from '@/components/settings/loss-reasons-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import {
   resolveSection,
@@ -62,6 +63,7 @@ export default function SettingsPage() {
     deals: <DealsSettings />,
     products: <ProductsSettings />,
     apikeys: <ApiKeysSettings />,
+    motivos: <LossReasonsSettings />,
     members: <MembersTab />,
   };
 

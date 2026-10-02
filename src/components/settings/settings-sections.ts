@@ -2,6 +2,7 @@ import {
   Coins,
   FileText,
   KeyRound,
+  ThumbsDown,
   LayoutGrid,
   Package,
   Palette,
@@ -32,6 +33,7 @@ export const SETTINGS_SECTIONS = [
   'deals',
   'products',
   'apikeys',
+  'motivos',
   'members',
 ] as const;
 
@@ -63,6 +65,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   fields: { id: 'fields', label: 'Campos e etiquetas', icon: Tags, group: 'workspace' },
   deals: { id: 'deals', label: 'Negócios e moeda', icon: Coins, group: 'workspace' },
   products: { id: 'products', label: 'Produtos', icon: Package, group: 'workspace' },
+  motivos: { id: 'motivos', label: 'Motivos', icon: ThumbsDown, group: 'workspace' },
   apikeys: { id: 'apikeys', label: 'Chaves de API', icon: KeyRound, group: 'workspace' },
   members: { id: 'members', label: 'Membros da equipe', icon: UsersRound, group: 'workspace' },
 };

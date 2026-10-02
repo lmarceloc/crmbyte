@@ -27,7 +27,6 @@ import {
   type ProdutoDoCatalogo,
 } from "./deal-products-section";
 import { formatMoeda } from "@/lib/money";
-import { MOTIVOS_PERDA } from "@/lib/deals/motivos-perda";
 import {
   Sheet,
   SheetContent,
@@ -101,6 +100,7 @@ export function DealForm({
 
   const [saving, setSaving] = useState(false);
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
+  const [motivos, setMotivos] = useState<string[]>([]);
   const [lostReason, setLostReason] = useState("");
   const [lostNote, setLostNote] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -147,6 +147,24 @@ export function DealForm({
     setNovaEmpresaSite("");
   }, [open, deal, defaultStageId, stages, defaultCurrency]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Motivos de perda cadastrados em Configurações → Motivos
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("loss_reasons")
+        .select("name")
+        .eq("active", true)
+        .order("created_at");
+      if (!cancelled) setMotivos((data ?? []).map((m) => m.name as string));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Load supporting data once the sheet is open
   useEffect(() => {
@@ -847,8 +865,10 @@ export function DealForm({
                       className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
                       aria-label="Motivo da perda"
                     >
-                      <option value="">Motivo da perda (se for perder)…</option>
-                      {MOTIVOS_PERDA.map((m) => (
+                      <option value="">
+                        {motivos.length ? "Motivo da perda (se for perder)…" : "Cadastre motivos em Configurações"}
+                      </option>
+                      {motivos.map((m) => (
                         <option key={m} value={m}>{m}</option>
                       ))}
                     </select>
