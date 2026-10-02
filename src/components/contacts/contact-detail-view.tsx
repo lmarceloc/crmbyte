@@ -194,10 +194,7 @@ export function ContactDetailView({
   }
 
   async function saveDetails() {
-    if (!contactId || !editPhone.trim()) {
-      toast.error('Phone number is required');
-      return;
-    }
+    if (!contactId) return;
 
     const linkedinUrl = normalizarUrl(editLinkedin);
     if (editLinkedin.trim() && !linkedinUrl) {
@@ -374,18 +371,20 @@ export function ContactDetailView({
                     Contact details
                   </SheetDescription>
                   <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                    <button
-                      onClick={copyPhone}
-                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
-                    >
-                      <Phone className="size-3" />
-                      {contact.phone}
-                      {copiedPhone ? (
-                        <Check className="size-3 text-primary" />
-                      ) : (
-                        <Copy className="size-3" />
-                      )}
-                    </button>
+                    {contact.phone && (
+                      <button
+                        onClick={copyPhone}
+                        className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                      >
+                        <Phone className="size-3" />
+                        {contact.phone}
+                        {copiedPhone ? (
+                          <Check className="size-3 text-primary" />
+                        ) : (
+                          <Copy className="size-3" />
+                        )}
+                      </button>
+                    )}
                     {linkWhatsapp(contact.phone) && (
                       <a
                         href={linkWhatsapp(contact.phone) ?? undefined}
@@ -473,7 +472,7 @@ export function ContactDetailView({
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">
-                      Phone <span className="text-red-400">*</span>
+                      Phone (optional)
                     </Label>
                     <Input
                       value={editPhone}

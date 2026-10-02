@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { erroDoContatoNovo } from '@/lib/contato-obrigatorio';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
@@ -130,9 +131,14 @@ export function ContactForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!phone.trim()) {
-      toast.error('Phone number is required');
-      return;
+    // Para criar à mão bastam nome e e-mail; telefone é opcional. Quem edita um
+    // contato que veio do WhatsApp (só telefone) não é obrigado a ganhar e-mail.
+    if (!isEdit) {
+      const erro = erroDoContatoNovo({ nome: name, email });
+      if (erro) {
+        toast.error(erro);
+        return;
+      }
     }
 
     // Hard-block an exact duplicate on create (the DB unique index is
@@ -258,7 +264,7 @@ export function ContactForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="cf-name" className="text-muted-foreground">
-              Name
+              Name {!isEdit && <span className="text-red-400">*</span>}
             </Label>
             <Input
               id="cf-name"
@@ -271,7 +277,7 @@ export function ContactForm({
 
           <div className="space-y-2">
             <Label htmlFor="cf-phone" className="text-muted-foreground">
-              Phone <span className="text-red-400">*</span>
+              Phone (optional)
             </Label>
             <Input
               id="cf-phone"
@@ -319,7 +325,7 @@ export function ContactForm({
 
           <div className="space-y-2">
             <Label htmlFor="cf-email" className="text-muted-foreground">
-              Email
+              Email {!isEdit && <span className="text-red-400">*</span>}
             </Label>
             <Input
               id="cf-email"

@@ -26,7 +26,7 @@ const campo =
  * Cartão da aba "Contatos" do painel da empresa: cria um contato já ligado à
  * empresa (`company_id`) ou vincula um que já existe e ainda não tem empresa.
  * Mesma ideia do `NovoNegocioForm`: sem sair do painel, sem modal por cima do
- * `Sheet`. Só o nome é obrigatório.
+ * `Sheet`. Nome e e-mail são obrigatórios; cargo e telefone, opcionais.
  */
 export function NovoContatoForm({
   empresa,
@@ -149,7 +149,7 @@ export function NovoContatoForm({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="novo-contato-email">E-mail</Label>
+              <Label htmlFor="novo-contato-email">E-mail *</Label>
               <Input id="novo-contato-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="space-y-1.5">
@@ -164,7 +164,7 @@ export function NovoContatoForm({
             <Button type="button" size="sm" variant="ghost" onClick={onCancelar} disabled={salvando}>
               Cancelar
             </Button>
-            <Button type="submit" size="sm" disabled={salvando || !nome.trim()}>
+            <Button type="submit" size="sm" disabled={salvando || !nome.trim() || !email.trim()}>
               {salvando && <Loader2 className="size-4 animate-spin" />} Criar contato
             </Button>
           </div>
