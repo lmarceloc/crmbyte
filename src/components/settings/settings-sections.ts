@@ -35,6 +35,12 @@ export const SETTINGS_SECTIONS = [
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
+/** Seções escondidas (src/lib/features.ts). */
+import { RECURSOS } from '@/lib/features';
+export const SECTIONS_ESCONDIDAS: readonly SettingsSection[] = RECURSOS.configWhatsapp
+  ? []
+  : ['whatsapp', 'templates'];
+
 export const DEFAULT_SECTION: SettingsSection = 'overview';
 
 /** Rail grouping. `adminOnly` items are hidden for non-admins. */
@@ -65,7 +71,11 @@ export const RAIL_GROUPS: { label: string | null; group: SectionMeta['group'] }[
 ];
 
 function isSection(value: string | null): value is SettingsSection {
-  return !!value && (SETTINGS_SECTIONS as readonly string[]).includes(value);
+  return (
+    !!value &&
+    (SETTINGS_SECTIONS as readonly string[]).includes(value) &&
+    !(SECTIONS_ESCONDIDAS as readonly string[]).includes(value)
+  );
 }
 
 /**

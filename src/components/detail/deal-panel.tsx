@@ -12,9 +12,10 @@ import { formatMoeda } from "@/lib/money"
 import { TemperaturePicker } from "@/components/pipelines/temperature-badge"
 import type { DealTemperature } from "@/types"
 import { useDetailPanel } from "./detail-panel-provider"
+import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
+import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { NotaForm } from "./nota-form"
 import {
-  apenasDigitos,
   Avatar,
   BarraSuperior,
   Cabecalho,
@@ -197,7 +198,6 @@ export function DealPanel({ id }: { id: string }) {
   const funil = um(negocio.pipeline)
   const linkedin = linkSeguro(negocio.linkedin_url)
   const principal = um(contatos.find((c) => c.is_primary)?.contacts ?? contatos[0]?.contacts ?? null)
-  const digitos = apenasDigitos(principal?.phone)
   const temp = temperatura ?? negocio.temperature ?? "frio"
   const enviados = inscricoes.reduce((s, x) => s + x.emails_enviados, 0)
   const aberturas = inscricoes.reduce((s, x) => s + x.aberturas, 0)
@@ -227,8 +227,8 @@ export function DealPanel({ id }: { id: string }) {
           }
           acoes={
             <>
-              {digitos && (
-                <Button variant="outline" size="sm" nativeButton={false} render={<a href={`https://web.whatsapp.com/send?phone=${digitos}`} target="_blank" rel="noopener noreferrer" />}>
+              {linkWhatsapp(principal?.phone) && (
+                <Button variant="outline" size="sm" nativeButton={false} render={<a href={linkWhatsapp(principal?.phone) ?? undefined} target="_blank" rel="noopener noreferrer" />}>
                   <MessageCircle /> Mensagem
                 </Button>
               )}
@@ -372,6 +372,11 @@ export function DealPanel({ id }: { id: string }) {
                         </p>
                         <p className="text-xs text-muted-foreground">{[c.job_title, c.email].filter(Boolean).join(" · ") || "—"}</p>
                       </button>
+                      {linkWhatsapp(c.phone) && (
+                        <div className="px-3 pb-3 text-xs">
+                          <TelefoneWhatsapp phone={c.phone} />
+                        </div>
+                      )}
                     </li>
                   )
                 })}

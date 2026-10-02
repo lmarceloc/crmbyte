@@ -1,5 +1,6 @@
 'use client';
 
+import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -35,6 +36,7 @@ import {
   Save,
   X,
   DollarSign,
+  MessageCircle,
 } from 'lucide-react';
 
 interface ContactDetailViewProps {
@@ -384,6 +386,17 @@ export function ContactDetailView({
                         <Copy className="size-3" />
                       )}
                     </button>
+                    {linkWhatsapp(contact.phone) && (
+                      <a
+                        href={linkWhatsapp(contact.phone) ?? undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-primary hover:underline"
+                      >
+                        <MessageCircle className="size-3" />
+                        Abrir no WhatsApp
+                      </a>
+                    )}
                     {contact.email && (
                       <span className="flex items-center gap-1">
                         <Mail className="size-3" />

@@ -1,5 +1,6 @@
 'use client';
 
+import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -429,7 +430,7 @@ export default function ContactsPage() {
                     {contact.name || <span className="text-muted-foreground italic">Unnamed</span>}
                   </TableCell>
                   <TableCell className="text-muted-foreground font-mono text-xs">
-                    {contact.phone}
+                    <TelefoneWhatsapp phone={contact.phone} />
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden md:table-cell text-sm">
                     {contact.email || <span className="text-muted-foreground">-</span>}

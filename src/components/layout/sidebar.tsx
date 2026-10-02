@@ -29,6 +29,7 @@ import {
   Zap,
 } from "lucide-react";
 import { hasMinRole, type AccountRole } from "@/lib/auth/roles";
+import { RECURSOS } from "@/lib/features";
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -91,16 +92,18 @@ interface NavItem {
   beta?: boolean;
   /** Minimum account role that sees this item. */
   minRole?: AccountRole;
+  /** Item escondido quando o recurso está desligado (src/lib/features.ts). */
+  recurso?: keyof typeof RECURSOS;
 }
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Painel", icon: LayoutDashboard },
-  { href: "/inbox", label: "Caixa de entrada", icon: MessageSquare },
+  { href: "/inbox", label: "Caixa de entrada", icon: MessageSquare, recurso: "caixaDeEntrada" },
   { href: "/contacts", label: "Contatos", icon: Users },
   { href: "/companies", label: "Empresas", icon: Building2 },
   { href: "/pipelines", label: "Funis", icon: GitBranch },
-  { href: "/broadcasts", label: "Transmissões", icon: Radio },
-  { href: "/automations", label: "Automações", icon: Zap },
+  { href: "/broadcasts", label: "Transmissões", icon: Radio, recurso: "transmissoes" },
+  { href: "/automations", label: "Automações", icon: Zap, recurso: "automacoes" },
   { href: "/flows", label: "Fluxos", icon: Workflow, beta: true },
   { href: "/cadencias", label: "Cadências", icon: Mail, minRole: "agent" },
   { href: "/hot-leads", label: "Leads quentes", icon: Flame, minRole: "agent" },
@@ -216,8 +219,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             {navItems
               .filter(
                 (item) =>
-                  !item.minRole ||
-                  (accountRole && hasMinRole(accountRole, item.minRole)),
+                  (!item.recurso || RECURSOS[item.recurso]) &&
+                  (!item.minRole ||
+                    (accountRole && hasMinRole(accountRole, item.minRole))),
               )
               .map((item) => {
               // "/prospecting" must not stay active on "/prospecting/b2b".

@@ -1,5 +1,7 @@
 "use client";
 
+import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
+import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { useState } from "react";
 import { ExternalLink, Loader2, Plus, Star, Trash2, UserPlus } from "lucide-react";
 import type { Contact } from "@/types";
@@ -94,6 +96,7 @@ export function DealContactsSection({
                 <div className="min-w-0 flex-1 text-sm">
                   <p className="flex flex-wrap items-center gap-1.5 font-medium text-foreground">
                     <span className="truncate">{c?.name || c?.phone || "Contato"}</span>
+                    {linkWhatsapp(c?.phone) && <TelefoneWhatsapp phone={c?.phone} className="text-xs font-normal" />}
                     {m.isPrimary && (
                       <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-500">
                         Principal

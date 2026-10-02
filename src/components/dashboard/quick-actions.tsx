@@ -1,7 +1,8 @@
 "use client"
 
 import Link from 'next/link'
-import { UserPlus, Briefcase, Radio, Zap } from 'lucide-react'
+import { UserPlus, Briefcase, Radio, Zap, Building2 } from 'lucide-react'
+import { RECURSOS } from '@/lib/features'
 import type { ComponentType } from 'react'
 
 // Quick-action shortcuts. Each navigates to the page that owns the
@@ -17,9 +18,14 @@ interface Action {
 
 const ACTIONS: Action[] = [
   { label: 'Novo contato', href: '/contacts', icon: UserPlus, tint: 'text-primary' },
+  { label: 'Nova empresa', href: '/companies', icon: Building2, tint: 'text-emerald-400' },
   { label: 'Novo negócio', href: '/pipelines', icon: Briefcase, tint: 'text-blue-400' },
-  { label: 'Nova transmissão', href: '/broadcasts/new', icon: Radio, tint: 'text-amber-400' },
-  { label: 'Nova automação', href: '/automations/new', icon: Zap, tint: 'text-primary' },
+  ...(RECURSOS.transmissoes
+    ? [{ label: 'Nova transmissão', href: '/broadcasts/new', icon: Radio, tint: 'text-amber-400' }]
+    : []),
+  ...(RECURSOS.automacoes
+    ? [{ label: 'Nova automação', href: '/automations/new', icon: Zap, tint: 'text-primary' }]
+    : []),
 ]
 
 export function QuickActions() {

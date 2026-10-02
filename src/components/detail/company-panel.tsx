@@ -1,5 +1,7 @@
 "use client"
 
+import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
+import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { useCallback } from "react"
 import { Building2, Calendar, Globe, Layers, Link2, Mail, Users } from "lucide-react"
 
@@ -194,6 +196,11 @@ export function CompanyPanel({ id }: { id: string }) {
                       <p className="text-sm font-medium">{c.name || c.phone || "Sem nome"}</p>
                       <p className="text-xs text-muted-foreground">{[c.job_title, c.email].filter(Boolean).join(" · ") || "—"}</p>
                     </button>
+                    {linkWhatsapp(c.phone) && (
+                      <div className="px-3 pb-3 text-xs">
+                        <TelefoneWhatsapp phone={c.phone} />
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

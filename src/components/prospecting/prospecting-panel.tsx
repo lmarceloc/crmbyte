@@ -1,5 +1,7 @@
 "use client"
 
+import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
+import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { ExternalLink, Loader2 } from "lucide-react"
@@ -469,7 +471,6 @@ function Row({
   const d = c.data
   const link = safeLink(kind === "b2b" ? d.linkedin : d.maps_url)
   const site = kind === "simples" ? safeLink(d.website) : null
-  const digits = c.phone?.replace(/\D/g, "")
   const emails = Array.isArray(d.emails) ? (d.emails as string[]) : []
   const canImport = !c.deal_id && (kind === "simples" ? !!c.phone : !!c.contact_id)
   return (
@@ -493,7 +494,7 @@ function Row({
           </>
         ) : (
           <>
-            {c.phone && <div>{c.phone}</div>}
+            {c.phone && <div><TelefoneWhatsapp phone={c.phone} /></div>}
             {emails[0] && <div>{emails[0]}</div>}
             {site && <a className="text-primary hover:underline" href={site} target="_blank" rel="noopener noreferrer">site</a>}
           </>
@@ -509,10 +510,10 @@ function Row({
         {c.error && <div className="text-muted-foreground">{c.error}</div>}
       </td>
       <td className="space-x-1 p-2 text-right">
-        {kind === "simples" && digits && c.phone && (
+        {kind === "simples" && linkWhatsapp(c.phone) && (
           <a
             className="text-xs text-primary hover:underline"
-            href={`https://web.whatsapp.com/send?phone=${digits}`}
+            href={linkWhatsapp(c.phone) ?? undefined}
             target="_blank"
             rel="noopener noreferrer"
           >

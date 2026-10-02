@@ -28,6 +28,7 @@ import type {
 
 import { MetricCard } from '@/components/dashboard/metric-card'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
+import { RECURSOS } from '@/lib/features'
 import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
@@ -124,16 +125,17 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Painel</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Análises em tempo real de conversas, contatos, negócios, transmissões e automações.
+          Visão geral de contatos, empresas e negócios.
         </p>
       </div>
 
       {/* Metric cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${RECURSOS.caixaDeEntrada ? 'lg:grid-cols-4' : 'lg:grid-cols-2'}`}>
         {metricsLoading || !metrics ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
+            {RECURSOS.caixaDeEntrada && (
             <MetricCard
               title="Conversas ativas"
               value={metrics.activeConversations.current.toLocaleString()}
@@ -143,6 +145,7 @@ export default function DashboardPage() {
                 label: deltaLabel(metrics.activeConversations.previous, 'novas hoje vs. ontem'),
               }}
             />
+            )}
             <MetricCard
               title="Novos contatos hoje"
               value={metrics.newContactsToday.current.toLocaleString()}
@@ -162,6 +165,7 @@ export default function DashboardPage() {
               icon={DollarSign}
               subtitle={`${metrics.openDealsCount} negócio${metrics.openDealsCount === 1 ? '' : 's'} aberto${metrics.openDealsCount === 1 ? '' : 's'}`}
             />
+            {RECURSOS.caixaDeEntrada && (
             <MetricCard
               title="Mensagens enviadas hoje"
               value={metrics.messagesSentToday.current.toLocaleString()}
@@ -175,6 +179,7 @@ export default function DashboardPage() {
                 ),
               }}
             />
+            )}
           </>
         )}
       </div>
@@ -190,15 +195,17 @@ export default function DashboardPage() {
           this, the pipeline card rendered at its natural (shorter)
           height while the line chart drove the row height. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <div className="h-full lg:col-span-3">
-          <ConversationsChart
-            series={series}
-            loading={seriesLoading}
-            range={range}
-            onRangeChange={handleRangeChange}
-          />
-        </div>
-        <div className="h-full lg:col-span-2">
+        {RECURSOS.caixaDeEntrada && (
+          <div className="h-full lg:col-span-3">
+            <ConversationsChart
+              series={series}
+              loading={seriesLoading}
+              range={range}
+              onRangeChange={handleRangeChange}
+            />
+          </div>
+        )}
+        <div className={`h-full ${RECURSOS.caixaDeEntrada ? 'lg:col-span-2' : 'lg:col-span-5'}`}>
           <PipelineDonut
             data={pipeline}
             loading={pipelineLoading}
@@ -208,7 +215,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Response time */}
-      <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+      {RECURSOS.caixaDeEntrada && <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />}
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />

@@ -10,9 +10,10 @@ import { formatCurrency } from "@/lib/currency"
 import { TemperatureBadge } from "@/components/pipelines/temperature-badge"
 import type { DealTemperature } from "@/types"
 import { useDetailPanel } from "./detail-panel-provider"
+import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
+import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { NotaForm } from "./nota-form"
 import {
-  apenasDigitos,
   Avatar,
   BarraSuperior,
   Cabecalho,
@@ -144,7 +145,6 @@ export function ContactPanel({ id }: { id: string }) {
   const nome = contato.name || contato.phone || "Sem nome"
   const empresa = um(contato.company)
   const linkedin = linkSeguro(contato.linkedin_url)
-  const digitos = apenasDigitos(contato.phone)
   const tags = (contato.contact_tags ?? []).map((t) => um(t.tags)).filter((t): t is { name: string; color: string } => !!t)
   const enviados = inscricoes.reduce((s, x) => s + x.emails_enviados, 0)
   const aberturas = inscricoes.reduce((s, x) => s + x.aberturas, 0)
@@ -171,8 +171,8 @@ export function ContactPanel({ id }: { id: string }) {
           }
           acoes={
             <>
-              {digitos && (
-                <Button variant="outline" size="sm" nativeButton={false} render={<a href={`https://web.whatsapp.com/send?phone=${digitos}`} target="_blank" rel="noopener noreferrer" />}>
+              {linkWhatsapp(contato.phone) && (
+                <Button variant="outline" size="sm" nativeButton={false} render={<a href={linkWhatsapp(contato.phone) ?? undefined} target="_blank" rel="noopener noreferrer" />}>
                   <MessageCircle /> Mensagem
                 </Button>
               )}
@@ -213,7 +213,7 @@ export function ContactPanel({ id }: { id: string }) {
                   </span>
                 )}
               </Linha>
-              <Linha icone={Phone} rotulo="Telefone">{contato.phone}</Linha>
+              <Linha icone={Phone} rotulo="Telefone">{contato.phone?.trim() ? <TelefoneWhatsapp phone={contato.phone} /> : null}</Linha>
               <Linha icone={Link2} rotulo="LinkedIn">
                 {linkedin && <a href={linkedin} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{contato.linkedin_url}</a>}
               </Linha>
