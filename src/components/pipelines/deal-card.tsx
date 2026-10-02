@@ -1,7 +1,7 @@
 "use client";
 
 import type { Deal, PipelineStage } from "@/types";
-import { Building2, Calendar, Check, Users, X } from "lucide-react";
+import { Building2, Calendar, Check, Pencil, Users, X } from "lucide-react";
 import { TemperatureBadge } from "./temperature-badge";
 import { formatCurrency } from "@/lib/currency";
 import { useDetailPanel } from "@/components/detail/detail-panel-provider";
@@ -40,7 +40,7 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         // requires 5px movement before it counts as a drag.
         if (isOverlay) return;
         e.stopPropagation();
-        onEdit(deal);
+        abrirPainel({ type: "deal", id: deal.id });
       }}
       className={`group relative w-full cursor-pointer rounded-xl border border-border/50 bg-muted/70 pl-4 pr-3 py-3 text-left shadow-sm transition-all ${
         isOverlay
@@ -57,28 +57,33 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
 
       <div className="flex items-start justify-between gap-2">
         <h4 className="flex-1 text-sm font-semibold leading-snug text-foreground break-words">
-          {/* span (não botão): o card inteiro já é um <button> que edita o negócio */}
+          <span className="hover:text-primary">
+            {deal.title}
+          </span>
+        </h4>
+        {!isOverlay && (
+          // span (não botão): o cartão inteiro já é um <button>
           <span
-            role="link"
-            tabIndex={isOverlay ? -1 : 0}
-            title="Ver detalhes"
-            className="cursor-pointer hover:text-primary hover:underline"
+            role="button"
+            tabIndex={0}
+            title="Editar negócio"
+            aria-label="Editar negócio"
+            className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground focus:opacity-100 group-hover:opacity-100"
             onClick={(e) => {
-              if (isOverlay) return;
               e.stopPropagation();
-              abrirPainel({ type: "deal", id: deal.id });
+              onEdit(deal);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
                 e.stopPropagation();
-                abrirPainel({ type: "deal", id: deal.id });
+                onEdit(deal);
               }
             }}
           >
-            {deal.title}
+            <Pencil className="h-3.5 w-3.5" />
           </span>
-        </h4>
+        )}
         {deal.status === "won" && (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
             <Check className="h-3 w-3" />

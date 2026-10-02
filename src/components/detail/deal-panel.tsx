@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react"
 import { toast } from "sonner"
-import { Building2, Calendar, CircleDollarSign, FileText, Flag, Layers, Link2, Mail, MessageCircle, StickyNote, Tag, UserRound } from "lucide-react"
+import { Building2, Calendar, Pencil, CircleDollarSign, FileText, Flag, Layers, Link2, Mail, MessageCircle, StickyNote, Tag, UserRound } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -75,7 +75,14 @@ interface ItemDoNegocio {
   unit_price: number
   quantity: number
 }
+interface NotaDoNegocio {
+  id: string
+  note_text: string
+  created_at: string
+  contacts: { name: string | null } | { name: string | null }[] | null
+}
 interface Dados {
+  notas: NotaDoNegocio[]
   produtos: ItemDoNegocio[]
   negocio: Negocio
   responsavel: string | null
@@ -85,7 +92,7 @@ interface Dados {
 }
 
 export function DealPanel({ id }: { id: string }) {
-  const { push } = useDetailPanel()
+  const { push, close } = useDetailPanel()
   const [aba, setAba] = useState("detalhes")
   const [nota, setNota] = useState(false)
   const [temperatura, setTemperatura] = useState<DealTemperature | null>(null)
@@ -118,6 +125,20 @@ export function DealPanel({ id }: { id: string }) {
     if (!d.data) throw new Error("Negócio não encontrado ou sem acesso.")
     for (const r of [c, i, ev, pr]) if (r.error) throw new Error(r.error.message)
 
+    // notas de TODOS os contatos do negócio (a nota nova vai para o principal)
+    const idsContatos = ((c.data ?? []) as unknown as ContatoDoNegocio[])
+      .map((x) => um(x.contacts)?.id)
+      .filter((x): x is string => !!x)
+    const notasRes = idsContatos.length
+      ? await db
+          .from("contact_notes")
+          .select("id,note_text,created_at,contacts(name)")
+          .in("contact_id", idsContatos)
+          .order("created_at", { ascending: false })
+          .limit(100)
+      : { data: [], error: null }
+    if (notasRes.error) throw new Error(notasRes.error.message)
+
     let responsavel: string | null = null
     if (d.data.assigned_to) {
       const p = await db.from("profiles").select("full_name").eq("id", d.data.assigned_to).maybeSingle()
@@ -139,6 +160,7 @@ export function DealPanel({ id }: { id: string }) {
       }
     })
     return {
+      notas: (notasRes.data ?? []) as unknown as NotaDoNegocio[],
       produtos: ((pr.data ?? []) as ItemDoNegocio[]).map((x) => ({
         ...x,
         unit_price: Number(x.unit_price),
@@ -167,7 +189,7 @@ export function DealPanel({ id }: { id: string }) {
   if (carregando) return (<><BarraSuperior tipo="Negócios" /><Carregando /></>)
   if (erro || !dados) return (<><BarraSuperior tipo="Negócios" /><Erro mensagem={erro ?? "Falha ao carregar."} onRetry={recarregar} /></>)
 
-  const { negocio, responsavel, contatos, inscricoes, eventos, produtos } = dados
+  const { negocio, responsavel, contatos, inscricoes, eventos, produtos, notas } = dados
   const moeda = negocio.currency || "BRL"
   const totalProdutos = produtos.reduce((t, x) => t + x.unit_price * x.quantity, 0)
   const empresa = um(negocio.company)
@@ -215,12 +237,23 @@ export function DealPanel({ id }: { id: string }) {
                   <Mail /> E-mail
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent("deal:editar", { detail: { id } }))
+                  close()
+                }}
+                title="Abre o formulário de edição no funil"
+              >
+                <Pencil /> Editar
+              </Button>
               {principal && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setAba("detalhes")
+                    setAba("notas")
                     setNota(true)
                   }}
                 >
@@ -241,14 +274,12 @@ export function DealPanel({ id }: { id: string }) {
             <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
             <TabsTrigger value="contatos">Contatos ({contatos.length})</TabsTrigger>
             <TabsTrigger value="produtos">Produtos ({produtos.length})</TabsTrigger>
+            <TabsTrigger value="notas">Notas ({notas.length})</TabsTrigger>
             <TabsTrigger value="cadencias">Cadências ({inscricoes.length})</TabsTrigger>
             <TabsTrigger value="atividades">Atividades</TabsTrigger>
           </TabsList>
 
           <TabsContent value="detalhes" className="space-y-6 p-5">
-            {nota && principal && (
-              <NotaForm contactId={principal.id} onCancel={() => setNota(false)} onAdded={() => setNota(false)} />
-            )}
             <div className="space-y-3">
               <Linha icone={CircleDollarSign} rotulo="Valor">{formatCurrency(negocio.value, negocio.currency ?? undefined)}</Linha>
               <Linha icone={Layers} rotulo="Funil / etapa">
@@ -284,6 +315,42 @@ export function DealPanel({ id }: { id: string }) {
                 <Metrica titulo="Contatos" valor={contatos.length} />
               </div>
             </Secao>
+          </TabsContent>
+
+          <TabsContent value="notas" className="space-y-3 p-5">
+            {nota && principal ? (
+              <NotaForm
+                contactId={principal.id}
+                onCancel={() => setNota(false)}
+                onAdded={() => {
+                  setNota(false)
+                  void recarregar()
+                }}
+              />
+            ) : principal ? (
+              <Button size="sm" variant="outline" onClick={() => setNota(true)}>
+                <StickyNote /> Adicionar nota
+              </Button>
+            ) : (
+              <Vazio>Adicione um contato ao negócio para registrar notas.</Vazio>
+            )}
+            {principal && nota && (
+              <p className="text-xs text-muted-foreground">A nota será registrada em {principal.name ?? "contato principal"}.</p>
+            )}
+            {notas.length === 0 ? (
+              <Vazio>Nenhuma nota ainda.</Vazio>
+            ) : (
+              <ul className="space-y-2">
+                {notas.map((n) => (
+                  <li key={n.id} className="rounded-lg border p-3 text-sm">
+                    <p className="whitespace-pre-wrap break-words">{n.note_text}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {um(n.contacts)?.name ?? "Contato"} · {dataCurta(n.created_at)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </TabsContent>
 
           <TabsContent value="contatos" className="p-5">

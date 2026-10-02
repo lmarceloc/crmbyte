@@ -246,6 +246,17 @@ export default function PipelinesPage() {
     setDealFormOpen(true);
   }, []);
 
+  // O painel lateral do negócio pede a edição por evento (o formulário vive aqui).
+  useEffect(() => {
+    const onEditar = (e: Event) => {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id;
+      const alvo = deals.find((d) => d.id === id);
+      if (alvo) handleEditDeal(alvo);
+    };
+    window.addEventListener("deal:editar", onEditar);
+    return () => window.removeEventListener("deal:editar", onEditar);
+  }, [deals, handleEditDeal]);
+
   async function handleCreatePipeline() {
     const name = newPipelineName.trim();
     if (!name) return;
