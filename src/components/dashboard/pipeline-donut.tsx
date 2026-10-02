@@ -1,6 +1,6 @@
 "use client"
 
-import { GitBranch } from 'lucide-react'
+import { Funnel } from 'lucide-react'
 import type { PipelineDonutData } from '@/lib/dashboard/types'
 import { formatCurrencyShort } from '@/lib/currency'
 import { EmptyState } from './empty-state'
@@ -28,7 +28,7 @@ export function PipelineDonut({ data, loading, currency }: PipelineDonutProps) {
           <Skeleton className="h-56 w-full" />
         ) : data.stages.length === 0 ? (
           <EmptyState
-            icon={GitBranch}
+            icon={Funnel}
             title="Nenhum negócio aberto ainda"
             hint="Crie negócios em Funis para ver a distribuição por etapa aqui."
           />
