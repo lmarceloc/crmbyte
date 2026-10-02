@@ -7,7 +7,11 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import {
+  Building2,
   Crown,
+  Flame,
+  Mail,
+  Search,
   GitBranch,
   LayoutDashboard,
   LogOut,
@@ -23,7 +27,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import type { AccountRole } from "@/lib/auth/roles";
+import { hasMinRole, type AccountRole } from "@/lib/auth/roles";
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -84,6 +88,8 @@ interface NavItem {
    * Purely informational — doesn't affect routing or access.
    */
   beta?: boolean;
+  /** Minimum account role that sees this item. */
+  minRole?: AccountRole;
 }
 
 const navItems: NavItem[] = [
@@ -94,6 +100,11 @@ const navItems: NavItem[] = [
   { href: "/broadcasts", label: "Transmissões", icon: Radio },
   { href: "/automations", label: "Automações", icon: Zap },
   { href: "/flows", label: "Fluxos", icon: Workflow, beta: true },
+  { href: "/cadencias", label: "Cadências", icon: Mail, minRole: "agent" },
+  { href: "/hot-leads", label: "Leads quentes", icon: Flame, minRole: "agent" },
+  { href: "/caixas-de-envio", label: "Caixas de envio", icon: Mail, minRole: "admin" },
+  { href: "/prospecting", label: "Prospecção", icon: Search, minRole: "admin" },
+  { href: "/prospecting/b2b", label: "Prospecção B2B", icon: Building2, minRole: "admin" },
 ];
 
 const bottomNavItems = [
@@ -199,10 +210,19 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
+            {navItems
+              .filter(
+                (item) =>
+                  !item.minRole ||
+                  (accountRole && hasMinRole(accountRole, item.minRole)),
+              )
+              .map((item) => {
+              // "/prospecting" must not stay active on "/prospecting/b2b".
               const isActive =
                 pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                (item.href !== "/dashboard" &&
+                  item.href !== "/prospecting" &&
+                  pathname.startsWith(item.href));
 
               const showUnreadDot =
                 item.href === "/inbox" && totalUnread > 0 && !isActive;
