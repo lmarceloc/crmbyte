@@ -2,6 +2,7 @@ import {
   Coins,
   FileText,
   LayoutGrid,
+  Package,
   Palette,
   PlugZap,
   Shield,
@@ -28,6 +29,7 @@ export const SETTINGS_SECTIONS = [
   'templates',
   'fields',
   'deals',
+  'products',
   'members',
 ] as const;
 
@@ -52,6 +54,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   templates: { id: 'templates', label: 'Templates', icon: FileText, group: 'workspace' },
   fields: { id: 'fields', label: 'Campos e etiquetas', icon: Tags, group: 'workspace' },
   deals: { id: 'deals', label: 'Negócios e moeda', icon: Coins, group: 'workspace' },
+  products: { id: 'products', label: 'Produtos', icon: Package, group: 'workspace' },
   members: { id: 'members', label: 'Membros da equipe', icon: UsersRound, group: 'workspace' },
 };
 

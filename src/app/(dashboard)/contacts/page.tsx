@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
+import { useDetailPanel } from '@/components/detail/detail-panel-provider';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { CustomFieldsManager } from '@/components/contacts/custom-fields-manager';
 import { useCan } from '@/hooks/use-can';
@@ -58,6 +59,7 @@ interface ContactWithTags extends Contact {
 
 export default function ContactsPage() {
   const supabase = createClient();
+  const { open: abrirPainel } = useDetailPanel();
   const canEdit = useCan('send-messages');
   const canEditSettings = useCan('edit-settings');
 
@@ -414,7 +416,7 @@ export default function ContactsPage() {
                 <TableRow
                   key={contact.id}
                   className="border-border hover:bg-muted/50 cursor-pointer"
-                  onClick={() => openDetail(contact.id)}
+                  onClick={() => abrirPainel({ type: 'contact', id: contact.id })}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox

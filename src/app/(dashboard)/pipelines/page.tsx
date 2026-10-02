@@ -28,6 +28,7 @@ import { GitBranch, Plus, ChevronDown, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
+import { formatCurrency } from "@/lib/currency";
 import { GatedButton } from "@/components/ui/gated-button";
 
 // Pipeline creation is admin-class (settings-tier write under
@@ -48,7 +49,7 @@ export default function PipelinesPage() {
   const supabase = createClient();
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
-  const { accountId } = useAuth();
+  const { accountId, defaultCurrency } = useAuth();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
@@ -295,6 +296,10 @@ export default function PipelinesPage() {
 
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
 
+  // Resumo do funil no cabeçalho: só negócios EM ABERTO.
+  const abertos = deals.filter((d) => (d.status ?? "open") === "open");
+  const valorAberto = abertos.reduce((s, d) => s + (Number(d.value) || 0), 0);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -362,6 +367,20 @@ export default function PipelinesPage() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {selectedPipeline && (
+            <div
+              className="flex items-baseline gap-2 rounded-lg border border-border bg-card px-3 py-1.5"
+              title="Soma dos negócios em aberto neste funil"
+            >
+              <span className="text-base font-semibold tabular-nums text-foreground">
+                {formatCurrency(valorAberto, defaultCurrency)}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {abertos.length} negócio{abertos.length === 1 ? "" : "s"} em aberto
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

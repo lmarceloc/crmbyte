@@ -8,9 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/client"
 import { useCan } from "@/hooks/use-can"
+import { useDetailPanel } from "@/components/detail/detail-panel-provider"
 
 interface Inscricao {
   id: string
+  deal_id: string
+  contact_id: string
   status: string
   motivo_parada: string | null
   emails_enviados: number
@@ -40,6 +43,7 @@ const um = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? nul
 
 export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa: boolean }) {
   const podeInscrever = useCan("send-messages")
+  const { open: abrirPainel } = useDetailPanel()
   const [lista, setLista] = useState<Inscricao[] | null>(null)
   const [busca, setBusca] = useState("")
   const [negocios, setNegocios] = useState<Negocio[]>([])
@@ -193,8 +197,16 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
             )}
             {lista?.map((i) => (
               <tr key={i.id} className="border-b last:border-0">
-                <td className="p-2">{um(i.deals)?.title ?? "—"}</td>
-                <td className="p-2">{um(i.contacts)?.name ?? "—"}</td>
+                <td className="p-2">
+                  <button type="button" className="text-left hover:text-primary hover:underline" onClick={() => abrirPainel({ type: "deal", id: i.deal_id })}>
+                    {um(i.deals)?.title ?? "—"}
+                  </button>
+                </td>
+                <td className="p-2">
+                  <button type="button" className="text-left hover:text-primary hover:underline" onClick={() => abrirPainel({ type: "contact", id: i.contact_id })}>
+                    {um(i.contacts)?.name ?? "—"}
+                  </button>
+                </td>
                 <td className="p-2">
                   {i.status}
                   {i.motivo_parada ? ` (${i.motivo_parada})` : ""}

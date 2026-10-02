@@ -4,6 +4,7 @@ import type { Deal, PipelineStage } from "@/types";
 import { Building2, Calendar, Check, Users, X } from "lucide-react";
 import { TemperatureBadge } from "./temperature-badge";
 import { formatCurrency } from "@/lib/currency";
+import { useDetailPanel } from "@/components/detail/detail-panel-provider";
 
 interface DealCardProps {
   deal: Deal;
@@ -27,6 +28,7 @@ function initials(name?: string, fallback?: string) {
 }
 
 export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
+  const { open: abrirPainel } = useDetailPanel();
   const contactLabel = deal.contact?.name || deal.contact?.phone || "No contact";
   const assigneeLabel = deal.assignee?.full_name || null;
 
@@ -55,7 +57,27 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
 
       <div className="flex items-start justify-between gap-2">
         <h4 className="flex-1 text-sm font-semibold leading-snug text-foreground break-words">
-          {deal.title}
+          {/* span (não botão): o card inteiro já é um <button> que edita o negócio */}
+          <span
+            role="link"
+            tabIndex={isOverlay ? -1 : 0}
+            title="Ver detalhes"
+            className="cursor-pointer hover:text-primary hover:underline"
+            onClick={(e) => {
+              if (isOverlay) return;
+              e.stopPropagation();
+              abrirPainel({ type: "deal", id: deal.id });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                abrirPainel({ type: "deal", id: deal.id });
+              }
+            }}
+          >
+            {deal.title}
+          </span>
         </h4>
         {deal.status === "won" && (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">

@@ -201,6 +201,11 @@ export function SettingsOverview({
       subtitle: `${defaultCurrency} — ${currencyLabel}`,
     },
     {
+      section: 'products',
+      loading: false,
+      subtitle: 'Catálogo de produtos e valores',
+    },
+    {
       section: 'fields',
       loading: countsLoading,
       subtitle:

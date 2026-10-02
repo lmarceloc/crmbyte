@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { Building2, ChevronDown, ChevronRight, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 
 import { useAuth } from "@/hooks/use-auth"
+import { useDetailPanel } from "@/components/detail/detail-panel-provider"
 import { useCan } from "@/hooks/use-can"
 import { createClient } from "@/lib/supabase/client"
 import { linkExterno, normalizarUrl, rotuloDeUrl } from "@/lib/url"
@@ -54,6 +55,7 @@ function LinkExterno({ url }: { url: string | null | undefined }) {
 export default function CompaniesPage() {
   const supabase = createClient()
   const { accountId, user } = useAuth()
+  const { open: abrirPainel } = useDetailPanel()
   const podeEditar = useCan("send-messages")
 
   const [lista, setLista] = useState<Linha[] | null>(null)
@@ -205,7 +207,11 @@ export default function CompaniesPage() {
                       {aberta === c.id ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                     </button>
                   </td>
-                  <td className="p-2 font-medium">{c.name}</td>
+                  <td className="p-2 font-medium">
+                    <button type="button" className="text-left hover:text-primary hover:underline" onClick={() => abrirPainel({ type: "company", id: c.id })}>
+                      {c.name}
+                    </button>
+                  </td>
                   <td className="p-2"><LinkExterno url={c.website} /></td>
                   <td className="p-2"><LinkExterno url={c.linkedin_url} /></td>
                   <td className="p-2 text-right">{c.contacts?.[0]?.count ?? 0}</td>

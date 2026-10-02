@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { Flame } from "lucide-react"
 
 import { RequireRole } from "@/components/auth/require-role"
 import { Badge } from "@/components/ui/badge"
+import { useDetailPanel } from "@/components/detail/detail-panel-provider"
 
 interface HotLead {
   enrollment_id: string
@@ -31,6 +31,7 @@ function fmt(iso: string | null) {
 }
 
 function HotLeads() {
+  const { open: abrirPainel } = useDetailPanel()
   const [leads, setLeads] = useState<HotLead[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -76,9 +77,13 @@ function HotLeads() {
           {leads.map((l) => (
             <li key={l.enrollment_id} className="flex items-center gap-3 p-3">
               <div className="min-w-0 flex-1">
-                <Link href="/pipelines" className="block truncate text-sm font-medium hover:underline">
+                <button
+                  type="button"
+                  onClick={() => abrirPainel({ type: "deal", id: l.deal_id })}
+                  className="block max-w-full truncate text-left text-sm font-medium hover:underline"
+                >
                   {l.deal_title ?? "Negócio sem título"}
-                </Link>
+                </button>
                 <p className="truncate text-xs text-muted-foreground">
                   {l.contact_name ?? "Sem contato"} · {l.cadence_name ?? "Cadência"}
                 </p>

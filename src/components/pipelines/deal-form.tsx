@@ -21,6 +21,13 @@ import {
 } from "./deal-contacts-section";
 import { TemperaturePicker } from "./temperature-badge";
 import {
+  DealProductsSection,
+  totalDosItens,
+  type ItemDoNegocio,
+  type ProdutoDoCatalogo,
+} from "./deal-products-section";
+import { formatMoeda } from "@/lib/money";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -77,6 +84,9 @@ export function DealForm({
   const [temperature, setTemperature] = useState<DealTemperature>("frio");
   const [membros, setMembros] = useState<MembroDoNegocio[]>([]);
   const [membrosBusy, setMembrosBusy] = useState(false);
+  const [catalogo, setCatalogo] = useState<ProdutoDoCatalogo[]>([]);
+  const [itens, setItens] = useState<ItemDoNegocio[]>([]);
+  const [itensBusy, setItensBusy] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [novaEmpresa, setNovaEmpresa] = useState(false);
   const [novaEmpresaNome, setNovaEmpresaNome] = useState("");
@@ -127,6 +137,7 @@ export function DealForm({
       setLinkedin("");
       setTemperature("frio");
       setMembros([]);
+      setItens([]);
     }
     setNovaEmpresa(false);
     setNovaEmpresaNome("");
@@ -139,7 +150,7 @@ export function DealForm({
     if (!open) return;
     let cancelled = false;
     (async () => {
-      const [c, p, co, dc] = await Promise.all([
+      const [c, p, co, dc, cat, di] = await Promise.all([
         supabase.from("contacts").select("*").order("name"),
         supabase.from("profiles").select("*").order("full_name"),
         supabase.from("companies").select("*").order("name"),
@@ -150,8 +161,40 @@ export function DealForm({
               .eq("deal_id", deal.id)
               .order("created_at")
           : Promise.resolve({ data: null }),
+        supabase.from("products").select("id,name,price").eq("active", true).order("name"),
+        deal
+          ? supabase
+              .from("deal_products")
+              .select("id,product_id,name,unit_price,quantity")
+              .eq("deal_id", deal.id)
+              .order("created_at")
+          : Promise.resolve({ data: null }),
       ]);
       if (cancelled) return;
+      setCatalogo(
+        ((cat.data ?? []) as { id: string; name: string; price: number }[]).map((p) => ({
+          id: p.id,
+          name: p.name,
+          price: Number(p.price),
+        })),
+      );
+      if (deal) {
+        setItens(
+          ((di.data ?? []) as {
+            id: string;
+            product_id: string | null;
+            name: string;
+            unit_price: number;
+            quantity: number;
+          }[]).map((r) => ({
+            id: r.id,
+            productId: r.product_id,
+            name: r.name,
+            unitPrice: Number(r.unit_price),
+            quantity: Number(r.quantity),
+          })),
+        );
+      }
       setContacts((c.data ?? []) as Contact[]);
       setProfiles((p.data ?? []) as Profile[]);
       setCompanies((co.data ?? []) as Company[]);
@@ -326,6 +369,88 @@ export function DealForm({
     await adicionarMembro((data as Contact).id);
   }
 
+  // ---- produtos do negócio (na edição gravam na hora; o trigger do banco recalcula deals.value)
+  async function recarregarValor() {
+    if (!deal) return;
+    const { data } = await supabase.from("deals").select("value").eq("id", deal.id).maybeSingle();
+    if (data) setValue(String(Number(data.value) || 0));
+  }
+
+  async function adicionarItem(produto: ProdutoDoCatalogo, quantidade: number) {
+    const novo: ItemDoNegocio = {
+      productId: produto.id,
+      name: produto.name,
+      unitPrice: produto.price,
+      quantity: quantidade,
+    };
+    if (!deal) {
+      setItens((is) => [...is, novo]);
+      return;
+    }
+    setItensBusy(true);
+    const { data, error } = await supabase
+      .from("deal_products")
+      .insert({
+        account_id: deal.account_id ?? accountId,
+        deal_id: deal.id,
+        product_id: produto.id,
+        name: produto.name,
+        unit_price: produto.price,
+        quantity: quantidade,
+      })
+      .select("id")
+      .single();
+    if (error || !data) {
+      setItensBusy(false);
+      toast.error("Não foi possível adicionar o produto.");
+      return;
+    }
+    setItens((is) => [...is, { ...novo, id: data.id }]);
+    await recarregarValor();
+    setItensBusy(false);
+  }
+
+  async function alterarItem(indice: number, campos: { unitPrice?: number; quantity?: number }) {
+    const atual = itens[indice];
+    if (!atual) return;
+    const antes = itens;
+    setItens((is) => is.map((it, i) => (i === indice ? { ...it, ...campos } : it)));
+    if (!deal || !atual.id) return;
+    setItensBusy(true);
+    const { error } = await supabase
+      .from("deal_products")
+      .update({
+        ...(campos.unitPrice !== undefined ? { unit_price: campos.unitPrice } : {}),
+        ...(campos.quantity !== undefined ? { quantity: campos.quantity } : {}),
+      })
+      .eq("id", atual.id);
+    if (error) {
+      setItens(antes);
+      toast.error("Não foi possível atualizar o item.");
+    } else {
+      await recarregarValor();
+    }
+    setItensBusy(false);
+  }
+
+  async function removerItem(indice: number) {
+    const atual = itens[indice];
+    if (!atual) return;
+    if (!deal || !atual.id) {
+      setItens((is) => is.filter((_, i) => i !== indice));
+      return;
+    }
+    setItensBusy(true);
+    const { error } = await supabase.from("deal_products").delete().eq("id", atual.id);
+    if (error) {
+      toast.error("Não foi possível remover o item.");
+    } else {
+      setItens((is) => is.filter((_, i) => i !== indice));
+      await recarregarValor();
+    }
+    setItensBusy(false);
+  }
+
   // Fetch linked conversation for the selected contact (newest open one).
   // Clearing on no-selection is sync with prop state; the populated
   // case runs setLinkedConversation inside the async fetch callback.
@@ -366,7 +491,7 @@ export function DealForm({
 
     const payload = {
       title: title.trim(),
-      value: parseFloat(value) || 0,
+      value: itens.length > 0 ? Math.round(totalDosItens(itens) * 100) / 100 : parseFloat(value) || 0,
       currency,
       contact_id: contactId,
       pipeline_id: pipelineId,
@@ -426,6 +551,19 @@ export function DealForm({
           })),
         );
         if (errMembros) toast.error("O negócio foi criado, mas alguns contatos não foram vinculados.");
+      }
+      if (itens.length > 0) {
+        const { error: errItens } = await supabase.from("deal_products").insert(
+          itens.map((it) => ({
+            account_id: accountId,
+            deal_id: criado.id,
+            product_id: it.productId,
+            name: it.name,
+            unit_price: it.unitPrice,
+            quantity: it.quantity,
+          })),
+        );
+        if (errItens) toast.error("O negócio foi criado, mas os produtos não foram adicionados.");
       }
     }
 
@@ -590,19 +728,33 @@ export function DealForm({
               )}
             </div>
 
+            <DealProductsSection
+              catalogo={catalogo}
+              itens={itens}
+              moeda={currency}
+              ocupado={itensBusy}
+              onAdicionar={adicionarItem}
+              onAlterar={alterarItem}
+              onRemover={removerItem}
+            />
+
             <div className="grid grid-cols-[1fr_110px] gap-3">
               <div className="grid gap-2">
                 <Label className="text-muted-foreground">Value</Label>
                 <div className="relative">
                   <DollarSign className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    type="number"
-                    value={value}
+                    type={itens.length > 0 ? "text" : "number"}
+                    value={itens.length > 0 ? formatMoeda(totalDosItens(itens), currency) : value}
                     onChange={(e) => setValue(e.target.value)}
+                    readOnly={itens.length > 0}
                     placeholder="0"
-                    className="border-border bg-muted pl-7 text-foreground"
+                    className="border-border bg-muted pl-7 text-foreground read-only:opacity-80"
                   />
                 </div>
+                {itens.length > 0 && (
+                  <p className="text-xs text-muted-foreground">Calculado pelos produtos.</p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label className="text-muted-foreground">Currency</Label>
