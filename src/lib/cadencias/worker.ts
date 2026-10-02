@@ -240,6 +240,8 @@ async function executarEmail(
   if (dono.userId) caixa = await carregarCaixaDeEnvio(ctx.admin, i.account_id, { ownerUserId: dono.userId });
   if (!caixa && cfg.caixaPadraoId && /^[0-9a-f-]{36}$/i.test(cfg.caixaPadraoId))
     caixa = await carregarCaixaDeEnvio(ctx.admin, i.account_id, { id: cfg.caixaPadraoId });
+  // sem caixa do dono nem padrão: usa a caixa compartilhada da conta, se houver
+  if (!caixa) caixa = await carregarCaixaDeEnvio(ctx.admin, i.account_id, { compartilhada: true });
 
   const instalacao = caixa ? null : smtpDaInstalacao();
   if (!caixa && !instalacao) {

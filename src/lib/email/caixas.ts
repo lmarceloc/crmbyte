@@ -184,11 +184,13 @@ export interface CaixaDeEnvio {
 export async function carregarCaixaDeEnvio(
   admin: SupabaseClient,
   accountId: string,
-  filtro: { ownerUserId: string } | { id: string },
+  filtro: { ownerUserId: string } | { id: string } | { compartilhada: true },
 ): Promise<CaixaDeEnvio | null> {
   let q = admin.from("email_mailboxes").select("*").eq("account_id", accountId);
-  q = "id" in filtro ? q.eq("id", filtro.id) : q.eq("owner_user_id", filtro.ownerUserId);
-  const { data } = await q.maybeSingle();
+  if ("id" in filtro) q = q.eq("id", filtro.id);
+  else if ("ownerUserId" in filtro) q = q.eq("owner_user_id", filtro.ownerUserId);
+  else q = q.is("owner_user_id", null).order("created_at"); // caixa compartilhada mais antiga
+  const { data } = await q.limit(1).maybeSingle();
   if (!data) return null;
   let password = "";
   if (data.smtp_password_encrypted) {
