@@ -7,6 +7,7 @@ import {
   useState,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -120,13 +121,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // settles later. Callers that gate on `profile.*` need to know which
   // window they're in — see the type doc above.
   const [profileLoading, setProfileLoading] = useState(true);
+  // Id do usuário cujo perfil já está carregado. Serve para distinguir a
+  // carga INICIAL (mostra "carregando") de recargas em segundo plano
+  // (silenciosas): o Supabase reemite SIGNED_IN/TOKEN_REFRESHED toda vez
+  // que a aba volta ao foco, e sinalizar "carregando" a cada uma delas
+  // desmontava as telas (RequireRole) e apagava o que o usuário digitou.
+  const perfilCarregadoDe = useRef<string | null>(null);
 
   // Shared across init, auth-state-change listener, and the exposed
   // refreshProfile() callback. Reads the current session's user id and
   // pulls the matching profile row along with its account summary.
   const fetchProfile = useCallback(async (userId: string) => {
     const supabase = createClient();
-    setProfileLoading(true);
+    const emSegundoPlano = perfilCarregadoDe.current === userId;
+    if (!emSegundoPlano) setProfileLoading(true);
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -183,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? data.account_role
           : null;
 
+        perfilCarregadoDe.current = userId;
         setProfile({
           id: data.id,
           full_name: data.full_name,
@@ -258,11 +267,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       const currentUser = session?.user ?? null;
-      setUser(currentUser);
+      // mantém a MESMA referência quando é o mesmo usuário (evita re-render
+      // em cascata a cada refresh de token / volta ao foco da aba)
+      setUser((prev) => (prev && currentUser && prev.id === currentUser.id ? prev : currentUser));
 
       if (currentUser) {
-        fetchProfile(currentUser.id);
+        // mesmo usuário com perfil já carregado: nada a recarregar
+        if (perfilCarregadoDe.current !== currentUser.id) fetchProfile(currentUser.id);
       } else {
+        perfilCarregadoDe.current = null;
         setProfile(null);
         setAccount(null);
         setProfileLoading(false);

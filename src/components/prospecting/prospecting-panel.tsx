@@ -80,16 +80,20 @@ export function ProspectingPanel({ kind }: { kind: Kind }) {
   const [data, setData] = useState<Listing | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
+  const temDados = useRef(false)
 
   const load = useCallback(async () => {
     try {
       const r = await fetch(base)
       const d = await r.json()
       if (!r.ok) throw new Error(d.error ?? "Falha ao carregar.")
+      temDados.current = true
       setData(d)
       setErro(null)
     } catch (e) {
-      setErro((e as Error).message)
+      // falha numa atualização automática não deve piscar um banner de erro
+      // por cima de dados que já estão na tela
+      if (!temDados.current) setErro((e as Error).message)
     }
   }, [base])
 
@@ -335,9 +339,20 @@ function CampaignDetail({
   onImported: () => void
 }) {
   const [importIds, setImportIds] = useState<string[] | null>(null)
+  const [marcados, setMarcados] = useState<Set<string>>(new Set())
   const pendentes = candidates
     .filter((c) => !c.deal_id && (kind === "simples" ? !!c.phone : !!c.contact_id))
     .map((c) => c.id)
+  // seleção efetiva: ignora quem já foi importado desde que foi marcado
+  const selecionados = pendentes.filter((id) => marcados.has(id))
+  const todosMarcados = pendentes.length > 0 && selecionados.length === pendentes.length
+  const alternar = (id: string) =>
+    setMarcados((atual) => {
+      const novo = new Set(atual)
+      if (novo.has(id)) novo.delete(id)
+      else novo.add(id)
+      return novo
+    })
   const verified = candidates.filter((c) => c.status === "enriched").length
   const revealing = candidates.filter((c) => c.status === "new").length
 
@@ -363,20 +378,32 @@ function CampaignDetail({
 
       {candidates.length > 0 && (
         <>
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pendentes.length === 0}
-              onClick={() => setImportIds(pendentes)}
-            >
-              Importar todos para o funil ({pendentes.length})
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {selecionados.length > 0 && (
+              <button className="text-xs text-muted-foreground hover:underline" onClick={() => setMarcados(new Set())}>
+                Limpar seleção
+              </button>
+            )}
+            <Button size="sm" disabled={selecionados.length === 0} onClick={() => setImportIds(selecionados)}>
+              Importar selecionados ({selecionados.length})
+            </Button>
+            <Button size="sm" variant="outline" disabled={pendentes.length === 0} onClick={() => setImportIds(pendentes)}>
+              Importar todos ({pendentes.length})
             </Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-xs text-muted-foreground">
                 <tr>
+                  <th className="w-8 p-2">
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar todos"
+                      disabled={pendentes.length === 0}
+                      checked={todosMarcados}
+                      onChange={() => setMarcados(todosMarcados ? new Set() : new Set(pendentes))}
+                    />
+                  </th>
                   <th className="p-2">{kind === "b2b" ? "Lead" : "Empresa"}</th>
                   <th className="p-2">Contato</th>
                   <th className="p-2">Situação</th>
@@ -385,7 +412,14 @@ function CampaignDetail({
               </thead>
               <tbody className="divide-y">
                 {candidates.map((c) => (
-                  <Row key={c.id} kind={kind} c={c} onImport={() => setImportIds([c.id])} />
+                  <Row
+                    key={c.id}
+                    kind={kind}
+                    c={c}
+                    marcado={marcados.has(c.id)}
+                    onToggle={() => alternar(c.id)}
+                    onImport={() => setImportIds([c.id])}
+                  />
                 ))}
               </tbody>
             </table>
@@ -400,7 +434,6 @@ function CampaignDetail({
           key={importIds.join(",")}
           kind={kind}
           ids={importIds}
-          allIds={pendentes}
           stages={stages}
           pipelines={pipelines}
           onClose={() => setImportIds(null)}
@@ -420,7 +453,19 @@ function Stat({ n, l }: { n: number; l: string }) {
   )
 }
 
-function Row({ kind, c, onImport }: { kind: Kind; c: Candidate; onImport: () => void }) {
+function Row({
+  kind,
+  c,
+  marcado,
+  onToggle,
+  onImport,
+}: {
+  kind: Kind
+  c: Candidate
+  marcado: boolean
+  onToggle: () => void
+  onImport: () => void
+}) {
   const d = c.data
   const link = safeLink(kind === "b2b" ? d.linkedin : d.maps_url)
   const site = kind === "simples" ? safeLink(d.website) : null
@@ -428,7 +473,12 @@ function Row({ kind, c, onImport }: { kind: Kind; c: Candidate; onImport: () => 
   const emails = Array.isArray(d.emails) ? (d.emails as string[]) : []
   const canImport = !c.deal_id && (kind === "simples" ? !!c.phone : !!c.contact_id)
   return (
-    <tr>
+    <tr className={marcado ? "bg-primary/5" : undefined}>
+      <td className="p-2">
+        {canImport && (
+          <input type="checkbox" aria-label="Selecionar para importar" checked={marcado} onChange={onToggle} />
+        )}
+      </td>
       <td className="p-2">
         <div className="font-medium">{str(kind === "b2b" ? d.fullName : d.name)}</div>
         <div className="text-xs text-muted-foreground">
@@ -482,7 +532,6 @@ function Row({ kind, c, onImport }: { kind: Kind; c: Candidate; onImport: () => 
 function ImportPanel({
   kind,
   ids,
-  allIds,
   stages,
   pipelines,
   onClose,
@@ -490,14 +539,12 @@ function ImportPanel({
 }: {
   kind: Kind
   ids: string[]
-  allIds: string[]
   stages: Stage[]
   pipelines: { id: string; name: string }[]
   onClose: () => void
   onDone: () => void
 }) {
-  const [todos, setTodos] = useState(false)
-  const alvo = todos ? allIds : ids
+  const alvo = ids
   const storeKey = `prospecting-import-${kind}`
   const [pipelineId, setPipelineId] = useState("")
   const [stageId, setStageId] = useState("")
@@ -583,12 +630,6 @@ function ImportPanel({
             <Field label="Referência do legítimo interesse (LGPD)">
               <Input value={ref} onChange={(e) => setRef(e.target.value)} />
             </Field>
-          )}
-          {allIds.length > ids.length && (
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} />
-              Importar todos os {allIds.length} pendentes desta busca para este funil e etapa
-            </label>
           )}
           <p className="text-xs text-muted-foreground">Nenhuma abordagem é disparada: o resultado vira Contato + Negócio.</p>
           <div className="flex gap-2">
