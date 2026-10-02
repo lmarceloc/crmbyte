@@ -6,13 +6,20 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { CURRENCIES } from "@/lib/currency";
 import type {
+  Company,
   Contact,
   Conversation,
   Deal,
   DealStatus,
+  DealTemperature,
   PipelineStage,
   Profile,
 } from "@/types";
+import {
+  DealContactsSection,
+  type MembroDoNegocio,
+} from "./deal-contacts-section";
+import { TemperaturePicker } from "./temperature-badge";
 import {
   Sheet,
   SheetContent,
@@ -30,6 +37,8 @@ import {
   MessageSquare,
   DollarSign,
   Loader2,
+  Building2,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -63,6 +72,16 @@ export function DealForm({
   const [assignedTo, setAssignedTo] = useState("");
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [linkedin, setLinkedin] = useState("");
+  const [temperature, setTemperature] = useState<DealTemperature>("frio");
+  const [membros, setMembros] = useState<MembroDoNegocio[]>([]);
+  const [membrosBusy, setMembrosBusy] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [novaEmpresa, setNovaEmpresa] = useState(false);
+  const [novaEmpresaNome, setNovaEmpresaNome] = useState("");
+  const [novaEmpresaSite, setNovaEmpresaSite] = useState("");
+  const [criandoEmpresa, setCriandoEmpresa] = useState(false);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -92,6 +111,9 @@ export function DealForm({
       setAssignedTo(deal.assigned_to ?? "");
       setExpectedCloseDate(deal.expected_close_date ?? "");
       setNotes(deal.notes ?? "");
+      setCompanyId(deal.company_id ?? "");
+      setLinkedin(deal.linkedin_url ?? "");
+      setTemperature(deal.temperature ?? "frio");
     } else {
       setTitle("");
       setValue("");
@@ -101,7 +123,14 @@ export function DealForm({
       setAssignedTo("");
       setExpectedCloseDate("");
       setNotes("");
+      setCompanyId("");
+      setLinkedin("");
+      setTemperature("frio");
+      setMembros([]);
     }
+    setNovaEmpresa(false);
+    setNovaEmpresaNome("");
+    setNovaEmpresaSite("");
   }, [open, deal, defaultStageId, stages, defaultCurrency]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -110,18 +139,192 @@ export function DealForm({
     if (!open) return;
     let cancelled = false;
     (async () => {
-      const [c, p] = await Promise.all([
+      const [c, p, co, dc] = await Promise.all([
         supabase.from("contacts").select("*").order("name"),
         supabase.from("profiles").select("*").order("full_name"),
+        supabase.from("companies").select("*").order("name"),
+        deal
+          ? supabase
+              .from("deal_contacts")
+              .select("contact_id,is_primary")
+              .eq("deal_id", deal.id)
+              .order("created_at")
+          : Promise.resolve({ data: null }),
       ]);
       if (cancelled) return;
       setContacts((c.data ?? []) as Contact[]);
       setProfiles((p.data ?? []) as Profile[]);
+      setCompanies((co.data ?? []) as Company[]);
+      if (deal) {
+        const linhas = (dc.data ?? []) as { contact_id: string; is_primary: boolean }[];
+        // negócio antigo sem linhas: usa o contato do próprio negócio como principal
+        setMembros(
+          linhas.length > 0
+            ? linhas.map((l) => ({ contactId: l.contact_id, isPrimary: l.is_primary }))
+            : deal.contact_id
+              ? [{ contactId: deal.contact_id, isPrimary: true }]
+              : [],
+        );
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, supabase]);
+  }, [open, supabase, deal]);
+
+  // O contato principal alimenta o vínculo com a conversa e a validação.
+  const principalId = membros.find((m) => m.isPrimary)?.contactId ?? "";
+  useEffect(() => {
+    setContactId(principalId);
+  }, [principalId]);
+
+  async function criarEmpresa() {
+    const nome = novaEmpresaNome.trim();
+    if (!nome || !accountId) return;
+    const site = novaEmpresaSite.trim();
+    if (site && !/^https?:\/\//i.test(site)) {
+      toast.error("O site precisa começar com http:// ou https://");
+      return;
+    }
+    setCriandoEmpresa(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data, error } = await supabase
+      .from("companies")
+      .insert({ account_id: accountId, user_id: user?.id ?? null, name: nome, website: site || null })
+      .select("*")
+      .single();
+    setCriandoEmpresa(false);
+    if (error || !data) {
+      toast.error(
+        error?.code === "23505" ? "Já existe uma empresa com esse nome." : "Não foi possível criar a empresa.",
+      );
+      return;
+    }
+    setCompanies((cs) => [...cs, data as Company].sort((a, b) => a.name.localeCompare(b.name)));
+    setCompanyId((data as Company).id);
+    setNovaEmpresa(false);
+    setNovaEmpresaNome("");
+    setNovaEmpresaSite("");
+  }
+
+  // ---- contatos do negócio (na edição, gravam na hora; na criação, só no estado)
+  async function adicionarMembro(cid: string) {
+    if (membros.some((m) => m.contactId === cid)) return;
+    const primeiro = membros.length === 0;
+    if (deal) {
+      setMembrosBusy(true);
+      const { error } = await supabase.from("deal_contacts").insert({
+        account_id: deal.account_id ?? accountId,
+        deal_id: deal.id,
+        contact_id: cid,
+        is_primary: primeiro,
+      });
+      setMembrosBusy(false);
+      if (error) {
+        toast.error("Não foi possível adicionar o contato.");
+        return;
+      }
+    }
+    setMembros((ms) => [...ms, { contactId: cid, isPrimary: primeiro }]);
+  }
+
+  async function removerMembro(cid: string) {
+    const removido = membros.find((m) => m.contactId === cid);
+    const restantes = membros.filter((m) => m.contactId !== cid);
+    const novoPrincipal = removido?.isPrimary ? restantes[0]?.contactId : undefined;
+    if (deal) {
+      setMembrosBusy(true);
+      const { error } = await supabase
+        .from("deal_contacts")
+        .delete()
+        .eq("deal_id", deal.id)
+        .eq("contact_id", cid);
+      if (!error && novoPrincipal) {
+        await supabase
+          .from("deal_contacts")
+          .update({ is_primary: true })
+          .eq("deal_id", deal.id)
+          .eq("contact_id", novoPrincipal);
+      }
+      setMembrosBusy(false);
+      if (error) {
+        toast.error("Não foi possível remover o contato.");
+        return;
+      }
+    }
+    setMembros(restantes.map((m) => ({ ...m, isPrimary: m.isPrimary || m.contactId === novoPrincipal })));
+  }
+
+  async function tornarPrincipal(cid: string) {
+    const antigo = membros.find((m) => m.isPrimary)?.contactId;
+    if (deal) {
+      setMembrosBusy(true);
+      // ordem importa: só pode existir um principal por negócio
+      if (antigo) {
+        const r = await supabase
+          .from("deal_contacts")
+          .update({ is_primary: false })
+          .eq("deal_id", deal.id)
+          .eq("contact_id", antigo);
+        if (r.error) {
+          setMembrosBusy(false);
+          toast.error("Não foi possível trocar o contato principal.");
+          return;
+        }
+      }
+      const { error } = await supabase
+        .from("deal_contacts")
+        .update({ is_primary: true })
+        .eq("deal_id", deal.id)
+        .eq("contact_id", cid);
+      setMembrosBusy(false);
+      if (error) {
+        toast.error("Não foi possível trocar o contato principal.");
+        return;
+      }
+    }
+    setMembros((ms) => ms.map((m) => ({ ...m, isPrimary: m.contactId === cid })));
+  }
+
+  async function criarContatoRapido(d: { nome: string; email: string; telefone: string }) {
+    if (!accountId) {
+      toast.error("Seu perfil não está vinculado a uma conta.");
+      return;
+    }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Você não está autenticado.");
+      return;
+    }
+    const empresa = companies.find((c) => c.id === companyId);
+    const { data, error } = await supabase
+      .from("contacts")
+      .insert({
+        account_id: accountId,
+        user_id: user.id,
+        name: d.nome,
+        email: d.email || null,
+        phone: d.telefone, // vazio é permitido ('' não entra no índice único)
+        company: empresa?.name ?? null,
+        company_id: empresa?.id ?? null,
+      })
+      .select("*")
+      .single();
+    if (error || !data) {
+      toast.error(
+        error?.code === "23505"
+          ? "Já existe um contato com esse telefone."
+          : "Não foi possível criar o contato.",
+      );
+      return;
+    }
+    setContacts((cs) => [...cs, data as Contact]);
+    await adicionarMembro((data as Contact).id);
+  }
 
   // Fetch linked conversation for the selected contact (newest open one).
   // Clearing on no-selection is sync with prop state; the populated
@@ -151,7 +354,12 @@ export function DealForm({
 
   async function handleSave() {
     if (!title.trim() || !contactId || !stageId) {
-      toast.error("Title, contact, and stage are required");
+      toast.error("Título, contato principal e etapa são obrigatórios");
+      return;
+    }
+    const li = linkedin.trim();
+    if (li && !/^https?:\/\//i.test(li)) {
+      toast.error("O LinkedIn precisa começar com http:// ou https://");
       return;
     }
     setSaving(true);
@@ -166,6 +374,9 @@ export function DealForm({
       assigned_to: assignedTo || null,
       notes: notes.trim() || null,
       expected_close_date: expectedCloseDate || null,
+      company_id: companyId || null,
+      linkedin_url: li || null,
+      temperature,
     };
 
     if (deal) {
@@ -193,13 +404,28 @@ export function DealForm({
         setSaving(false);
         return;
       }
-      const { error } = await supabase
+      const { data: criado, error } = await supabase
         .from("deals")
-        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" });
-      if (error) {
+        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" })
+        .select("id")
+        .single();
+      if (error || !criado) {
         toast.error("Failed to create deal");
         setSaving(false);
         return;
+      }
+      // o trigger do banco já criou a linha do principal; os demais entram aqui
+      const outros = membros.filter((m) => m.contactId !== contactId);
+      if (outros.length > 0) {
+        const { error: errMembros } = await supabase.from("deal_contacts").insert(
+          outros.map((m) => ({
+            account_id: accountId,
+            deal_id: criado.id,
+            contact_id: m.contactId,
+            is_primary: false,
+          })),
+        );
+        if (errMembros) toast.error("O negócio foi criado, mas alguns contatos não foram vinculados.");
       }
     }
 
@@ -268,27 +494,98 @@ export function DealForm({
             </div>
 
             <div className="grid gap-2">
-              <Label className="text-muted-foreground">Contact</Label>
-              <select
-                value={contactId}
-                onChange={(e) => setContactId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-              >
-                <option value="">Select a contact</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name || c.phone}
-                  </option>
-                ))}
-              </select>
+              <Label className="flex items-center gap-1.5 text-muted-foreground">
+                <Building2 className="h-3.5 w-3.5" />
+                Empresa
+              </Label>
+              {novaEmpresa ? (
+                <div className="space-y-2 rounded-md border border-border/60 bg-muted/40 p-2">
+                  <Input
+                    value={novaEmpresaNome}
+                    onChange={(e) => setNovaEmpresaNome(e.target.value)}
+                    placeholder="Nome da empresa"
+                    className="border-border bg-muted text-foreground"
+                  />
+                  <Input
+                    value={novaEmpresaSite}
+                    onChange={(e) => setNovaEmpresaSite(e.target.value)}
+                    placeholder="Site (https://…)"
+                    className="border-border bg-muted text-foreground"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setNovaEmpresa(false)} disabled={criandoEmpresa}>
+                      Cancelar
+                    </Button>
+                    <Button type="button" size="sm" onClick={criarEmpresa} disabled={criandoEmpresa || !novaEmpresaNome.trim()}>
+                      {criandoEmpresa ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Criar empresa"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <select
+                  value={companyId}
+                  onChange={(e) => {
+                    if (e.target.value === "__nova__") setNovaEmpresa(true);
+                    else setCompanyId(e.target.value);
+                  }}
+                  className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">Sem empresa</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                  <option value="__nova__">+ Criar nova empresa…</option>
+                </select>
+              )}
+            </div>
 
+            <div className="grid gap-2">
+              <Label className="text-muted-foreground">LinkedIn do negócio</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={linkedin}
+                  onChange={(e) => setLinkedin(e.target.value)}
+                  placeholder="https://www.linkedin.com/…"
+                  className="border-border bg-muted text-foreground"
+                />
+                {/^https?:\/\//i.test(linkedin.trim()) && (
+                  <a
+                    href={linkedin.trim()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Abrir no LinkedIn"
+                    className="shrink-0 text-primary hover:opacity-80"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="text-muted-foreground">Temperatura</Label>
+              <TemperaturePicker value={temperature} onChange={setTemperature} />
+            </div>
+
+            <div className="grid gap-2">
+              <DealContactsSection
+                contatos={contacts}
+                membros={membros}
+                ocupado={membrosBusy}
+                onAdicionar={adicionarMembro}
+                onRemover={removerMembro}
+                onPrincipal={tornarPrincipal}
+                onCriar={criarContatoRapido}
+              />
               {linkedConversation && (
                 <Link
                   href="/inbox"
-                  className="mt-1 inline-flex items-center gap-1.5 self-start rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20"
+                  className="inline-flex items-center gap-1.5 self-start rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20"
                 >
                   <MessageSquare className="h-3 w-3" />
-                  Link to Conversation
+                  Conversa do contato principal
                 </Link>
               )}
             </div>

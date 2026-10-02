@@ -103,7 +103,7 @@ export const mudarStatusSchema = z
   .strict();
 
 export const inscreverNegocioSchema = z
-  .object({ deal_id: z.string().uuid() })
+  .object({ deal_id: z.string().uuid(), contact_id: z.string().uuid().optional() })
   .strict();
 
 export const listarCadenciasSchema = z.object({

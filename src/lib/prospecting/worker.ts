@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import * as apify from "./apify";
 import { chaveApify } from "./service";
 import { ProspectingError } from "./errors";
+import { obterOuCriarEmpresa } from "@/lib/companies";
 import { comLock } from "./locks";
 import { acharEmail, tregKey, verificarEmail, type Lead } from "./treg";
 
@@ -55,6 +56,10 @@ async function contatoB2b(
 
   const userId = camp.created_by ?? (await contaOwner(admin, camp.account_id));
   if (!userId) throw new Error("Conta sem usuário responsável para criar o contato.");
+  const companyId = await obterOuCriarEmpresa(admin, camp.account_id, userId, {
+    nome: lead.companyName,
+    website: lead.companyDomain ? `https://${lead.companyDomain}` : null,
+  });
   const { data, error } = await admin
     .from("contacts")
     .insert({
@@ -64,6 +69,7 @@ async function contatoB2b(
       name: lead.fullName,
       email,
       company: lead.companyName,
+      company_id: companyId,
       job_title: lead.title,
       linkedin_url: lead.linkedin,
       source: "prospecting",

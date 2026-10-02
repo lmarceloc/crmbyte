@@ -96,10 +96,41 @@ export interface Contact {
   phone_normalized?: string;
   name?: string;
   email?: string;
+  /** Texto livre legado; a empresa "de verdade" é `company_id` → `companies`. */
   company?: string;
+  company_id?: string | null;
+  linkedin_url?: string | null;
+  job_title?: string | null;
+  email_unsubscribed_at?: string | null;
   avatar_url?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface Company {
+  id: string;
+  account_id: string;
+  name: string;
+  website?: string | null;
+  linkedin_url?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type DealTemperature =
+  | "sem_interesse"
+  | "frio"
+  | "morno"
+  | "quente"
+  | "quase_fechando";
+
+/** Contato dentro de um negócio (um deles é o principal). */
+export interface DealContact {
+  id: string;
+  deal_id: string;
+  contact_id: string;
+  is_primary: boolean;
+  contact?: Contact;
 }
 
 export interface Tag {
@@ -310,8 +341,14 @@ export interface Deal {
   notes?: string;
   expected_close_date?: string;
   status?: DealStatus;
+  account_id?: string;
+  company_id?: string | null;
+  linkedin_url?: string | null;
+  temperature?: DealTemperature;
   created_at: string;
   updated_at?: string;
+  company?: Company;
+  deal_contacts?: DealContact[];
   contact?: Contact;
   stage?: PipelineStage;
   assignee?: Profile;

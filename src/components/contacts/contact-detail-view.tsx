@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
+import { CompanySelect } from '@/components/companies/company-select';
+import { linkExterno, normalizarUrl, rotuloDeUrl } from '@/lib/url';
 import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal } from '@/types';
 import {
   Sheet,
@@ -60,6 +62,9 @@ export function ContactDetailView({
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
+  const [editCompanyId, setEditCompanyId] = useState('');
+  const [editLinkedin, setEditLinkedin] = useState('');
+  const [editJobTitle, setEditJobTitle] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
 
   // Tags tab
@@ -99,6 +104,9 @@ export function ContactDetailView({
       setEditPhone(data.phone);
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
+      setEditCompanyId(data.company_id ?? '');
+      setEditLinkedin(data.linkedin_url ?? '');
+      setEditJobTitle(data.job_title ?? '');
     }
     setLoading(false);
   }, [contactId, supabase]);
@@ -189,6 +197,12 @@ export function ContactDetailView({
       return;
     }
 
+    const linkedinUrl = normalizarUrl(editLinkedin);
+    if (editLinkedin.trim() && !linkedinUrl) {
+      toast.error('LinkedIn inválido: use um link http(s).');
+      return;
+    }
+
     setSavingDetails(true);
     const { error } = await supabase
       .from('contacts')
@@ -197,6 +211,9 @@ export function ContactDetailView({
         phone: editPhone.trim(),
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
+        company_id: editCompanyId || null,
+        linkedin_url: linkedinUrl,
+        job_title: editJobTitle.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId);
@@ -377,7 +394,18 @@ export function ContactDetailView({
                       <span className="flex items-center gap-1">
                         <Building2 className="size-3" />
                         {contact.company}
+                        {contact.job_title ? ` · ${contact.job_title}` : ''}
                       </span>
+                    )}
+                    {linkExterno(contact.linkedin_url) && (
+                      <a
+                        href={linkExterno(contact.linkedin_url)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 hover:text-primary hover:underline"
+                      >
+                        LinkedIn: {rotuloDeUrl(linkExterno(contact.linkedin_url)!)}
+                      </a>
                     )}
                   </div>
                 </div>
@@ -449,10 +477,29 @@ export function ContactDetailView({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-muted-foreground text-xs">Company</Label>
+                    <Label className="text-muted-foreground text-xs">Empresa</Label>
+                    <CompanySelect
+                      value={editCompanyId}
+                      onChange={(id, nome) => {
+                        setEditCompanyId(id);
+                        setEditCompany(nome);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-muted-foreground text-xs">Cargo</Label>
                     <Input
-                      value={editCompany}
-                      onChange={(e) => setEditCompany(e.target.value)}
+                      value={editJobTitle}
+                      onChange={(e) => setEditJobTitle(e.target.value)}
+                      className="bg-muted border-border text-foreground h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-muted-foreground text-xs">LinkedIn</Label>
+                    <Input
+                      value={editLinkedin}
+                      onChange={(e) => setEditLinkedin(e.target.value)}
+                      placeholder="linkedin.com/in/fulano"
                       className="bg-muted border-border text-foreground h-8 text-sm"
                     />
                   </div>

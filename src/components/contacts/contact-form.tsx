@@ -24,6 +24,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import { CompanySelect } from '@/components/companies/company-select';
+import { normalizarUrl } from '@/lib/url';
 
 interface ContactFormProps {
   open: boolean;
@@ -52,6 +54,9 @@ export function ContactForm({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
+  const [companyId, setCompanyId] = useState('');
+  const [linkedin, setLinkedin] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Duplicate-phone detection for NEW contacts. `exact` (same digits)
@@ -73,6 +78,9 @@ export function ContactForm({
       setPhone(contact?.phone ?? '');
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
+      setCompanyId(contact?.company_id ?? '');
+      setLinkedin(contact?.linkedin_url ?? '');
+      setJobTitle(contact?.job_title ?? '');
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
       setDupMatch(null);
       fetchTags();
@@ -134,6 +142,12 @@ export function ContactForm({
       return;
     }
 
+    const linkedinUrl = normalizarUrl(linkedin);
+    if (linkedin.trim() && !linkedinUrl) {
+      toast.error('LinkedIn inválido: use um link http(s).');
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -154,6 +168,9 @@ export function ContactForm({
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
+            company_id: companyId || null,
+            linkedin_url: linkedinUrl,
+            job_title: jobTitle.trim() || null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', contactId);
@@ -168,6 +185,9 @@ export function ContactForm({
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
+            company_id: companyId || null,
+            linkedin_url: linkedinUrl,
+            job_title: jobTitle.trim() || null,
           })
           .select('id')
           .single();
@@ -312,16 +332,41 @@ export function ContactForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="cf-company" className="text-muted-foreground">
-              Company
-            </Label>
-            <Input
-              id="cf-company"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              placeholder="Acme Inc."
-              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+            <Label className="text-muted-foreground">Empresa</Label>
+            <CompanySelect
+              value={companyId}
+              onChange={(id, nome) => {
+                setCompanyId(id);
+                setCompany(nome);
+              }}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="cf-job" className="text-muted-foreground">
+                Cargo
+              </Label>
+              <Input
+                id="cf-job"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+                placeholder="Diretor comercial"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cf-linkedin" className="text-muted-foreground">
+                LinkedIn
+              </Label>
+              <Input
+                id="cf-linkedin"
+                value={linkedin}
+                onChange={(e) => setLinkedin(e.target.value)}
+                placeholder="linkedin.com/in/fulano"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

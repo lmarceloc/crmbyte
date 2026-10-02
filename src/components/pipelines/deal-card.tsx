@@ -1,7 +1,8 @@
 "use client";
 
 import type { Deal, PipelineStage } from "@/types";
-import { Calendar, Check, X } from "lucide-react";
+import { Building2, Calendar, Check, Users, X } from "lucide-react";
+import { TemperatureBadge } from "./temperature-badge";
 import { formatCurrency } from "@/lib/currency";
 
 interface DealCardProps {
@@ -70,12 +71,31 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         )}
       </div>
 
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {deal.company?.name && (
+          <span className="inline-flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+            <Building2 className="h-3 w-3 shrink-0" />
+            <span className="truncate">{deal.company.name}</span>
+          </span>
+        )}
+        <TemperatureBadge value={deal.temperature} />
+      </div>
+
       {/* Contact row */}
       <div className="mt-2 flex items-center gap-2">
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-foreground">
           {initials(deal.contact?.name, deal.contact?.phone)}
         </span>
         <span className="truncate text-xs text-muted-foreground">{contactLabel}</span>
+        {(deal.deal_contacts?.length ?? 0) > 1 && (
+          <span
+            title={`${deal.deal_contacts?.length} contatos neste negócio`}
+            className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"
+          >
+            <Users className="h-3 w-3" />
+            {deal.deal_contacts?.length}
+          </span>
+        )}
       </div>
 
       <div className="mt-2 flex items-center justify-between">

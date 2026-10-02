@@ -1,5 +1,6 @@
 // "Importar para o funil": candidato → Contato + Negócio, sem disparar abordagem.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { obterOuCriarEmpresa } from "@/lib/companies";
 import { findExistingContact, isUniqueViolation } from "@/lib/contacts/dedupe";
 import type { Prospect } from "./apify";
 import { ProspectingError } from "./errors";
@@ -112,6 +113,10 @@ export async function importarCandidatos(
             const existente = await findExistingContact(admin, p.accountId, c.phone);
             if (existente) contactId = existente.id;
             else {
+              const empresaId = await obterOuCriarEmpresa(admin, p.accountId, p.userId, {
+                nome: prospect.name,
+                website: prospect.website,
+              });
               const { data: novo, error } = await admin
                 .from("contacts")
                 .insert({
@@ -121,6 +126,7 @@ export async function importarCandidatos(
                   name: prospect.name,
                   email: prospect.emails[0] ?? null,
                   company: prospect.name,
+                  company_id: empresaId,
                   source: "prospecting",
                   source_metadata: { campaign_id: camp.id, place_id: c.place_id, maps_url: prospect.maps_url },
                   consent: { legitimate_interest: { ref: p.legalBasisRef } },
@@ -188,9 +194,21 @@ export async function importarCandidatos(
           p.kind === "b2b" ? descricaoB2b(camp.name, c.data as Lead) : descricaoSimples(camp.name, c.data as Prospect),
           2000,
         );
+        const empresaDoNegocio =
+          p.kind === "b2b"
+            ? await obterOuCriarEmpresa(admin, p.accountId, p.userId, {
+                nome: (c.data as Lead).companyName,
+                website: (c.data as Lead).companyDomain ? `https://${(c.data as Lead).companyDomain}` : null,
+              })
+            : await obterOuCriarEmpresa(admin, p.accountId, p.userId, {
+                nome: (c.data as Prospect).name,
+                website: (c.data as Prospect).website,
+              });
         const { data: deal, error: errDeal } = await admin
           .from("deals")
           .insert({
+            company_id: empresaDoNegocio,
+            linkedin_url: p.kind === "b2b" ? ((c.data as Lead).linkedin ?? null) : null,
             account_id: p.accountId,
             user_id: p.userId,
             assigned_to: perfil?.id ?? null,

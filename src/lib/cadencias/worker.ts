@@ -55,6 +55,12 @@ interface Ctx {
   resultado: ResultadoDoTick;
 }
 
+const nomeDaEmpresa = (e: unknown): string | null => {
+  const o = Array.isArray(e) ? e[0] : e;
+  const n = (o as { name?: string } | null | undefined)?.name;
+  return n?.trim() ? n : null;
+};
+
 const mais = (d: Date, min: number) => new Date(d.getTime() + min * 60_000).toISOString();
 
 // ---------- funções puras (testáveis) ----------
@@ -341,7 +347,7 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
 
   const { data: deal } = await ctx.admin
     .from("deals")
-    .select("status,assigned_to,user_id")
+    .select("status,assigned_to,user_id,companies(name)")
     .eq("id", i.deal_id)
     .eq("account_id", i.account_id)
     .maybeSingle();
@@ -355,14 +361,15 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
     case "email": {
       const { data: c } = await ctx.admin
         .from("contacts")
-        .select("name,email,company,job_title,email_unsubscribed_at")
+        .select("name,email,company,job_title,email_unsubscribed_at,companies(name)")
         .eq("id", i.contact_id)
         .eq("account_id", i.account_id)
         .maybeSingle();
       return executarEmail(ctx, i, passo, { passos, configuracao: cfg }, deal, {
         name: c?.name ?? null,
         email: c?.email ?? null,
-        company: c?.company ?? null,
+        // empresa: a do negócio → a do contato → texto legado do contato
+        company: nomeDaEmpresa(deal.companies) ?? nomeDaEmpresa(c?.companies) ?? c?.company ?? null,
         job_title: c?.job_title ?? null,
         unsub: c?.email_unsubscribed_at ?? null,
       });
@@ -376,14 +383,14 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
       const dono = await resolverDono(ctx, deal);
       const { data: c } = await ctx.admin
         .from("contacts")
-        .select("name,company,job_title")
+        .select("name,company,job_title,companies(name)")
         .eq("id", i.contact_id)
         .maybeSingle();
       const prazo = avancarDiasUteis(ctx.agora, passo.prazoDias);
       const titulo = renderizar(passo.titulo, {
         primeiro_nome: primeiroNome(c?.name),
         nome: c?.name,
-        empresa: c?.company,
+        empresa: nomeDaEmpresa(deal.companies) ?? nomeDaEmpresa(c?.companies) ?? c?.company,
         cargo: c?.job_title,
         vendedor: dono.nome,
         segmento: cfg.tagDoSegmento || null,

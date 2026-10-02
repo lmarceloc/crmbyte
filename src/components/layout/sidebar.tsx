@@ -97,6 +97,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard", label: "Painel", icon: LayoutDashboard },
   { href: "/inbox", label: "Caixa de entrada", icon: MessageSquare },
   { href: "/contacts", label: "Contatos", icon: Users },
+  { href: "/companies", label: "Empresas", icon: Building2 },
   { href: "/pipelines", label: "Funis", icon: GitBranch },
   { href: "/broadcasts", label: "Transmissões", icon: Radio },
   { href: "/automations", label: "Automações", icon: Zap },

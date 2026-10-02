@@ -21,10 +21,19 @@ interface Inscricao {
   deals: { title: string } | { title: string }[] | null
   contacts: { name: string | null } | { name: string | null }[] | null
 }
+interface ContatoDoNegocio {
+  contact_id: string
+  contacts: ContatoInfo | ContatoInfo[] | null
+}
+interface ContatoInfo {
+  name: string | null
+  email: string | null
+  email_unsubscribed_at: string | null
+}
 interface Negocio {
   id: string
   title: string
-  contacts: { name: string | null; email: string | null } | { name: string | null; email: string | null }[] | null
+  deal_contacts: ContatoDoNegocio[]
 }
 
 const um = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v)
@@ -53,12 +62,10 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
     const t = setTimeout(async () => {
       let q = createClient()
         .from("deals")
-        .select("id,title,contacts!inner(name,email)")
+        .select("id,title,deal_contacts(contact_id,contacts(name,email,email_unsubscribed_at))")
         .eq("status", "open")
-        .not("contacts.email", "is", null)
-        .neq("contacts.email", "")
         .order("created_at", { ascending: false })
-        .limit(10)
+        .limit(20)
       if (busca.trim()) q = q.ilike("title", `%${busca.trim()}%`)
       const { data } = await q
       setNegocios((data ?? []) as unknown as Negocio[])
@@ -81,24 +88,25 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
     carregar()
   }
 
-  async function inscrever(id: string) {
-    setInscrevendo(id)
+  async function inscrever(dealId: string, contactId?: string) {
+    const chave = contactId ?? dealId
+    setInscrevendo(chave)
     const res = await fetch(`/api/cadencias/${cadenciaId}/inscricoes`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ deal_id: id }),
+      body: JSON.stringify({ deal_id: dealId, ...(contactId ? { contact_id: contactId } : {}) }),
     })
     const body = await res.json().catch(() => ({}))
     setInscrevendo(null)
     if (!res.ok) return toast.error(body?.error ?? "Falha ao inscrever.")
-    toast.success("Negócio inscrito")
+    toast.success(`${body.inscritos ?? 1} contato(s) inscrito(s)`)
     carregar()
   }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <section className="space-y-2 rounded-lg border bg-card p-4">
-        <h3 className="font-medium">Inscrever negócio</h3>
+        <h3 className="font-medium">Inscrever contatos de um negócio</h3>
         {!ativa ? (
           <p className="text-sm text-muted-foreground">Ative a cadência para inscrever negócios.</p>
         ) : !podeInscrever ? (
@@ -107,22 +115,45 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
           <>
             <Input placeholder="Buscar negócio aberto pelo título…" value={busca} onChange={(e) => setBusca(e.target.value)} />
             <ul className="divide-y rounded-md border">
-              {negocios.length === 0 && (
-                <li className="p-3 text-sm text-muted-foreground">Nenhum negócio aberto com contato que tenha e-mail.</li>
-              )}
+              {negocios.length === 0 && <li className="p-3 text-sm text-muted-foreground">Nenhum negócio aberto encontrado.</li>}
               {negocios.map((n) => {
-                const c = um(n.contacts)
+                const contatos = n.deal_contacts.map((d) => ({ id: d.contact_id, c: um(d.contacts) }))
+                const elegiveis = contatos.filter((x) => x.c?.email?.trim() && !x.c.email_unsubscribed_at)
                 return (
-                  <li key={n.id} className="flex items-center justify-between gap-3 p-2 text-sm">
-                    <span className="min-w-0">
-                      <span className="block truncate">{n.title}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {c?.name ?? "—"} · {c?.email}
-                      </span>
-                    </span>
-                    <Button size="sm" disabled={inscrevendo === n.id} onClick={() => inscrever(n.id)}>
-                      {inscrevendo === n.id && <Loader2 className="size-3.5 animate-spin" />} Inscrever
-                    </Button>
+                  <li key={n.id} className="space-y-1.5 p-2 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate font-medium">{n.title}</span>
+                      <Button size="sm" disabled={elegiveis.length === 0 || inscrevendo === n.id} onClick={() => inscrever(n.id)}>
+                        {inscrevendo === n.id && <Loader2 className="size-3.5 animate-spin" />} Inscrever
+                        {elegiveis.length > 0 ? ` (${elegiveis.length})` : ""}
+                      </Button>
+                    </div>
+                    {contatos.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Sem contatos — adicione um contato ao negócio.</p>
+                    ) : (
+                      <ul className="space-y-0.5 pl-2">
+                        {contatos.map(({ id, c }) => {
+                          const ok = !!c?.email?.trim() && !c.email_unsubscribed_at
+                          return (
+                            <li key={id} className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                              <span className="truncate">
+                                {c?.name ?? "—"} · {c?.email || "sem e-mail"}
+                                {c?.email_unsubscribed_at ? " · descadastrado" : ""}
+                              </span>
+                              {ok && (
+                                <button
+                                  className="shrink-0 text-primary hover:underline disabled:opacity-50"
+                                  disabled={inscrevendo === id}
+                                  onClick={() => inscrever(n.id, id)}
+                                >
+                                  só este
+                                </button>
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
                   </li>
                 )
               })}
