@@ -335,6 +335,9 @@ function CampaignDetail({
   onImported: () => void
 }) {
   const [importIds, setImportIds] = useState<string[] | null>(null)
+  const pendentes = candidates
+    .filter((c) => !c.deal_id && (kind === "simples" ? !!c.phone : !!c.contact_id))
+    .map((c) => c.id)
   const verified = candidates.filter((c) => c.status === "enriched").length
   const revealing = candidates.filter((c) => c.status === "new").length
 
@@ -364,9 +367,10 @@ function CampaignDetail({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setImportIds(candidates.filter((c) => !c.deal_id && (kind === "simples" ? !!c.phone : !!c.contact_id)).map((c) => c.id).slice(0, 100))}
+              disabled={pendentes.length === 0}
+              onClick={() => setImportIds(pendentes)}
             >
-              Importar todos para o funil
+              Importar todos para o funil ({pendentes.length})
             </Button>
           </div>
           <div className="overflow-x-auto">
@@ -391,8 +395,12 @@ function CampaignDetail({
 
       {importIds && (
         <ImportPanel
+          // remonta a cada nova abertura: sem isso o resultado da importação
+          // anterior ficava na tela e o botão parecia "morto"
+          key={importIds.join(",")}
           kind={kind}
           ids={importIds}
+          allIds={pendentes}
           stages={stages}
           pipelines={pipelines}
           onClose={() => setImportIds(null)}
@@ -474,6 +482,7 @@ function Row({ kind, c, onImport }: { kind: Kind; c: Candidate; onImport: () => 
 function ImportPanel({
   kind,
   ids,
+  allIds,
   stages,
   pipelines,
   onClose,
@@ -481,11 +490,14 @@ function ImportPanel({
 }: {
   kind: Kind
   ids: string[]
+  allIds: string[]
   stages: Stage[]
   pipelines: { id: string; name: string }[]
   onClose: () => void
   onDone: () => void
 }) {
+  const [todos, setTodos] = useState(false)
+  const alvo = todos ? allIds : ids
   const storeKey = `prospecting-import-${kind}`
   const [pipelineId, setPipelineId] = useState("")
   const [stageId, setStageId] = useState("")
@@ -506,21 +518,32 @@ function ImportPanel({
   async function run() {
     setBusy(true)
     try {
-      const r = await fetch("/api/prospecting/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind,
-          candidate_ids: ids,
-          pipeline_id: pipelineId,
-          stage_id: stageId,
-          ...(kind === "simples" ? { legal_basis_ref: ref } : {}),
-        }),
-      })
-      const d = await r.json()
-      if (!r.ok) return toast.error(d.error ?? "Falha ao importar.")
+      // a API aceita até 100 por chamada: importa em lotes e soma o resultado
+      const total: ImportResult = { imported: 0, already: 0, skipped: [] }
+      for (let i = 0; i < alvo.length; i += 100) {
+        const r = await fetch("/api/prospecting/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind,
+            candidate_ids: alvo.slice(i, i + 100),
+            pipeline_id: pipelineId,
+            stage_id: stageId,
+            ...(kind === "simples" ? { legal_basis_ref: ref } : {}),
+          }),
+        })
+        const d = await r.json()
+        if (!r.ok) {
+          toast.error(d.error ?? "Falha ao importar.")
+          if (i === 0) return
+          break
+        }
+        total.imported += d.imported
+        total.already += d.already
+        total.skipped.push(...d.skipped)
+      }
       try { localStorage.setItem(storeKey, JSON.stringify({ pipelineId, stageId })) } catch {}
-      setResult(d)
+      setResult(total)
       onDone()
     } finally {
       setBusy(false)
@@ -529,7 +552,7 @@ function ImportPanel({
 
   return (
     <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
-      <h3 className="text-sm font-semibold">Importar {ids.length} para o funil</h3>
+      <h3 className="text-sm font-semibold">Importar {alvo.length} para o funil</h3>
       {result ? (
         <div className="space-y-1 text-sm">
           <p>Importados: {result.imported} · Já estavam: {result.already} · Pulados: {result.skipped.length}</p>
@@ -561,10 +584,16 @@ function ImportPanel({
               <Input value={ref} onChange={(e) => setRef(e.target.value)} />
             </Field>
           )}
+          {allIds.length > ids.length && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} />
+              Importar todos os {allIds.length} pendentes desta busca para este funil e etapa
+            </label>
+          )}
           <p className="text-xs text-muted-foreground">Nenhuma abordagem é disparada: o resultado vira Contato + Negócio.</p>
           <div className="flex gap-2">
-            <Button size="sm" onClick={run} disabled={busy || !pipelineId || !stageId || (kind === "simples" && ref.trim().length < 3)}>
-              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Importar
+            <Button size="sm" onClick={run} disabled={busy || alvo.length === 0 || !pipelineId || !stageId || (kind === "simples" && ref.trim().length < 3)}>
+              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Importar{alvo.length > 1 ? ` (${alvo.length})` : ""}
             </Button>
             <Button size="sm" variant="ghost" onClick={onClose}>Cancelar</Button>
           </div>
