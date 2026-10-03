@@ -1,6 +1,23 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Routes reachable without a session. Everything else redirects to /login.
+const PUBLIC_EXACT = new Set([
+  '/', // root forwards Supabase `?code=` to /auth/callback
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/icon', // app/icon.tsx
+])
+const PUBLIC_PREFIXES = ['/api/', '/auth/', '/join/']
+
+function isPublicPath(pathname: string): boolean {
+  return (
+    PUBLIC_EXACT.has(pathname) ||
+    PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  )
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -52,15 +69,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Protected pages - redirect to login if not authenticated
-  // --- DEV BYPASS: bloco comentado para acessar as rotas sem login. ---
-  // --- Reverter este comentário para restaurar a proteção de auth. ---
-  // const protectedPaths = ['/dashboard', '/inbox', '/contacts', '/pipelines', '/broadcasts', '/automations', '/settings']
-  // if (!user && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
-  //   const url = request.nextUrl.clone()
-  //   url.pathname = '/login'
-  //   return NextResponse.redirect(url)
-  // }
+  // Protected pages - redirect to login if not authenticated.
+  // Deny by default: every page outside PUBLIC_PATHS requires a session,
+  // so a new dashboard route is protected without touching this file.
+  // API routes are excluded here because each one enforces its own auth
+  // (401 JSON) — webhooks, cron, tracking pixels and invite peeks must
+  // stay reachable without a session.
+  if (!user && !isPublicPath(request.nextUrl.pathname)) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    url.search = ''
+    const response = NextResponse.redirect(url)
+    // Never let a shared cache (CDN) store this redirect.
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
+  }
 
   // API routes that need auth (not webhooks)
   if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
