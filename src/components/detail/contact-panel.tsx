@@ -13,6 +13,8 @@ import { useDetailPanel } from "./detail-panel-provider"
 import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
 import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { NotaForm } from "./nota-form"
+import { TextoComMencoes } from "./texto-com-mencoes"
+import { useMembros } from "@/hooks/use-membros"
 import { TarefasDoVinculo } from "@/components/tarefas/tarefas-do-vinculo"
 import {
   Avatar,
@@ -84,6 +86,7 @@ export function ContactPanel({ id }: { id: string }) {
   const { push } = useDetailPanel()
   const [adicionando, setAdicionando] = useState(false)
   const [aba, setAba] = useState("detalhes")
+  const membros = useMembros()
 
   const buscar = useCallback(async (): Promise<Dados> => {
     const db = createClient()
@@ -318,7 +321,7 @@ export function ContactPanel({ id }: { id: string }) {
               <ul className="space-y-2">
                 {notas.map((n) => (
                   <li key={n.id} className="rounded-lg border p-3 text-sm">
-                    <p className="whitespace-pre-wrap break-words">{n.note_text}</p>
+                    <p className="whitespace-pre-wrap break-words"><TextoComMencoes texto={n.note_text} membros={membros} /></p>
                     <p className="mt-1 text-xs text-muted-foreground" title={dataHora(n.created_at)}>{relativa(n.created_at)}</p>
                   </li>
                 ))}

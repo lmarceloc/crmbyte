@@ -15,6 +15,8 @@ import { useDetailPanel } from "./detail-panel-provider"
 import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
 import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { NotaForm } from "./nota-form"
+import { TextoComMencoes } from "./texto-com-mencoes"
+import { useMembros } from "@/hooks/use-membros"
 import { TarefasDoVinculo } from "@/components/tarefas/tarefas-do-vinculo"
 import {
   Avatar,
@@ -96,6 +98,7 @@ interface Dados {
 export function DealPanel({ id }: { id: string }) {
   const { push, close } = useDetailPanel()
   const [aba, setAba] = useState("detalhes")
+  const membros = useMembros()
   const [nota, setNota] = useState(false)
   const [temperatura, setTemperatura] = useState<DealTemperature | null>(null)
 
@@ -327,6 +330,7 @@ export function DealPanel({ id }: { id: string }) {
             {nota && principal ? (
               <NotaForm
                 contactId={principal.id}
+                dealId={id}
                 onCancel={() => setNota(false)}
                 onAdded={() => {
                   setNota(false)
@@ -349,7 +353,7 @@ export function DealPanel({ id }: { id: string }) {
               <ul className="space-y-2">
                 {notas.map((n) => (
                   <li key={n.id} className="rounded-lg border p-3 text-sm">
-                    <p className="whitespace-pre-wrap break-words">{n.note_text}</p>
+                    <p className="whitespace-pre-wrap break-words"><TextoComMencoes texto={n.note_text} membros={membros} /></p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {um(n.contacts)?.name ?? "Contato"} · {dataCurta(n.created_at)}
                     </p>
