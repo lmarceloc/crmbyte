@@ -345,6 +345,8 @@ export interface Deal {
   company_id?: string | null;
   linkedin_url?: string | null;
   temperature?: DealTemperature;
+  /** When the deal entered its current stage — kept by a DB trigger (migration 035). */
+  stage_entered_at?: string;
   created_at: string;
   updated_at?: string;
   company?: Company;

@@ -217,7 +217,11 @@ export default function PipelinesPage() {
     async (dealId: string, newStageId: string) => {
       // Optimistic update — board already animated; just persist.
       setDeals((prev) =>
-        prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d)),
+        prev.map((d) =>
+          d.id === dealId
+            ? { ...d, stage_id: newStageId, stage_entered_at: new Date().toISOString() }
+            : d,
+        ),
       );
       const { error } = await supabase
         .from("deals")
