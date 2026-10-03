@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useConfirmarExclusao } from "@/components/ui/confirmar-exclusao"
 
 /**
  * Flows list page.
@@ -175,10 +176,12 @@ export default function FlowsPage() {
     }
   }
 
+  const confirmar = useConfirmarExclusao();
   async function handleDelete(flow: FlowRow) {
-    const yes = window.confirm(
-      `Delete "${flow.name}"? Any active runs will end immediately.`,
-    );
+    const yes = await confirmar({
+      titulo: `Delete "${flow.name}"?`,
+      descricao: "Any active runs will end immediately.",
+    });
     if (!yes) return;
     try {
       const res = await fetch(`/api/flows/${flow.id}`, { method: "DELETE" });

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/hooks/use-auth"
 import { createClient } from "@/lib/supabase/client"
+import { useConfirmarExclusao } from "@/components/ui/confirmar-exclusao"
 
 interface Caixa {
   id: string
@@ -113,8 +114,9 @@ function Caixas() {
     }
   }
 
+  const confirmar = useConfirmarExclusao()
   async function remover(c: Caixa) {
-    if (!window.confirm(`Remover a caixa ${c.email}?`)) return
+    if (!(await confirmar({ titulo: `Remover a caixa ${c.email}?`, confirmar: "Remover" }))) return
     const r = await fetch(`/api/caixas-de-envio/${c.id}`, { method: "DELETE" })
     if (!r.ok) return toast.error((await r.json()).error ?? "Falha ao remover.")
     toast.success("Caixa removida.")

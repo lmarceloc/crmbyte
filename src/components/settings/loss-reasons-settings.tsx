@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { SettingsPanelHead } from "./settings-panel-head"
+import { useConfirmarExclusao } from "@/components/ui/confirmar-exclusao"
 
 interface Motivo {
   id: string
@@ -71,8 +72,9 @@ export function LossReasonsSettings() {
     carregar()
   }
 
+  const confirmar = useConfirmarExclusao()
   async function excluir(m: Motivo) {
-    if (!window.confirm(`Excluir o motivo "${m.name}"? Negócios já perdidos com ele mantêm o texto.`)) return
+    if (!(await confirmar({ titulo: `Excluir o motivo "${m.name}"?`, descricao: "Negócios já perdidos com ele mantêm o texto." }))) return
     const { error } = await supabase.from("loss_reasons").delete().eq("id", m.id)
     if (error) return toast.error(error.message)
     carregar()

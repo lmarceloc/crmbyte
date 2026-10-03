@@ -29,6 +29,7 @@ import {
   AccordionContent,
 } from '@/components/ui/accordion';
 import type { WhatsAppConfig as WhatsAppConfigType } from '@/types';
+import { useConfirmarExclusao } from '@/components/ui/confirmar-exclusao'
 
 const MASKED_TOKEN = '••••••••••••••••';
 
@@ -321,8 +322,15 @@ export function WhatsAppConfig() {
     }
   }
 
+  const confirmar = useConfirmarExclusao();
   async function handleReset() {
-    if (!confirm('This will delete the current WhatsApp config so you can re-enter it. Continue?')) {
+    if (
+      !(await confirmar({
+        titulo: 'Delete the current WhatsApp config?',
+        descricao: 'You will need to re-enter your credentials.',
+        confirmar: 'Delete',
+      }))
+    ) {
       return;
     }
 

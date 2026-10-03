@@ -52,6 +52,7 @@ import {
 import { unlinkNodeReferences } from "@/lib/flows/edges";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 import { NODE_META, slugify, type BuilderNode, type NodeType } from "./shared";
+import { useConfirmarExclusao } from "@/components/ui/confirmar-exclusao"
 
 // ============================================================
 // State shape
@@ -398,11 +399,13 @@ export function FlowEditorProvider({
     [canActivate, save, initialFlow.id],
   );
 
+  const confirmar = useConfirmarExclusao();
   // ---- Delete ----
   const deleteFlow = useCallback(async () => {
-    const yes = window.confirm(
-      `Delete "${state.name}"? Any active runs end immediately. This can't be undone.`,
-    );
+    const yes = await confirmar({
+      titulo: `Delete "${state.name}"?`,
+      descricao: "Any active runs end immediately. This can't be undone.",
+    });
     if (!yes) return;
     try {
       const res = await fetch(`/api/flows/${initialFlow.id}`, {
@@ -414,7 +417,7 @@ export function FlowEditorProvider({
       const msg = err instanceof Error ? err.message : "Delete failed";
       toast.error(msg);
     }
-  }, [initialFlow.id, router, state.name]);
+  }, [initialFlow.id, router, state.name, confirmar]);
 
   // ---- Node mutations ----
   const updateNode = useCallback(

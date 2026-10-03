@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SettingsPanelHead } from "./settings-panel-head"
+import { useConfirmarExclusao } from "@/components/ui/confirmar-exclusao"
 
 interface StatusChave {
   provider: "apify" | "treg"
@@ -107,8 +108,9 @@ function CartaoChave({
     }
   }
 
+  const confirmar = useConfirmarExclusao()
   async function remover() {
-    if (!window.confirm(`Remover a chave do ${info.nome}?`)) return
+    if (!(await confirmar({ titulo: `Remover a chave do ${info.nome}?`, confirmar: "Remover" }))) return
     if (await chamar({ method: "DELETE" }, `/api/integracoes/chaves?provider=${status.provider}`)) toast.success("Chave removida.")
   }
 

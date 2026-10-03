@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { useConfirmarExclusao } from '@/components/ui/confirmar-exclusao'
 
 interface CustomFieldsManagerProps {
   open: boolean;
@@ -149,11 +150,13 @@ export function CustomFieldsPanel() {
     return true;
   }
 
+  const confirmar = useConfirmarExclusao();
   async function handleDelete(field: CustomField) {
     if (
-      !window.confirm(
-        `Delete "${field.field_name}"? This also removes its stored value on every contact. This cannot be undone.`
-      )
+      !(await confirmar({
+        titulo: `Delete "${field.field_name}"?`,
+        descricao: 'This also removes its stored value on every contact. This cannot be undone.',
+      }))
     ) {
       return;
     }
