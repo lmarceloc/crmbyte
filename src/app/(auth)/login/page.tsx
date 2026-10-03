@@ -38,7 +38,13 @@ function LoginPageInner() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // /auth/callback redirects here with `?error=auth_callback` when a
+  // confirmation or password-reset link is invalid or expired.
+  const [error, setError] = useState<string | null>(
+    searchParams.get("error") === "auth_callback"
+      ? "Link inválido ou expirado. Solicite um novo."
+      : null,
+  );
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
