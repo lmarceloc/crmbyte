@@ -10,6 +10,7 @@ export interface Edicao {
 
 const LISTA = /^([ \t]*)([-*•])[ \t]+(.*)$/;
 const MARCADOR_SOZINHO = /^([ \t]*)[-*]$/;
+const MARCADOR = "•";
 const RECUO = "  ";
 const RECUO_MAXIMO = 5 * RECUO.length;
 
@@ -56,10 +57,10 @@ export function alternarLista(v: string, ini: number, fim: number): Edicao {
   const naoVazias = linhas.filter((l) => l.trim() !== "");
   const todasSaoLista = naoVazias.length > 0 && naoVazias.every((l) => LISTA.test(l));
   const novas = linhas.map((l) => {
-    if (l.trim() === "") return todasSaoLista ? l : l === "" ? "- " : l;
+    if (l.trim() === "") return todasSaoLista ? l : l === "" ? `${MARCADOR} ` : l;
     const m = LISTA.exec(l);
     if (todasSaoLista) return m ? m[3] : l;
-    return m ? l : `${/^[ \t]*/.exec(l)![0]}- ${l.trimStart()}`;
+    return m ? l : `${/^[ \t]*/.exec(l)![0]}${MARCADOR} ${l.trimStart()}`;
   });
   const bloco = novas.join("\n");
   const valor = v.slice(0, de) + bloco + v.slice(ate);
@@ -88,7 +89,7 @@ export function mudarNivelDaLista(v: string, ini: number, fim: number, delta: 1 
       const ant = i === 0 ? anterior : linhas[i - 1];
       const mAnt = LISTA.exec(ant);
       const recuo = mAnt ? Math.min(mAnt[1].replace(/\t/g, RECUO).length + RECUO.length, RECUO_MAXIMO) : 0;
-      nova = `${" ".repeat(recuo)}- `;
+      nova = `${" ".repeat(recuo)}${MARCADOR} `;
     } else if (LISTA.test(l)) {
       const recuoAtual = /^[ \t]*/.exec(l)![0].replace(/\t/g, RECUO).length;
       if (delta === 1) {
@@ -122,14 +123,27 @@ export function continuarLista(v: string, pos: number): Edicao | null {
   const linhaAteAqui = v.slice(de, pos);
   const m = LISTA.exec(linhaAteAqui) ?? (/^[ \t]*[-*•][ \t]+$/.test(linhaAteAqui) ? /^([ \t]*)([-*•])[ \t]+()$/.exec(linhaAteAqui) : null);
   if (!m) return null;
-  const [, recuo, marcador, conteudo] = m;
+  const [, recuo, , conteudo] = m;
   if (conteudo.trim() === "" && v.slice(pos, fimDaLinha(v, pos)).trim() === "") {
     // item vazio: apaga o marcador e fica numa linha limpa
     const fimLinha = fimDaLinha(v, pos);
     return { valor: v.slice(0, de) + v.slice(fimLinha), ini: de, fim: de };
   }
-  const novo = `\n${recuo}${marcador} `;
+  const novo = `\n${recuo}${MARCADOR} `;
   const valor = v.slice(0, pos) + novo + v.slice(pos);
   const p = pos + novo.length;
   return { valor, ini: p, fim: p };
+}
+
+/**
+ * Digitou "* " ou "- " no começo da linha: troca pelo marcador "•", para o item
+ * aparecer como bolinha no campo (o "**" do negrito não é afetado).
+ */
+export function converterMarcadorDigitado(v: string, pos: number): Edicao | null {
+  const de = inicioDaLinha(v, pos);
+  const m = /^([ \t]*)[-*] $/.exec(v.slice(de, pos));
+  if (!m) return null;
+  const novo = `${m[1]}${MARCADOR} `;
+  const p = de + novo.length;
+  return { valor: v.slice(0, de) + novo + v.slice(pos), ini: p, fim: p };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alternarLista, alternarNegrito, continuarLista, inserirLink, mudarNivelDaLista, urlValida } from "./editor-texto";
+import { alternarLista, alternarNegrito, continuarLista, converterMarcadorDigitado, inserirLink, mudarNivelDaLista, urlValida } from "./editor-texto";
 
 describe("alternarNegrito", () => {
   it("envolve a seleção e desfaz", () => {
@@ -28,20 +28,20 @@ describe("inserirLink", () => {
 describe("alternarLista", () => {
   it("transforma as linhas em itens e desfaz", () => {
     const a = alternarLista("um\ndois", 0, 7);
-    expect(a.valor).toBe("- um\n- dois");
+    expect(a.valor).toBe("• um\n• dois");
     expect(alternarLista(a.valor, a.ini, a.fim).valor).toBe("um\ndois");
   });
   it("linha vazia com cursor vira um item novo", () => {
-    expect(alternarLista("", 0, 0)).toEqual({ valor: "- ", ini: 2, fim: 2 });
+    expect(alternarLista("", 0, 0)).toEqual({ valor: "• ", ini: 2, fim: 2 });
   });
 });
 
 describe("mudarNivelDaLista (Tab)", () => {
   it("aninha e sobe um item", () => {
-    const a = mudarNivelDaLista("- um\n- dois", 8, 8, 1)!;
-    expect(a.valor).toBe("- um\n  - dois");
+    const a = mudarNivelDaLista("• um\n• dois", 8, 8, 1)!;
+    expect(a.valor).toBe("• um\n  • dois");
     expect(a.ini).toBe(10);
-    expect(mudarNivelDaLista(a.valor, a.ini, a.fim, -1)!.valor).toBe("- um\n- dois");
+    expect(mudarNivelDaLista(a.valor, a.ini, a.fim, -1)!.valor).toBe("• um\n• dois");
   });
   it("não passa do limite nem sobe além do nível 0", () => {
     expect(mudarNivelDaLista("- um", 4, 4, -1)).toBeNull();
@@ -52,23 +52,34 @@ describe("mudarNivelDaLista (Tab)", () => {
     expect(mudarNivelDaLista("texto", 5, 5, 1)).toBeNull();
   });
   it("'*' sozinho + Tab vira item, aninhado sob o anterior", () => {
-    expect(mudarNivelDaLista("- um\n*", 6, 6, 1)!.valor).toBe("- um\n  - ");
-    expect(mudarNivelDaLista("*", 1, 1, 1)!.valor).toBe("- ");
+    expect(mudarNivelDaLista("• um\n*", 6, 6, 1)!.valor).toBe("• um\n  • ");
+    expect(mudarNivelDaLista("*", 1, 1, 1)!.valor).toBe("• ");
   });
 });
 
 describe("continuarLista (Enter)", () => {
-  it("cria o próximo item no mesmo nível, mantendo o marcador", () => {
-    expect(continuarLista("* um", 4)).toEqual({ valor: "* um\n* ", ini: 7, fim: 7 });
-    expect(continuarLista("- a\n  - b", 9)!.valor).toBe("- a\n  - b\n  - ");
+  it("cria o próximo item no mesmo nível, com •", () => {
+    expect(continuarLista("• um", 4)).toEqual({ valor: "• um\n• ", ini: 7, fim: 7 });
+    expect(continuarLista("- a\n  - b", 9)!.valor).toBe("- a\n  - b\n  • ");
   });
   it("Enter no meio do item leva o resto para o novo", () => {
-    expect(continuarLista("- abcd", 4)!.valor).toBe("- ab\n- cd");
+    expect(continuarLista("• abcd", 4)!.valor).toBe("• ab\n• cd");
   });
   it("item vazio sai da lista", () => {
-    expect(continuarLista("- um\n- ", 7)).toEqual({ valor: "- um\n", ini: 5, fim: 5 });
+    expect(continuarLista("• um\n• ", 7)).toEqual({ valor: "• um\n", ini: 5, fim: 5 });
   });
   it("fora de lista devolve null", () => {
     expect(continuarLista("texto", 5)).toBeNull();
+  });
+});
+
+describe("converterMarcadorDigitado", () => {
+  it("troca '* ' e '- ' no começo da linha por •", () => {
+    expect(converterMarcadorDigitado("* ", 2)).toEqual({ valor: "• ", ini: 2, fim: 2 });
+    expect(converterMarcadorDigitado("oi\n  - ", 7)).toEqual({ valor: "oi\n  • ", ini: 7, fim: 7 });
+  });
+  it("não mexe em negrito nem no meio do texto", () => {
+    expect(converterMarcadorDigitado("**", 2)).toBeNull();
+    expect(converterMarcadorDigitado("a - ", 4)).toBeNull();
   });
 });

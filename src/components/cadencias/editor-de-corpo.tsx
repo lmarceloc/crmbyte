@@ -11,6 +11,7 @@ import {
   alternarLista,
   alternarNegrito,
   continuarLista,
+  converterMarcadorDigitado,
   inserirLink,
   mudarNivelDaLista,
   urlValida,
@@ -179,12 +180,16 @@ export function EditorDeCorpo({ value, onChange, maxLength, disabled, textareaRe
           disabled={disabled}
           onFocus={onFocus}
           onKeyDown={aoTeclar}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            // "* " ou "- " no começo da linha vira a bolinha •
+            const conv = converterMarcadorDigitado(e.target.value, e.target.selectionStart)
+            if (!aplicar(conv)) onChange(e.target.value)
+          }}
           className="rounded-t-none border-0 focus-visible:ring-0"
         />
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Ctrl+B negrito · Ctrl+K link · <code>*</code> ou <code>-</code> + espaço cria lista · Tab aninha · Shift+Tab sobe
+        Ctrl+B negrito · Ctrl+K link · <code>*</code> ou <code>-</code> + espaço cria uma lista com • · Tab aninha · Shift+Tab sobe
       </p>
     </div>
   )
