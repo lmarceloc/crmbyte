@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ModeToggle } from "@/components/layout/mode-toggle";
+import { SinoDeTarefas } from "@/components/tarefas/sino-de-tarefas";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Painel",
@@ -24,6 +25,7 @@ const pageTitles: Record<string, string> = {
   "/contacts": "Contatos",
   "/companies": "Empresas",
   "/pipelines": "Funis",
+  "/tarefas": "Tarefas",
   "/broadcasts": "Transmissões",
   "/automations": "Automações",
   "/flows": "Fluxos",
@@ -78,6 +80,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
+        <SinoDeTarefas />
         <ModeToggle />
 
         <DropdownMenu>

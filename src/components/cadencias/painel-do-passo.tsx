@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { haEmailAntes } from "@/lib/cadencias/arvore"
 import { renderizarExemplo, variaveisDesconhecidas, VARIAVEIS } from "@/lib/cadencias/renderizar"
 import type { Passo } from "@/lib/cadencias/tipos"
+import { ROTULO_TIPO_TAREFA, TIPOS_DE_TAREFA } from "@/lib/tarefas/tipos"
 import { rotuloDoTipo } from "./status"
 
 interface Props {
@@ -223,8 +224,23 @@ export function PainelDoPasso({ passo, todos, somenteLeitura, onChange, onFechar
       {passo.tipo === "tarefa" && (
         <>
           <p className="text-xs text-muted-foreground">
-            A tarefa vira uma nota no contato (o CRM não tem tabela de tarefas). Variáveis são aplicadas no título.
+            Cria uma tarefa em Tarefas para o responsável do negócio, avisa no sininho e fica no histórico do contato e do negócio. Variáveis são aplicadas no título.
           </p>
+          <div className="space-y-1.5">
+            <Label>Tipo</Label>
+            <select
+              className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              value={passo.tipoDaTarefa ?? "outra"}
+              disabled={somenteLeitura}
+              onChange={(e) => onChange({ ...passo, tipoDaTarefa: e.target.value as typeof passo.tipoDaTarefa })}
+            >
+              {TIPOS_DE_TAREFA.map((t) => (
+                <option key={t} value={t}>
+                  {ROTULO_TIPO_TAREFA[t]}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="space-y-1.5">
             <Label>Título</Label>
             <Input

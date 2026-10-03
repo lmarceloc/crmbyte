@@ -36,6 +36,8 @@ export interface PassoTarefa {
   tipo: "tarefa";
   titulo: string;
   prazoDias: number;
+  /** Tipo da tarefa criada em /tarefas; ausente = "outra" (passos antigos). */
+  tipoDaTarefa?: "retornar_ligacao" | "ligacao" | "email" | "whatsapp" | "reuniao" | "outra";
 }
 export type Passo =
   | PassoEmail

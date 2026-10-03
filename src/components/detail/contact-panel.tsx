@@ -13,6 +13,7 @@ import { useDetailPanel } from "./detail-panel-provider"
 import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
 import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { NotaForm } from "./nota-form"
+import { TarefasDoVinculo } from "@/components/tarefas/tarefas-do-vinculo"
 import {
   Avatar,
   BarraSuperior,
@@ -199,6 +200,7 @@ export function ContactPanel({ id }: { id: string }) {
           <TabsList variant="line" className="h-10 w-full justify-start overflow-x-auto border-b px-3">
             <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
             <TabsTrigger value="negocios">Negócios ({negocios.length})</TabsTrigger>
+            <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
             <TabsTrigger value="notas">Notas ({notas.length})</TabsTrigger>
             <TabsTrigger value="atividades">Atividades</TabsTrigger>
           </TabsList>
@@ -289,6 +291,10 @@ export function ContactPanel({ id }: { id: string }) {
                 })}
               </ul>
             )}
+          </TabsContent>
+
+          <TabsContent value="tarefas" className="p-5">
+            <TarefasDoVinculo contatoId={id} ativo={aba === "tarefas"} />
           </TabsContent>
 
           <TabsContent value="notas" className="space-y-3 p-5">

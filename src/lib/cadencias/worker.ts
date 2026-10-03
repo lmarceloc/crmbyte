@@ -379,7 +379,7 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
         proximo_em: avancarDiasUteis(ctx.agora, passo.diasUteis).toISOString(),
       });
     case "tarefa": {
-      // O wacrm não tem tabela de tarefas: a tarefa vira nota no contato.
+      // Cria a tarefa (aparece em /tarefas, no sininho e na linha do tempo do contato/negócio).
       const dono = await resolverDono(ctx, deal);
       const { data: c } = await ctx.admin
         .from("contacts")
@@ -395,18 +395,29 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
         vendedor: dono.nome,
         segmento: cfg.tagDoSegmento || null,
       });
-      const { data: nota, error } = await ctx.admin
-        .from("contact_notes")
-        .insert({
-          account_id: i.account_id,
-          contact_id: i.contact_id,
-          user_id: i.inscrito_por ?? dono.userId ?? deal.user_id,
-          note_text: `[Cadência] Tarefa até ${prazo.toISOString().slice(0, 10)}: ${titulo}`,
-        })
+      const { data: tarefa, error } = await ctx.admin
+        .from("tarefas")
+        .upsert(
+          {
+            account_id: i.account_id,
+            titulo: titulo.slice(0, 300) || "Tarefa da cadência",
+            tipo: passo.tipoDaTarefa ?? "outra",
+            contact_id: i.contact_id,
+            deal_id: i.deal_id,
+            enrollment_id: i.id,
+            passo_id: passo.id,
+            origem: "cadencia",
+            responsavel_id: dono.userId ?? i.inscrito_por ?? deal.user_id,
+            criada_por: i.inscrito_por,
+            prazo_em: prazo.toISOString(),
+          },
+          { onConflict: "enrollment_id,passo_id", ignoreDuplicates: true },
+        )
         .select("id")
-        .single();
+        .maybeSingle();
       if (error) throw new Error(`Falha ao criar a tarefa: ${error.message}`);
-      await evento(ctx, i, "tarefa_criada", passo.id, { note_id: nota.id });
+      // sem linha = já criada numa tentativa anterior: não repete o evento
+      if (tarefa) await evento(ctx, i, "tarefa_criada", passo.id, { tarefa_id: tarefa.id });
       return avancarPara(ctx, i, proximoIrmao(passos, passo.id));
     }
     case "ramo": {

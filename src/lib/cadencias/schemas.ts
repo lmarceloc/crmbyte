@@ -25,6 +25,7 @@ const passoTarefa = z.object({
   tipo: z.literal("tarefa"),
   titulo: z.string().max(300),
   prazoDias: z.number().int().min(0).max(365),
+  tipoDaTarefa: z.enum(["retornar_ligacao", "ligacao", "email", "whatsapp", "reuniao", "outra"]).optional(),
 });
 const condicao = z.union([
   z.object({
