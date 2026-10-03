@@ -10,6 +10,7 @@ import {
 import { assinaturaEmTexto } from "@/lib/email/assinatura";
 import { enviarPorSmtp, smtpDaInstalacao, type ConfigSmtp } from "@/lib/email/smtp";
 import { avancarDiasUteis } from "./dias-uteis";
+import { corpoEmHtml, corpoEmTexto, escaparMarkdown } from "./corpo-rico";
 import { dentroDaJanela } from "./janela";
 import { passoParaExecutar, primeiroDoLado, proximoIrmao } from "./proximo-passo";
 import { primeiroNome, renderizar, type DadosDoLead } from "./renderizar";
@@ -91,8 +92,8 @@ export function assuntoDaResposta(passos: Passo[], ultimoPassoId: string | null,
   return `Re: ${renderizar(p.assunto, dados)}`;
 }
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-export const corpoEmHtml = (corpo: string) => esc(corpo).replace(/\n/g, "<br>\n");
+// Corpo em Markdown simples (negrito, link, lista): ver corpo-rico.ts.
+export { corpoEmHtml };
 
 /**
  * Transforma URLs do corpo em links rastreados (redirecionador assinado).
@@ -279,7 +280,11 @@ async function executarEmail(
   const assunto = passo.mesmaConversa
     ? assuntoDaResposta(cadencia.passos, i.ultimo_email_passo_id, dados)
     : renderizar(passo.assunto, dados);
-  const corpo = renderizar(passo.corpo, dados);
+  // valores do lead entram "escapados" para um nome com ** ou [x](url) não virar formatação
+  const dadosDoCorpo = Object.fromEntries(
+    Object.entries(dados).map(([k, v]) => [k, typeof v === "string" ? escaparMarkdown(v) : v]),
+  ) as DadosDoLead;
+  const corpo = renderizar(passo.corpo, dadosDoCorpo);
 
   const base = urlBase();
   const tokenBase = { account_id: i.account_id, cadence_id: i.cadence_id, enrollment_id: i.id, passo_id: passo.id };
@@ -288,16 +293,14 @@ async function executarEmail(
   const assinatura = caixa?.signatureHtml?.trim() ?? "";
 
   const html =
-    linkificarComRastreio(
-      corpoEmHtml(corpo),
-      (url) => assinarToken({ ...tokenBase, fin: "clique", url }),
-      base,
-    ) +
+    corpoEmHtml(corpo, {
+      linkar: (url) => `${base}/api/cadencias/click/${assinarToken({ ...tokenBase, fin: "clique", url })}`,
+    }) +
     (assinatura ? `<div style="margin-top:16px">${assinatura}</div>` : "") +
     `<p style="margin-top:24px;font-size:11px;color:#888">Não quer mais receber estes e-mails? <a href="${urlDescadastro}">Descadastrar</a></p>` +
     `<img src="${urlPixel}" width="1" height="1" alt="" style="display:none" />`;
   const text =
-    corpo +
+    corpoEmTexto(corpo) +
     (assinatura ? `\n\n${assinaturaEmTexto(assinatura)}` : "") +
     `\n\n---\nNão quer mais receber estes e-mails? ${urlDescadastro}`;
 

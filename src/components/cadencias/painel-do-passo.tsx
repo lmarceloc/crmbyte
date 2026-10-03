@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { haEmailAntes } from "@/lib/cadencias/arvore"
+import { corpoEmHtml } from "@/lib/cadencias/corpo-rico"
+import { EditorDeCorpo } from "./editor-de-corpo"
 import { renderizarExemplo, variaveisDesconhecidas, VARIAVEIS } from "@/lib/cadencias/renderizar"
 import type { Passo } from "@/lib/cadencias/tipos"
 import { ROTULO_TIPO_TAREFA, TIPOS_DE_TAREFA } from "@/lib/tarefas/tipos"
@@ -33,7 +35,7 @@ const num = (v: string, min: number, max: number) => Math.max(min, Math.min(max,
 
 export function PainelDoPasso({ passo, todos, somenteLeitura, onChange, onFechar }: Props) {
   const assuntoRef = useRef<HTMLInputElement>(null)
-  const corpoRef = useRef<HTMLTextAreaElement>(null)
+  const corpoRef = useRef<HTMLTextAreaElement | null>(null)
   const ultimoFocado = useRef<"assunto" | "corpo">("corpo")
 
   function inserirVariavel(chave: string) {
@@ -68,7 +70,7 @@ export function PainelDoPasso({ passo, todos, somenteLeitura, onChange, onFechar
   )
 
   return (
-    <aside className="w-96 shrink-0 space-y-4 overflow-auto rounded-lg border bg-card p-4">
+    <aside className="w-[min(42rem,55vw)] shrink-0 space-y-4 overflow-auto rounded-lg border bg-card p-4">
       <div className="flex items-center justify-between">
         <h3 className="font-medium">{rotuloDoTipo(passo.tipo)}</h3>
         <Button variant="ghost" size="icon-sm" onClick={onFechar}>
@@ -103,14 +105,13 @@ export function PainelDoPasso({ passo, todos, somenteLeitura, onChange, onFechar
           </div>
           <div className="space-y-1.5">
             <Label>Corpo</Label>
-            <Textarea
-              ref={corpoRef}
-              rows={10}
+            <EditorDeCorpo
+              textareaRef={corpoRef}
               value={passo.corpo}
               maxLength={20000}
               disabled={somenteLeitura}
               onFocus={() => (ultimoFocado.current = "corpo")}
-              onChange={(e) => onChange({ ...passo, corpo: e.target.value })}
+              onChange={(corpo) => onChange({ ...passo, corpo })}
             />
           </div>
           {chips}
@@ -126,7 +127,11 @@ export function PainelDoPasso({ passo, todos, somenteLeitura, onChange, onFechar
           <div className="space-y-1 rounded-md border bg-muted/40 p-3 text-sm">
             <div className="text-xs text-muted-foreground">Prévia (lead de exemplo)</div>
             {!passo.mesmaConversa && <div className="font-medium">{renderizarExemplo(passo.assunto) || "(sem assunto)"}</div>}
-            <div className="whitespace-pre-wrap">{renderizarExemplo(passo.corpo)}</div>
+            <div
+              className="break-words [&_a]:text-primary [&_a]:underline [&_li]:my-0.5 [&_ul]:list-disc"
+              // HTML gerado por corpoEmHtml: escapa tudo e só emite strong/a/ul/li/br
+              dangerouslySetInnerHTML={{ __html: corpoEmHtml(renderizarExemplo(passo.corpo)) }}
+            />
             <div className="pt-2 text-[11px] text-muted-foreground">
               Não quer mais receber estes e-mails? Descadastrar
             </div>

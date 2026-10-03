@@ -1,5 +1,6 @@
 "use client"
 
+import { corpoEmTexto } from "@/lib/cadencias/corpo-rico"
 import { useState } from "react"
 import { Copy, MoreVertical, Pencil, Plus, Trash2, ZoomIn, ZoomOut, Flag, Zap } from "lucide-react"
 
@@ -193,7 +194,7 @@ function Cartao({ passo, ...p }: Props & { passo: Passo }) {
           </div>
           <div className="line-clamp-2 break-words text-sm">{resumirPasso(passo)}</div>
           {passo.tipo === "email" && passo.corpo && (
-            <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{passo.corpo}</div>
+            <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{corpoEmTexto(passo.corpo)}</div>
           )}
           {erro && <div className="mt-1 text-xs text-destructive">{erro.mensagem}</div>}
         </button>
