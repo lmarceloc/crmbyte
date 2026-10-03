@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
+import { useHotLeadsNovos } from "@/hooks/use-hot-leads-novos";
 import {
   Building2,
   Crown,
@@ -132,6 +133,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
+  const hotLeadsNovos = useHotLeadsNovos(!!accountRole && hasMinRole(accountRole, "agent"));
   // Menu recolhido (só desktop): guarda a preferência do usuário. Lê depois da
   // montagem para não divergir do HTML do servidor.
   const [collapsed, setCollapsed] = useState(false);
@@ -258,6 +260,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
               const showUnreadDot =
                 item.href === "/inbox" && totalUnread > 0 && !isActive;
+              const hotLeadsBadge =
+                item.href === "/hot-leads" && hotLeadsNovos > 0 && !isActive ? hotLeadsNovos : 0;
 
               return (
                 <li key={item.href}>
@@ -266,7 +270,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     title={collapsed ? item.label : undefined}
                     className={cn(
                       // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       collapsed && "lg:justify-center lg:px-0",
                       isActive
                         ? "bg-primary/10 text-primary"
@@ -293,6 +297,17 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       >
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
                         <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                      </span>
+                    )}
+                    {hotLeadsBadge > 0 && (
+                      <span
+                        aria-label={`${hotLeadsBadge} lead${hotLeadsBadge === 1 ? "" : "s"} quente${hotLeadsBadge === 1 ? "" : "s"} novo${hotLeadsBadge === 1 ? "" : "s"}`}
+                        className={cn(
+                          "min-w-5 rounded-full bg-orange-500 px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white",
+                          collapsed && "lg:absolute lg:right-1 lg:top-1 lg:min-w-0 lg:px-1",
+                        )}
+                      >
+                        {hotLeadsBadge > 99 ? "99+" : hotLeadsBadge}
                       </span>
                     )}
                   </Link>

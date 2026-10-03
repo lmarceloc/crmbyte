@@ -6,6 +6,7 @@ import { Flame } from "lucide-react"
 import { RequireRole } from "@/components/auth/require-role"
 import { Badge } from "@/components/ui/badge"
 import { useDetailPanel } from "@/components/detail/detail-panel-provider"
+import { EVENTO_HOT_LEADS_VISTOS } from "@/lib/cadencias/hot-leads"
 
 interface HotLead {
   enrollment_id: string
@@ -16,6 +17,7 @@ interface HotLead {
   contact_name: string | null
   aberturas: number
   ultima_abertura_em: string | null
+  novo?: boolean
 }
 
 const STATUS: Record<string, string> = { open: "Aberto", won: "Ganho", lost: "Perdido" }
@@ -41,6 +43,10 @@ function HotLeads() {
         const d = await r.json()
         if (!r.ok) throw new Error(d.error ?? "Falha ao carregar.")
         setLeads(d.leads)
+        // Os "novos" já vieram marcados; agora zera o selo do menu.
+        return fetch("/api/hot-leads/vistos", { method: "POST" }).then((v) => {
+          if (v.ok) window.dispatchEvent(new Event(EVENTO_HOT_LEADS_VISTOS))
+        })
       })
       .catch((e: Error) => setErro(e.message))
   }, [])
@@ -75,7 +81,10 @@ function HotLeads() {
       ) : (
         <ul className="divide-y rounded-lg border bg-card">
           {leads.map((l) => (
-            <li key={l.enrollment_id} className="flex items-center gap-3 p-3">
+            <li
+              key={l.enrollment_id}
+              className={`flex items-center gap-3 p-3 ${l.novo ? "bg-orange-500/5" : ""}`}
+            >
               <div className="min-w-0 flex-1">
                 <button
                   type="button"
@@ -89,6 +98,11 @@ function HotLeads() {
                 </p>
                 <p className="text-xs text-muted-foreground">Última abertura {fmt(l.ultima_abertura_em)}</p>
               </div>
+              {l.novo && (
+                <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                  Novo
+                </span>
+              )}
               <Badge variant="outline">{STATUS[l.deal_status ?? ""] ?? "—"}</Badge>
               <Badge>{l.aberturas}× aberturas</Badge>
             </li>
