@@ -21,11 +21,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
-  // --- DEV BYPASS: redirect para /login desativado. Reverter para restaurar. ---
   useEffect(() => {
-    // if (!loading && !user) {
-    //   router.push("/login");
-    // }
+    if (!loading && !user) {
+      router.push("/login");
+    }
   }, [user, loading, router]);
 
   if (loading) {
@@ -39,8 +38,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // --- DEV BYPASS: era `if (!user) return null;` — desativado para renderizar sem login. ---
-  // if (!user) return null;
+  if (!user) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
