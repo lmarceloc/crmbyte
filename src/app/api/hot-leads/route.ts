@@ -1,6 +1,7 @@
 import { fail, json, toErrorResponse } from "@/lib/api-utils";
 import { requireRole } from "@/lib/auth/account";
 import { LIMIAR_LEAD_QUENTE } from "@/lib/cadencias/vocabulario";
+import { ehLeadQuenteNovo } from "@/lib/cadencias/hot-leads";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,16 @@ export async function GET(request: Request) {
       .limit(limit);
     if (error) return fail("db_error", error.message, 500);
 
+    // Última visita à página, para marcar os novos. Falha aqui (ex.: migration
+    // 037 não aplicada) só desliga a marcação, não a lista.
+    const { data: perfil, error: perfilErr } = await ctx.supabase
+      .from("profiles")
+      .select("hot_leads_vistos_em")
+      .eq("user_id", ctx.userId)
+      .maybeSingle();
+    if (perfilErr) console.error("[hot-leads]", perfilErr.message);
+    const vistosEm = perfilErr ? undefined : ((perfil?.hot_leads_vistos_em as string | null) ?? null);
+
     const leads = (data ?? []).map((r) => {
       const cad = primeiro(r.email_cadences as { name: string } | { name: string }[] | null);
       const deal = primeiro(
@@ -46,6 +57,7 @@ export async function GET(request: Request) {
         primeira_abertura_em: r.primeira_abertura_em,
         ultima_abertura_em: r.ultima_abertura_em,
         inscricao_status: r.status,
+        novo: vistosEm !== undefined && ehLeadQuenteNovo(r.ultima_abertura_em, vistosEm),
       };
     });
     return json({ leads, total: leads.length });
