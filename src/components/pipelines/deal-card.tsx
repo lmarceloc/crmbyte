@@ -1,10 +1,34 @@
 "use client";
 
 import type { Deal, PipelineStage } from "@/types";
-import { Building2, Calendar, Check, Pencil, Users, X } from "lucide-react";
+import { Building2, Calendar, Check, Hourglass, Pencil, Users, X } from "lucide-react";
 import { TemperatureBadge } from "./temperature-badge";
 import { formatCurrency } from "@/lib/currency";
 import { useDetailPanel } from "@/components/detail/detail-panel-provider";
+import { diasNaEtapa, nivelDiasNaEtapa, rotuloDiasNaEtapa } from "@/lib/deals/dias-na-etapa";
+
+const CLASSE_DIAS_NA_ETAPA = {
+  normal: "border-border bg-background/60 text-muted-foreground",
+  alerta: "border-amber-500/40 bg-amber-500/10 text-amber-500",
+  critico: "border-red-500/40 bg-red-500/10 text-red-400",
+} as const;
+
+// Só para negócios em aberto: ganho/perdido já saiu do funil.
+function DiasNaEtapaBadge({ deal }: { deal: Deal }) {
+  if ((deal.status ?? "open") !== "open") return null;
+  const dias = diasNaEtapa(deal.stage_entered_at);
+  if (dias === null) return null;
+  const desde = new Date(deal.stage_entered_at!).toLocaleDateString("pt-BR");
+  return (
+    <span
+      title={`Nesta etapa desde ${desde}`}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${CLASSE_DIAS_NA_ETAPA[nivelDiasNaEtapa(dias)]}`}
+    >
+      <Hourglass className="h-3 w-3" />
+      {rotuloDiasNaEtapa(dias)}
+    </span>
+  );
+}
 
 interface DealCardProps {
   deal: Deal;
@@ -106,6 +130,7 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
           </span>
         )}
         <TemperatureBadge value={deal.temperature} />
+        <DiasNaEtapaBadge deal={deal} />
       </div>
 
       {/* Contact row */}
