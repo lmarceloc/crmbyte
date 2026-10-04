@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Pipeline, PipelineStage, Deal } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
+import { PipelineFilters, type MembroDoFunil } from "@/components/pipelines/pipeline-filters";
+import { filtrarNegocios, type FiltroDono } from "@/lib/deals/filtro";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,13 +51,37 @@ export default function PipelinesPage() {
   const supabase = createClient();
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
-  const { accountId, defaultCurrency } = useAuth();
+  const { accountId, defaultCurrency, profile } = useAuth();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filtros do quadro (só no cliente): nome do negócio + proprietário.
+  const [busca, setBusca] = useState("");
+  const [dono, setDono] = useState<FiltroDono>("todos");
+  const [membros, setMembros] = useState<MembroDoFunil[]>([]);
+  const dealsVisiveis = useMemo(
+    () => filtrarNegocios(deals, { busca, dono }),
+    [deals, busca, dono],
+  );
+
+  // Membros da conta (a RLS de profiles devolve só a conta do usuário).
+  useEffect(() => {
+    let cancelado = false;
+    void supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .order("full_name")
+      .then(({ data }) => {
+        if (!cancelado) setMembros((data ?? []) as MembroDoFunil[]);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [supabase]);
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -312,7 +338,7 @@ export default function PipelinesPage() {
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
 
   // Resumo do funil no cabeçalho: só negócios EM ABERTO.
-  const abertos = deals.filter((d) => (d.status ?? "open") === "open");
+  const abertos = dealsVisiveis.filter((d) => (d.status ?? "open") === "open");
   const valorAberto = abertos.reduce((s, d) => s + (Number(d.value) || 0), 0);
 
   if (loading) {
@@ -444,10 +470,20 @@ export default function PipelinesPage() {
         </div>
       ) : (
         <>
-          <PipelineAnalytics stages={stages} deals={deals} />
+          <PipelineFilters
+            busca={busca}
+            onBuscaChange={setBusca}
+            dono={dono}
+            onDonoChange={setDono}
+            membros={membros}
+            meuPerfilId={profile?.id ?? null}
+            total={deals.length}
+            visiveis={dealsVisiveis.length}
+          />
+          <PipelineAnalytics stages={stages} deals={dealsVisiveis} />
           <PipelineBoard
             stages={stages}
-            deals={deals}
+            deals={dealsVisiveis}
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}
