@@ -1,0 +1,343 @@
+/* Canvas da cadência no visual "Node Flow": fundo escuro com pontos e grade,
+   cartões com portas coloridas, ligações tracejadas animadas com brilho,
+   mini-raio ao encaixar e brilho no cartão novo. Sempre escuro, nos dois temas. */
+
+.cs-studio {
+  --cs-bg: #0c0d10;
+  --cs-panel: #15171b;
+  --cs-text: #e8e9ed;
+  --cs-muted: #8c909b;
+  --cs-yellow: #f5d63b;
+  --cs-pink: #ec3ea9;
+  --cs-purple: #a855f7;
+  --cs-blue: #3b82f6;
+  --cs-orange: #ff9800;
+  --cs-green: #49d18d;
+  --cs-red: #ef4444;
+
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid #1d2025;
+  border-radius: 10px;
+  background-color: var(--cs-bg);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--cs-text);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ---------- Paleta (barra lateral) ---------- */
+.cs-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid #22252c;
+  background: var(--cs-panel);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cs-sidebar h3 {
+  margin: 8px 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--cs-muted);
+}
+.cs-sidebar p {
+  margin: 0 0 4px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #686d78;
+}
+.cs-action-card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid #282b34;
+  border-radius: 7px;
+  background: #181a1f;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cs-text);
+  cursor: grab;
+  touch-action: none;
+  transition: 0.15s;
+  text-align: left;
+}
+.cs-action-card:hover {
+  background: #22252d;
+  border-color: #3b3f4d;
+  transform: translateX(2px);
+}
+.cs-action-card:active { cursor: grabbing; }
+.cs-ico {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  background: #22252d;
+  color: var(--cs-cor, var(--cs-orange));
+}
+.cs-ico svg { width: 12px; height: 12px; }
+
+/* ---------- Área do fluxo ---------- */
+.cs-canvas { position: relative; flex: 1; min-width: 0; }
+.cs-canvas .react-flow {
+  --xy-background-color: transparent;
+  background: transparent;
+}
+.cs-canvas .react-flow__pane { cursor: grab; }
+.cs-canvas .react-flow__pane.dragging { cursor: grabbing; }
+
+.cs-canvas .react-flow__controls {
+  border: 1px solid #2a2d34;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: none;
+}
+.cs-canvas .react-flow__controls-button {
+  background: #1a1c21;
+  border-bottom: 1px solid #2a2d34;
+  fill: var(--cs-text);
+  color: var(--cs-text);
+}
+.cs-canvas .react-flow__controls-button:hover { background: #23262d; }
+.cs-canvas .react-flow__controls-button svg { fill: var(--cs-text); }
+
+/* ---------- Ligações ---------- */
+.cs-edge-path {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 8 10;
+  animation: cs-flow 1s linear infinite;
+  filter: drop-shadow(0 0 6px currentColor);
+  transition: stroke-width 0.15s;
+}
+.react-flow__edge:hover .cs-edge-path {
+  stroke-width: 5;
+  filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 12px currentColor);
+}
+@keyframes cs-flow { to { stroke-dashoffset: -36; } }
+
+.cs-edge-label {
+  position: absolute;
+  pointer-events: none;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.cs-edge-label.sim { background: rgba(73, 209, 141, 0.15); color: var(--cs-green); border: 1px solid rgba(73, 209, 141, 0.35); }
+.cs-edge-label.nao { background: rgba(239, 68, 68, 0.15); color: var(--cs-red); border: 1px solid rgba(239, 68, 68, 0.35); }
+
+/* "+" no meio da ligação: insere um passo (clique) ou recebe um passo arrastado */
+.cs-plus {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid #3e434f;
+  background: #17191d;
+  color: var(--cs-muted);
+  cursor: pointer;
+  pointer-events: all;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, color 0.15s;
+}
+.cs-plus svg { width: 12px; height: 12px; }
+.cs-plus:hover {
+  border-color: var(--cs-orange);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255, 152, 0, 0.45);
+}
+/* Anel duplo na porta alvo durante o arrasto */
+.cs-plus.snap-target {
+  transform: scale(1.5);
+  border-color: var(--cs-orange);
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.3), 0 0 15px 4px var(--cs-orange);
+}
+
+/* ---------- Cartões (nós) ---------- */
+.cs-node {
+  position: relative;
+  width: 240px;
+  border: 1px solid #2b2e35;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #181a1f, #15171b);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  color: var(--cs-text);
+  transition: border-color 0.3s, box-shadow 0.3s;
+  cursor: pointer;
+}
+.cs-node:hover { border-color: #3b3f48; }
+.cs-node.selected {
+  border-color: rgba(255, 152, 0, 0.75);
+  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.25), 0 0 18px rgba(255, 152, 0, 0.18), 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+.cs-node.erro:not(.selected) { border-color: rgba(239, 68, 68, 0.45); }
+
+/* Brilho no contorno que acende e some (sem `forwards`, para não travar o hover) */
+.cs-flash {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  pointer-events: none;
+  animation: cs-card-flash 1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes cs-card-flash {
+  0% { border-color: #fff; box-shadow: 0 0 30px 6px var(--cs-orange), 0 0 10px #fff; }
+  35% { border-color: var(--cs-orange); box-shadow: 0 0 20px 4px var(--cs-orange); }
+  100% { border-color: transparent; box-shadow: 0 0 0 0 transparent; }
+}
+
+.cs-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid #25282e;
+  font-size: 11px;
+  font-weight: 650;
+  color: #d9dbe1;
+}
+.cs-head .cs-head-ico { display: grid; color: var(--cs-cor, var(--cs-orange)); }
+.cs-head .cs-head-ico svg { width: 13px; height: 13px; }
+.cs-head .cs-title { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cs-head .cs-num { color: #686d78; font-weight: 600; }
+.cs-tool {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #555a66;
+  cursor: pointer;
+}
+.cs-tool svg { width: 12px; height: 12px; }
+.cs-tool:hover { background: #22252d; color: #d9dbe1; }
+.cs-tool.del:hover { color: var(--cs-red); }
+
+.cs-body { padding: 10px; }
+.cs-desc {
+  height: 45px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  padding: 6px 8px;
+  border: 1px solid #22252c;
+  border-radius: 5px;
+  background: #111317;
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: #a4a8b3;
+  word-break: break-word;
+}
+.cs-desc .cs-line { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.cs-desc .cs-line.forte { color: #d9dbe1; }
+.cs-desc .cs-line.erro { color: var(--cs-red); }
+
+.cs-param {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  font-size: 10px;
+  color: #a4a8b3;
+}
+.cs-param .cs-name { margin-left: 14px; }
+.cs-param.out { justify-content: flex-end; }
+.cs-param.out .cs-name { margin: 0 14px 0 0; }
+.cs-param .cs-check { margin-left: auto; color: var(--cs-green); }
+
+/* Portas (handles do React Flow) */
+.cs-node .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  min-width: 10px;
+  min-height: 10px;
+  border: 1.5px solid var(--cs-porta, #747985);
+  border-radius: 50%;
+  background: var(--cs-porta, #17191d);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--cs-porta, #747985) 45%, transparent);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.cs-node .cs-param.in .react-flow__handle { left: -15px; right: auto; }
+.cs-node .cs-param.out .react-flow__handle { right: -15px; left: auto; }
+
+/* Cartão de fim de caminho (ramo) */
+.cs-node.mini {
+  display: flex;
+  align-items: center;
+  height: 56px;
+  padding: 0 12px;
+  gap: 8px;
+  border-style: dashed;
+  background: rgba(21, 23, 27, 0.7);
+  font-size: 10.5px;
+  color: var(--cs-muted);
+  cursor: default;
+}
+.cs-node.mini .react-flow__handle { left: -6px; }
+
+/* ---------- Fio de arrasto e mini-raio (camada acima da página) ---------- */
+.cs-drag-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  width: 100vw;
+  height: 100vh;
+  overflow: visible;
+  pointer-events: none;
+}
+.cs-temp-wire {
+  fill: none;
+  stroke: #3b82f6;
+  stroke-width: 2.5;
+  stroke-dasharray: 6 6;
+  stroke-linecap: round;
+  animation: cs-flow 0.6s linear infinite;
+}
+.cs-lightning {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 12px currentColor);
+}
+.cs-ghost {
+  position: fixed;
+  z-index: 61;
+  pointer-events: none;
+  transform: translate(10px, 10px);
+  padding: 5px 9px;
+  border: 1px solid #3b3f4d;
+  border-radius: 7px;
+  background: #1a1c21;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e8e9ed;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+@media (max-width: 767px) {
+  .cs-sidebar { display: none; }
+}
