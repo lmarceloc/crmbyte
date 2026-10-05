@@ -29,7 +29,7 @@ import { STATUS_CADENCIA } from "./status"
 import { useCadencia } from "./use-cadencia"
 
 export function Construtor({ id }: { id: string }) {
-  const { cadencia, erro, salvando, editar, mudarStatus } = useCadencia(id)
+  const { cadencia, erro, salvando, editar, mudarStatus, mudarLimiar } = useCadencia(id)
   const podeEditar = useCan("edit-settings")
   const [aba, setAba] = useState("fluxo")
   const [selecionado, setSelecionado] = useState<string | null>(null)
@@ -167,7 +167,16 @@ export function Construtor({ id }: { id: string }) {
         </TabsContent>
 
         <TabsContent value="configuracoes" className="overflow-auto">
-          <AbaConfiguracoes config={config} somenteLeitura={somenteLeitura} onChange={(c) => editar({ configuracao: c })} />
+          <AbaConfiguracoes
+            config={config}
+            somenteLeitura={somenteLeitura}
+            onChange={(c) => editar({ configuracao: c })}
+            podeMudarLimiar={podeEditar}
+            onMudarLimiar={(n) =>
+              // ativa: só este campo pode mudar, e grava na hora; senão segue o salvamento normal
+              ativa ? mudarLimiar(n) : editar({ configuracao: { ...config, limiarLeadQuente: n } })
+            }
+          />
         </TabsContent>
 
         <TabsContent value="inscritos" className="overflow-auto">

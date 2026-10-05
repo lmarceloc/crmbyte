@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Passo } from "./tipos";
+import { LIMIAR_LEAD_QUENTE_MAX, LIMIAR_LEAD_QUENTE_PADRAO } from "./vocabulario";
 
 const DIAS = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"] as const;
 
@@ -73,6 +74,8 @@ export const configuracaoSchema = z.object({
   }),
   fuso: z.string().trim().min(1).max(80),
   limiteDiarioPorCaixa: z.number().int().min(1).max(10_000),
+  // cadências salvas antes do campo existir chegam sem ele: vale o padrão
+  limiarLeadQuente: z.number().int().min(1).max(LIMIAR_LEAD_QUENTE_MAX).default(LIMIAR_LEAD_QUENTE_PADRAO),
   paradas: z.object({
     respondeu: z.boolean(),
     bounce: z.boolean(),
@@ -86,6 +89,11 @@ export const criarCadenciaSchema = z
     name: z.string().trim().min(1).max(160),
     tagDoSegmento: z.string().trim().max(80).optional(),
   })
+  .strict();
+
+/** Só o limite de lead quente: pode mudar com a cadência ativa (não afeta envios). */
+export const mudarLimiarSchema = z
+  .object({ limiarLeadQuente: z.number().int().min(1).max(LIMIAR_LEAD_QUENTE_MAX) })
   .strict();
 
 export const editarCadenciaSchema = z

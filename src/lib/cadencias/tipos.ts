@@ -1,5 +1,6 @@
 // Contrato da cadência de e-mail. Tela, API e worker leem pelos mesmos tipos
 // (o schema Zod em schemas.ts é o espelho de validação destes tipos).
+import { LIMIAR_LEAD_QUENTE_PADRAO } from "./vocabulario";
 
 export type StatusDaCadencia = "rascunho" | "ativa" | "pausada";
 
@@ -60,6 +61,8 @@ export interface ConfiguracaoDaCadencia {
   fuso: string;
   /** Fatia DESTA cadência por caixa por dia. */
   limiteDiarioPorCaixa: number;
+  /** Aberturas (somando todos os e-mails) para o lead entrar em "Leads quentes". */
+  limiarLeadQuente: number;
   paradas: {
     respondeu: boolean;
     bounce: boolean;
@@ -92,6 +95,7 @@ export function configuracaoPadrao(): ConfiguracaoDaCadencia {
     },
     fuso: "America/Sao_Paulo",
     limiteDiarioPorCaixa: 40,
+    limiarLeadQuente: LIMIAR_LEAD_QUENTE_PADRAO,
     paradas: {
       respondeu: true,
       bounce: true,

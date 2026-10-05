@@ -58,7 +58,7 @@ function HotLeads() {
         <div>
           <h1 className="text-xl font-semibold">Leads quentes</h1>
           <p className="text-sm text-muted-foreground">
-            Quem abriu o e-mail de uma cadência 3 vezes ou mais — sinal de interesse pra trabalhar agora.
+            Quem atingiu o número de aberturas definido na cadência (padrão: 2) — sinal de interesse pra trabalhar agora.
           </p>
         </div>
       </div>
@@ -75,8 +75,8 @@ function HotLeads() {
         </div>
       ) : leads.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Nenhum lead quente ainda — assim que um lead inscrito numa cadência ativa abrir o e-mail 3 vezes, ele
-          aparece aqui.
+          Nenhum lead quente ainda — assim que um lead inscrito numa cadência atingir o número de aberturas definido
+          nela (Configurações da cadência; padrão: 2), ele aparece aqui.
         </div>
       ) : (
         <ul className="divide-y rounded-lg border bg-card">

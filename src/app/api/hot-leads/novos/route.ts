@@ -1,6 +1,5 @@
 import { fail, json, toErrorResponse } from "@/lib/api-utils";
 import { requireRole } from "@/lib/auth/account";
-import { LIMIAR_LEAD_QUENTE } from "@/lib/cadencias/vocabulario";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +28,7 @@ export async function GET() {
     let q = ctx.supabase
       .from("email_cadence_enrollments")
       .select("id,aberturas,ultima_abertura_em, deals(title), contacts(name)", { count: "exact" })
-      .gte("aberturas", LIMIAR_LEAD_QUENTE)
+      .not("quente_em", "is", null) // limite de cada cadência (migração 043)
       .not("ultima_abertura_em", "is", null)
       .order("ultima_abertura_em", { ascending: false })
       .limit(1);
