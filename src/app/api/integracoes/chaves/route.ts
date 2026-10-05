@@ -9,7 +9,7 @@ import { ehProvedor, removerChave, salvarChave, statusChaves } from "@/lib/integ
 export const dynamic = "force-dynamic";
 
 const corpo = z
-  .object({ provider: z.enum(["apify", "treg"]), api_key: z.string().trim().min(10).max(500) })
+  .object({ provider: z.enum(["apify", "treg", "openrouter"]), api_key: z.string().trim().min(10).max(500) })
   .strict();
 
 // Nunca devolve a chave: só status, origem e os 4 últimos caracteres.
