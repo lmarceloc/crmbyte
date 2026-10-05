@@ -23,7 +23,7 @@ import {
 import { configuracaoPadrao, type Cadencia, type Passo } from "@/lib/cadencias/tipos"
 import { AbaConfiguracoes } from "./aba-configuracoes"
 import { AbaInscritos } from "./aba-inscritos"
-import { CanvasDoFluxo } from "./canvas"
+import { CanvasStudio } from "./canvas-studio"
 import { PainelDoPasso } from "./painel-do-passo"
 import { STATUS_CADENCIA } from "./status"
 import { useCadencia } from "./use-cadencia"
@@ -34,6 +34,8 @@ export function Construtor({ id }: { id: string }) {
   const [aba, setAba] = useState("fluxo")
   const [selecionado, setSelecionado] = useState<string | null>(null)
   const [mudando, setMudando] = useState(false)
+  // passos recém-inseridos/duplicados piscam no canvas
+  const [destaques, setDestaques] = useState<Record<string, number>>({})
 
   const passos = useMemo(() => cadencia?.passos ?? [], [cadencia?.passos])
   const numeros = useMemo(() => numerarPassos(passos), [passos])
@@ -53,6 +55,21 @@ export function Construtor({ id }: { id: string }) {
   const passoSel = selecionado ? (todosOsPassos(passos).find((p) => p.id === selecionado) ?? null) : null
 
   const setPassos = (novos: Passo[]) => editar({ passos: novos })
+
+  function acender(ids: string[]) {
+    if (ids.length === 0) return
+    const agora = Date.now()
+    setDestaques((d) => ({ ...d, ...Object.fromEntries(ids.map((i) => [i, agora])) }))
+    setTimeout(
+      () =>
+        setDestaques((d) => {
+          const resto = { ...d }
+          for (const i of ids) if (resto[i] === agora) delete resto[i]
+          return resto
+        }),
+      1200,
+    )
+  }
 
   async function alternar() {
     if (!cadencia) return
@@ -110,8 +127,9 @@ export function Construtor({ id }: { id: string }) {
         </TabsList>
 
         <TabsContent value="fluxo" className="flex min-h-0 flex-1 gap-3">
-          <CanvasDoFluxo
+          <CanvasStudio
             passos={passos}
+            destaques={destaques}
             configuracao={config}
             somenteLeitura={somenteLeitura}
             numeros={numeros}
@@ -123,8 +141,14 @@ export function Construtor({ id }: { id: string }) {
               const novo = passoVazio(tipo)
               setPassos(inserirPasso(passos, ponto, novo))
               setSelecionado(novo.id)
+              acender([novo.id])
             }}
-            onDuplicar={(pid) => setPassos(duplicarPasso(passos, pid))}
+            onDuplicar={(pid) => {
+              const antes = new Set(todosOsPassos(passos).map((p) => p.id))
+              const novos = duplicarPasso(passos, pid)
+              setPassos(novos)
+              acender(todosOsPassos(novos).map((p) => p.id).filter((i) => !antes.has(i)))
+            }}
             onExcluir={(pid) => {
               if (selecionado === pid) setSelecionado(null)
               setPassos(removerPasso(passos, pid))
