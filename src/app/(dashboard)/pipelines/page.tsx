@@ -358,9 +358,12 @@ export default function PipelinesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    // Em telas grandes (lg+): a página não rola; cabeçalho, filtros e métricas ficam fixos no topo e o
+    // quadro (flex-1) leva o resto da altura, com rolagem dentro de cada coluna. No celular continua
+    // o fluxo normal (a página rola), porque os cards arrastáveis não deixam rolar com o dedo.
+    <div className="space-y-6 lg:flex lg:h-full lg:flex-col lg:gap-6 lg:space-y-0">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {/* Pipeline selector dropdown */}
           <DropdownMenu>
@@ -470,17 +473,21 @@ export default function PipelinesPage() {
         </div>
       ) : (
         <>
-          <PipelineFilters
-            busca={busca}
-            onBuscaChange={setBusca}
-            dono={dono}
-            onDonoChange={setDono}
-            membros={membros}
-            meuPerfilId={profile?.id ?? null}
-            total={deals.length}
-            visiveis={dealsVisiveis.length}
-          />
-          <PipelineAnalytics stages={stages} deals={dealsVisiveis} />
+          <div className="shrink-0">
+            <PipelineFilters
+              busca={busca}
+              onBuscaChange={setBusca}
+              dono={dono}
+              onDonoChange={setDono}
+              membros={membros}
+              meuPerfilId={profile?.id ?? null}
+              total={deals.length}
+              visiveis={dealsVisiveis.length}
+            />
+          </div>
+          <div className="shrink-0">
+            <PipelineAnalytics stages={stages} deals={dealsVisiveis} />
+          </div>
           <PipelineBoard
             stages={stages}
             deals={dealsVisiveis}

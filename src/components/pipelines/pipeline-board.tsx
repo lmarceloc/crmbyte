@@ -101,8 +101,11 @@ export function PipelineBoard({
           Disabled on lg+ where snapping would interfere with the
           natural layout. The board can still overflow horizontally on
           lg+ once a pipeline has many stages (columns keep a 260px
-          min-width), so a thin scrollbar stays visible on desktop. */}
-      <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none">
+          min-width), so a thin scrollbar stays visible on desktop.
+          Altura (lg+): flex-1 ocupa o que sobra da página (que não rola) e cada coluna
+          rola por dentro. lg:min-h-[18rem] evita um quadro inutilizável em janelas
+          muito baixas — nelas o <main> volta a rolar. Abaixo de lg nada disso vale. */}
+      <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:min-h-[18rem] lg:flex-1 lg:snap-none">
         {sortedStages.map((stage) => {
           const stageDeals = dealsByStage.get(stage.id) ?? [];
           const totalValue = stageDeals.reduce(
@@ -229,33 +232,37 @@ function StageColumn({
 
       <div
         ref={setNodeRef}
-        className={`mt-3 flex flex-1 flex-col gap-2 rounded-lg transition-all ${
+        className={`mt-3 flex flex-1 flex-col rounded-lg transition-all lg:min-h-0 ${
           isOver
             ? "bg-primary/5 outline outline-2 outline-dashed outline-primary outline-offset-2"
             : ""
         }`}
       >
-        {deals.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed border-border py-10 text-xs text-muted-foreground">
-            Drop a deal here
-          </div>
-        ) : (
-          deals.map((deal) => (
-            <DraggableDealCard
-              key={deal.id}
-              deal={deal}
-              stage={stage}
-              onEdit={onEditDeal}
-            />
-          ))
-        )}
+        {/* lg+: só os cards rolam (aqui dentro, não no <main>) e o título, o total e o
+            "Add Deal" da coluna não saem da tela. */}
+        <div className="flex flex-1 flex-col gap-2 lg:min-h-0 lg:overflow-y-auto lg:[scrollbar-color:var(--border)_transparent] lg:[scrollbar-width:thin]">
+          {deals.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed border-border py-10 text-xs text-muted-foreground">
+              Drop a deal here
+            </div>
+          ) : (
+            deals.map((deal) => (
+              <DraggableDealCard
+                key={deal.id}
+                deal={deal}
+                stage={stage}
+                onEdit={onEditDeal}
+              />
+            ))
+          )}
+        </div>
       </div>
 
       <Button
         variant="ghost"
         size="sm"
         onClick={() => onAddDeal(stage.id)}
-        className="mt-3 w-full justify-start border border-dashed border-border bg-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
+        className="mt-3 w-full shrink-0 justify-start border border-dashed border-border bg-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
       >
         <Plus className="mr-1 h-3 w-3" />
         Add Deal
