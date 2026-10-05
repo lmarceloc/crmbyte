@@ -18,6 +18,8 @@ import {
   ListChecks,
   MailMinus,
   MailX,
+  MailWarning,
+  Reply,
   MousePointerClick,
   OctagonX,
   Send,
@@ -284,6 +286,8 @@ const ICONE_EVENTO: Record<string, LucideIcon> = {
   limite_diario_atingido: Gauge,
   fora_da_janela: Ban,
   resultado_marcado: Flag,
+  respondido: Reply,
+  bounce: MailWarning,
 }
 
 export function textoDoEvento(e: Pick<EventoDaLinha, "tipo" | "metadata">): string {
@@ -319,6 +323,12 @@ export function textoDoEvento(e: Pick<EventoDaLinha, "tipo" | "metadata">): stri
       return "Limite diário de envio atingido"
     case "fora_da_janela":
       return "Aguardando a janela de envio"
+    case "respondido":
+      return typeof m.de === "string" ? `Respondeu o e-mail (${m.de})` : "Respondeu o e-mail"
+    case "bounce":
+      return typeof m.destinatario === "string"
+        ? `E-mail devolvido (bounce) — ${m.destinatario}`
+        : "E-mail devolvido (bounce)"
     case "resultado_marcado": {
       const r = typeof m.resultado === "string" ? (ROTULO_RESULTADO[m.resultado] ?? m.resultado) : "removido"
       return `Resultado marcado: ${r}`

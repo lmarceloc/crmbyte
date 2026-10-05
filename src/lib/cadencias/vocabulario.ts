@@ -26,6 +26,9 @@ export const TIPOS_DE_EVENTO_DA_CADENCIA = [
   "concluida",
   "limite_diario_atingido",
   "fora_da_janela",
+  "resultado_marcado",
+  "respondido",
+  "bounce",
 ] as const;
 
 export type StatusDaInscricao = (typeof STATUS_DA_INSCRICAO)[number];

@@ -43,6 +43,9 @@ export const caixaInputSchema = z
       .nullable()
       .default(null)
       .transform((v) => v || null),
+    // Com IMAP, a entrada é sempre lida (respostas e bounces); a cópia em
+    // "Enviados" pode ser desligada para Gmail/Outlook, que já a gravam.
+    imap_copy_sent: z.boolean().default(true),
   })
   .strict();
 export type CaixaInput = z.infer<typeof caixaInputSchema>;
@@ -66,10 +69,14 @@ export interface CaixaPublica {
   imap_security: SegurancaImap;
   imap_sent_folder: string | null;
   imap_last_error: string | null;
+  imap_copy_sent: boolean;
+  /** Última leitura da caixa de entrada (respostas e bounces). */
+  imap_inbox_checked_at: string | null;
+  imap_inbox_error: string | null;
 }
 
 const COLUNAS_PUBLICAS =
-  "id,email,from_name,owner_user_id,smtp_host,smtp_port,smtp_security,smtp_username,smtp_password_encrypted,daily_limit,verified_at,last_error,signature_html,imap_host,imap_port,imap_security,imap_sent_folder,imap_last_error";
+  "id,email,from_name,owner_user_id,smtp_host,smtp_port,smtp_security,smtp_username,smtp_password_encrypted,daily_limit,verified_at,last_error,signature_html,imap_host,imap_port,imap_security,imap_sent_folder,imap_last_error,imap_copy_sent,imap_inbox_checked_at,imap_inbox_error";
 
 /**
  * Config do IMAP da caixa, ou null se a cópia em "Enviados" está desligada.
@@ -120,15 +127,19 @@ export async function salvarCaixa(
 ): Promise<{ caixa: CaixaPublica; criada: boolean; senhaTrocada: boolean }> {
   // 1. senha atual (ao editar, senha vazia mantém a gravada)
   let senhaCifradaAtual: string | null = null;
+  let mesmaEntrada = false;
   if (input.id) {
     const { data } = await admin
       .from("email_mailboxes")
-      .select("smtp_password_encrypted")
+      .select("smtp_password_encrypted,imap_host,smtp_username,email")
       .eq("id", input.id)
       .eq("account_id", accountId)
       .maybeSingle();
     if (!data) throw new CaixaError("Caixa não encontrada.", 404);
     senhaCifradaAtual = data.smtp_password_encrypted;
+    // mesma caixa de entrada: continua a leitura de onde parou
+    mesmaEntrada =
+      data.imap_host === input.imap_host && data.smtp_username === input.smtp_username && data.email === input.email;
   }
   const senhaNova = input.smtp_password?.length ? input.smtp_password : null;
   let senhaPura = senhaNova;
@@ -219,6 +230,10 @@ export async function salvarCaixa(
     imap_security: input.imap_security,
     imap_sent_folder: input.imap_sent_folder,
     imap_last_error: null,
+    imap_copy_sent: input.imap_copy_sent,
+    ...(mesmaEntrada
+      ? {}
+      : { imap_inbox_uid_validity: null, imap_inbox_last_uid: null, imap_inbox_checked_at: null, imap_inbox_error: null }),
   };
   const consulta = input.id
     ? admin.from("email_mailboxes").update(linha).eq("id", input.id).eq("account_id", accountId)
@@ -255,8 +270,10 @@ export interface CaixaDeEnvio {
   dailyLimit: number;
   signatureHtml: string;
   smtp: ConfigSmtp;
-  /** null = cópia em "Enviados" desligada. */
+  /** null = IMAP desligado (sem cópia em "Enviados" nem leitura da entrada). */
   imap: ConfigImap | null;
+  /** Gravar a cópia em "Enviados" (Gmail/Outlook já gravam sozinhos). */
+  copiarEnviados: boolean;
   /** Havia erro gravado de uma cópia anterior (para limpar quando voltar a funcionar). */
   imapTinhaErro: boolean;
 }
@@ -302,6 +319,7 @@ export async function carregarCaixaDeEnvio(
       email: data.email,
       password,
     }),
+    copiarEnviados: data.imap_copy_sent !== false,
     imapTinhaErro: !!data.imap_last_error,
   };
 }

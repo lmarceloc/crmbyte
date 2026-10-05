@@ -12,9 +12,19 @@ describe("avaliarRamo", () => {
     expect(avaliarRamo(ramo(c), { ultimo_email_em: "2026-10-09T12:00:00Z", aberturas: 1 }, agora)).toBeNull();
     expect(avaliarRamo(ramo(c), { ultimo_email_em: "2026-10-01T12:00:00Z", aberturas: 1 }, agora)).toBe(false);
   });
-  it("sem e-mail anterior decide já; clicou/respondeu nunca é sim", () => {
+  it("sem e-mail anterior decide já; sem clique/resposta, prazo vencido dá não", () => {
     expect(avaliarRamo(ramo({ tipo: "abriu", vezes: 1, dentroDeDias: 1 }), { ultimo_email_em: null, aberturas: 0 }, agora)).toBe(false);
     expect(avaliarRamo(ramo({ tipo: "clicou", dentroDeDias: 1 }), { ultimo_email_em: "2026-10-01T00:00:00Z", aberturas: 9 }, agora)).toBe(false);
+    expect(avaliarRamo(ramo({ tipo: "respondeu", dentroDeDias: 1 }), { ultimo_email_em: "2026-10-01T00:00:00Z", aberturas: 9, respondeu_em: null }, agora)).toBe(false);
+  });
+  it("clicou usa os cliques registrados; respondeu usa a resposta lida da caixa de entrada", () => {
+    const recente = "2026-10-09T12:00:00Z";
+    expect(avaliarRamo(ramo({ tipo: "clicou", dentroDeDias: 3 }), { ultimo_email_em: recente, aberturas: 0, cliques: 1 }, agora)).toBe(true);
+    expect(avaliarRamo(ramo({ tipo: "clicou", dentroDeDias: 3 }), { ultimo_email_em: recente, aberturas: 0, cliques: 0 }, agora)).toBeNull();
+    expect(
+      avaliarRamo(ramo({ tipo: "respondeu", dentroDeDias: 3 }), { ultimo_email_em: recente, aberturas: 0, respondeu_em: "2026-10-10T08:00:00Z" }, agora),
+    ).toBe(true);
+    expect(avaliarRamo(ramo({ tipo: "respondeu", dentroDeDias: 3 }), { ultimo_email_em: recente, aberturas: 0, respondeu_em: null }, agora)).toBeNull();
   });
 });
 

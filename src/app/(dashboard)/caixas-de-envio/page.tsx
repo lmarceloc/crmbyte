@@ -1,5 +1,7 @@
 "use client"
 
+import { formatDistanceToNow } from "date-fns"
+import { ptBR } from "date-fns/locale"
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Loader2, Mail, Trash2 } from "lucide-react"
@@ -33,23 +35,28 @@ interface Caixa {
   imap_security: "tls" | "starttls"
   imap_sent_folder: string | null
   imap_last_error: string | null
+  imap_copy_sent: boolean
+  imap_inbox_checked_at: string | null
+  imap_inbox_error: string | null
 }
 interface Membro { user_id: string; full_name: string }
 
-// `imap` só nos provedores que não guardam a cópia em "Enviados" sozinhos. Gmail e
-// Outlook guardam: com IMAP ligado a mensagem apareceria duas vezes.
+// IMAP lê a caixa de entrada (respostas e bounces) e, quando `copia`, grava a cópia
+// em "Enviados". Gmail já guarda a cópia sozinho: lá só a leitura. Microsoft 365 não
+// aceita IMAP com senha (só OAuth), então o atalho dele fica sem IMAP — senão a caixa
+// não salvaria (o login IMAP é testado ao salvar).
 const PROVEDORES: {
   nome: string
   host: string
   port: number
   security: "starttls" | "tls" | "none"
-  imap?: { host: string; port: number; security: "tls" | "starttls" }
+  imap?: { host: string; port: number; security: "tls" | "starttls"; copia: boolean }
 }[] = [
-  { nome: "Gmail / Workspace", host: "smtp.gmail.com", port: 587, security: "starttls" },
+  { nome: "Gmail / Workspace", host: "smtp.gmail.com", port: 587, security: "starttls", imap: { host: "imap.gmail.com", port: 993, security: "tls", copia: false } },
   { nome: "Outlook / 365", host: "smtp.office365.com", port: 587, security: "starttls" },
   { nome: "Zoho", host: "smtp.zoho.com", port: 465, security: "tls" },
   { nome: "Hostinger", host: "smtp.hostinger.com", port: 465, security: "tls" },
-  { nome: "Umbler", host: "smtp.umbler.com", port: 587, security: "starttls", imap: { host: "imap.umbler.com", port: 993, security: "tls" } },
+  { nome: "Umbler", host: "smtp.umbler.com", port: 587, security: "starttls", imap: { host: "imap.umbler.com", port: 993, security: "tls", copia: true } },
 ]
 
 const VAZIO = {
@@ -68,6 +75,7 @@ const VAZIO = {
   imap_port: 993,
   imap_security: "tls" as Caixa["imap_security"],
   imap_sent_folder: "",
+  imap_copy_sent: true,
 }
 
 function Caixas() {
@@ -120,6 +128,7 @@ function Caixas() {
         imap_port: f.imap_port,
         imap_security: f.imap_security,
         imap_sent_folder: f.imap_sent_folder.trim() || null,
+        imap_copy_sent: f.imap_copy_sent,
       }
       const r = await fetch("/api/caixas-de-envio", {
         method: "POST",
@@ -162,6 +171,7 @@ function Caixas() {
       imap_port: c.imap_port,
       imap_security: c.imap_security,
       imap_sent_folder: c.imap_sent_folder ?? "",
+      imap_copy_sent: c.imap_copy_sent,
     })
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -194,6 +204,7 @@ function Caixas() {
                   imap_host: p.imap?.host ?? "",
                   imap_port: p.imap?.port ?? 993,
                   imap_security: p.imap?.security ?? "tls",
+                  imap_copy_sent: p.imap?.copia ?? true,
                 }))
               }>
               {p.nome}
@@ -226,11 +237,13 @@ function Caixas() {
         </Campo>
         <div className="grid gap-3 rounded-md border border-dashed p-3 sm:col-span-2 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <h3 className="text-sm font-semibold">Cópia em “Enviados” (IMAP) — opcional</h3>
+            <h3 className="text-sm font-semibold">IMAP: respostas, bounces e cópia em “Enviados”</h3>
             <p className="text-xs text-muted-foreground">
-              O SMTP só entrega o e-mail; alguns provedores (ex.: Umbler) não guardam cópia na caixa. Com o IMAP
-              preenchido, cada e-mail da cadência também é gravado em “Enviados”, usando o mesmo usuário e a mesma
-              senha. Gmail e Outlook já guardam sozinhos: deixe em branco para não duplicar.
+              Com o IMAP preenchido (mesmo usuário e senha do SMTP), o CRM lê a caixa de entrada a cada poucos minutos:
+              quando o lead responde ou o e-mail volta (bounce), a cadência registra e para (conforme as configurações
+              dela). Também pode gravar cada e-mail enviado em “Enviados” — útil em provedores como a Umbler; Gmail e
+              Outlook já gravam sozinhos, então deixe a cópia desligada neles. O Microsoft 365 não aceita IMAP com senha:
+              nele, deixe o IMAP em branco (respostas e bounces não são detectados).
             </p>
           </div>
           <Campo label="Servidor IMAP">
@@ -247,11 +260,22 @@ function Caixas() {
               </select>
             </Campo>
           </div>
-          <div className="sm:col-span-2">
-            <Campo label="Pasta de enviados (vazio = detectar sozinho)">
-              <Input placeholder="Sent" value={f.imap_sent_folder} onChange={(e) => set("imap_sent_folder", e.target.value)} />
-            </Campo>
-          </div>
+          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+            <input
+              type="checkbox"
+              className="size-4"
+              checked={f.imap_copy_sent}
+              onChange={(e) => set("imap_copy_sent", e.target.checked)}
+            />
+            Guardar cópia dos e-mails enviados em “Enviados”
+          </label>
+          {f.imap_copy_sent && (
+            <div className="sm:col-span-2">
+              <Campo label="Pasta de enviados (vazio = detectar sozinho)">
+                <Input placeholder="Sent" value={f.imap_sent_folder} onChange={(e) => set("imap_sent_folder", e.target.value)} />
+              </Campo>
+            </div>
+          )}
         </div>
         <div className="sm:col-span-2">
           <Campo label="Assinatura (HTML)">
@@ -285,7 +309,15 @@ function Caixas() {
                   {nomeDono(c.owner_user_id)} · {c.smtp_host}:{c.smtp_port} · {c.daily_limit}/dia
                 </p>
                 {c.imap_host && (
-                  <p className="truncate text-xs text-muted-foreground">Cópia em Enviados: {c.imap_host}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    IMAP {c.imap_host} · {c.imap_copy_sent ? "cópia em Enviados ligada" : "sem cópia em Enviados"} ·{" "}
+                    {c.imap_inbox_checked_at
+                      ? `entrada lida ${formatDistanceToNow(new Date(c.imap_inbox_checked_at), { addSuffix: true, locale: ptBR })}`
+                      : "entrada ainda não lida"}
+                  </p>
+                )}
+                {c.imap_inbox_error && (
+                  <p className="truncate text-xs text-destructive">Leitura da entrada falhou: {c.imap_inbox_error}</p>
                 )}
                 {c.last_error && <p className="truncate text-xs text-destructive">{c.last_error}</p>}
                 {c.imap_last_error && (

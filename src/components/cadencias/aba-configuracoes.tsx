@@ -58,8 +58,8 @@ export function AbaConfiguracoes({ config, somenteLeitura, onChange }: Props) {
   const paradas: { k: keyof ConfiguracaoDaCadencia["paradas"]; r: string; trava?: boolean }[] = [
     { k: "descadastro", r: "Quando o contato se descadastrar (obrigatório)", trava: true },
     { k: "ganhoOuPerdido", r: "Quando o negócio for ganho ou perdido" },
-    { k: "respondeu", r: "Quando o contato responder (ainda não detectado)" },
-    { k: "bounce", r: "Quando o e-mail voltar (bounce, ainda não detectado)" },
+    { k: "respondeu", r: "Quando o contato responder" },
+    { k: "bounce", r: "Quando o e-mail voltar (bounce)" },
   ]
   const campoSel = "h-9 w-full rounded-md border bg-background px-2 text-sm"
 
@@ -192,6 +192,9 @@ export function AbaConfiguracoes({ config, somenteLeitura, onChange }: Props) {
             />
           </div>
         ))}
+        <p className="text-xs text-muted-foreground">
+          Respostas e bounces são lidos da caixa de entrada das caixas de envio que têm IMAP configurado.
+        </p>
       </Secao>
     </div>
   )
