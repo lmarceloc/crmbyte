@@ -5,9 +5,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   carregarCaixaDeEnvio,
   registrarResultadoDaCaixa,
+  registrarResultadoDoImapDaCaixa,
   type CaixaDeEnvio,
 } from "@/lib/email/caixas";
 import { assinaturaEmTexto } from "@/lib/email/assinatura";
+import { copiarParaEnviados } from "@/lib/email/imap";
 import { enviarPorSmtp, smtpDaInstalacao, type ConfigSmtp } from "@/lib/email/smtp";
 import { avancarDiasUteis } from "./dias-uteis";
 import { corpoEmHtml, corpoEmTexto, escaparMarkdown } from "./corpo-rico";
@@ -54,6 +56,8 @@ interface Ctx {
   admin: SupabaseClient;
   agora: Date;
   resultado: ResultadoDoTick;
+  /** Caixas cujo IMAP falhou neste tick: as próximas cópias delas são puladas até o próximo minuto. */
+  imapComFalha: Set<string>;
 }
 
 const nomeDaEmpresa = (e: unknown): string | null => {
@@ -157,6 +161,23 @@ async function parar(ctx: Ctx, i: Inscricao, motivo: MotivoDeParada, erro?: stri
   });
   await evento(ctx, i, "parada", null, { motivo, ...(erro ? { erro } : {}) });
   ctx.resultado.paradas++;
+}
+
+/**
+ * Guarda a cópia do e-mail na pasta "Enviados" da caixa (IMAP). Roda DEPOIS de o
+ * estado da inscrição estar salvo: se isto travar ou o processo cair, o e-mail não
+ * é reenviado. Nunca lança. Servidor IMAP fora do ar não pode atrasar o lote: após
+ * uma falha, as demais cópias dessa caixa neste tick são puladas.
+ */
+async function guardarCopiaEmEnviados(ctx: Ctx, i: Inscricao, caixa: CaixaDeEnvio, mensagem: Buffer) {
+  if (!caixa.imap || ctx.imapComFalha.has(caixa.id)) return;
+  try {
+    const r = await copiarParaEnviados(caixa.imap, mensagem);
+    if (!r.ok) ctx.imapComFalha.add(caixa.id);
+    await registrarResultadoDoImapDaCaixa(ctx.admin, i.account_id, caixa.id, r.ok ? null : r.erro, caixa.imapTinhaErro);
+  } catch (e) {
+    console.error("[cadencia-worker] cópia em Enviados", e);
+  }
 }
 
 async function avancarPara(ctx: Ctx, i: Inscricao, proximo: Passo | null, extra: Record<string, unknown> = {}) {
@@ -325,7 +346,15 @@ async function executarEmail(
   }
   if (!resposta.ok) return registrarTentativaFalha(ctx, i, `${resposta.erro}: ${resposta.detalhe}`);
 
-  await evento(ctx, i, "email_enviado", passo.id, caixa ? { via: "caixa", caixa_id: caixa.id } : { via: "instalacao" });
+  await evento(
+    ctx,
+    i,
+    "email_enviado",
+    passo.id,
+    caixa
+      ? { via: "caixa", caixa_id: caixa.id, message_id: resposta.messageId }
+      : { via: "instalacao", message_id: resposta.messageId },
+  );
   ctx.resultado.emailsEnviados++;
   await avancarPara(ctx, i, proximoIrmao(cadencia.passos, passo.id), {
     ultimo_email_em: ctx.agora.toISOString(),
@@ -334,6 +363,8 @@ async function executarEmail(
     tentativas: 0,
     ultimo_erro: null,
   });
+  // por último: o e-mail já saiu e o estado já foi salvo; a cópia é só conforto do vendedor
+  if (caixa) await guardarCopiaEmEnviados(ctx, i, caixa, resposta.raw);
 }
 
 async function processarInscricao(ctx: Ctx, i: Inscricao) {
@@ -439,6 +470,7 @@ export async function processarCadencias(admin: SupabaseClient, agora = new Date
     admin,
     agora,
     resultado: { processadas: 0, emailsEnviados: 0, concluidas: 0, paradas: 0, falhas: 0 },
+    imapComFalha: new Set(),
   };
   const { data: candidatas } = await admin
     .from("email_cadence_enrollments")

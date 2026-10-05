@@ -1,4 +1,6 @@
+import { randomUUID } from "crypto";
 import nodemailer, { type Transporter } from "nodemailer";
+import MailComposer from "nodemailer/lib/mail-composer";
 import { assertDestinoResolvidoSeguro } from "./ssrf";
 
 export type SegurancaSmtp = "starttls" | "tls" | "none";
@@ -29,7 +31,12 @@ export interface MensagemDeEmail {
 }
 
 export type ResultadoDoEnvio =
-  | { ok: true }
+  | {
+      ok: true;
+      /** O MIME exato que foi entregue — é o que vira a cópia em "Enviados" (IMAP). */
+      raw: Buffer;
+      messageId: string;
+    }
   | { ok: false; erro: ErroDeEntrega; detalhe: string };
 
 /** Nome EHLO = hostname de NEXT_PUBLIC_SITE_URL (o default [127.0.0.1] é filtrado). */
@@ -76,6 +83,12 @@ function transporte(cfg: ConfigSmtp): Transporter {
 const limpaNome = (n: string) => n.replace(/[<>"\r\n]/g, "").trim();
 const emailSeguro = (e: string) => !/[<>"\r\n,;\s]/.test(e);
 
+function montarMime(opcoes: ConstructorParameters<typeof MailComposer>[0]): Promise<Buffer> {
+  return new Promise((resolve, rejeitar) => {
+    new MailComposer(opcoes).compile().build((erro, mensagem) => (erro ? rejeitar(erro) : resolve(mensagem)));
+  });
+}
+
 export async function enviarPorSmtp(
   cfg: ConfigSmtp,
   msg: MensagemDeEmail,
@@ -86,7 +99,10 @@ export async function enviarPorSmtp(
   try {
     await assertDestinoResolvidoSeguro(cfg.host);
     const nome = limpaNome(msg.fromName);
-    await transporte(cfg).sendMail({
+    // Monta o MIME uma vez só: o mesmo conteúdo (e Message-ID) que segue pelo SMTP
+    // é o que o chamador grava em "Enviados".
+    const messageId = `<${randomUUID()}@${msg.fromEmail.split("@").pop()}>`;
+    const raw = await montarMime({
       from: nome ? `${nome} <${msg.fromEmail}>` : msg.fromEmail,
       to: msg.to,
       subject: msg.subject,
@@ -94,8 +110,11 @@ export async function enviarPorSmtp(
       text: msg.text,
       replyTo: msg.replyTo,
       headers: msg.headers,
+      messageId,
+      date: new Date(),
     });
-    return { ok: true };
+    await transporte(cfg).sendMail({ envelope: { from: msg.fromEmail, to: [msg.to] }, raw });
+    return { ok: true, raw, messageId };
   } catch (e) {
     const err = e as { responseCode?: number; code?: string; message?: string };
     const detalhe = err.message ?? "Falha no envio.";

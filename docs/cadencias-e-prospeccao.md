@@ -7,14 +7,28 @@ Implementado a partir das specs `spec-cadencias-fluxo-email` e
 ## Migrations
 - `024_email_cadences.sql` — cadências, inscrições, eventos, caixas de envio, colunas novas em `contacts`, função de abertura atômica.
 - `025_prospecting.sql` — campanhas/candidatos/credencial/lock de prospecção, `deals.source/external_id`.
+- `038_mailbox_imap_sent_copy.sql` — colunas de IMAP em `email_mailboxes` (cópia em "Enviados"). **Rode antes de subir o código que a usa**: a tela e a listagem de caixas passam a ler essas colunas.
 
-Rode as duas no SQL Editor do Supabase (ordem 024 → 025).
+Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 038).
 
 ## Cron (1×/min, com `Authorization: Bearer $CRON_SECRET`)
 - `GET /api/cadencias/worker` — envia e-mails, espera, ramifica, para.
 - `GET /api/prospecting/worker` — acompanha buscas Apify e revela e-mails B2B.
 
 Exemplo de crontab: `* * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://SEU_DOMINIO/api/cadencias/worker`
+
+## Cópia em "Enviados" (IMAP)
+O SMTP só entrega o e-mail; guardar a cópia na caixa do remetente é trabalho do cliente
+de e-mail, e vários provedores (ex.: Umbler) não fazem isso sozinhos. Em **Caixas de envio**,
+preencher o *Servidor IMAP* (ex.: `imap.umbler.com`, porta 993, TLS) faz o worker gravar cada
+e-mail enviado na pasta de enviados da caixa, marcado como lido.
+
+- Mesmo usuário e senha do SMTP (sem usuário, vale o e-mail da caixa). Só TLS ou STARTTLS.
+- A pasta é detectada (`\Sent`, ou nomes como `Sent`/`Enviados`); se o provedor usar outro nome, informe-o no campo *Pasta de enviados*.
+- Ao salvar a caixa, o sistema testa login e pasta, como já faz com o SMTP.
+- **Gmail e Outlook já guardam a cópia sozinhos**: deixe o IMAP em branco neles, senão a mensagem aparece duas vezes.
+- A cópia é gravada **depois** de o e-mail sair e de o estado da inscrição ser salvo. Falha de IMAP nunca derruba nem repete um envio: o erro aparece em *Cópia em Enviados falhou* na lista de caixas e a próxima tentativa acontece no minuto seguinte (uma por caixa por minuto, para um IMAP fora do ar não atrasar o lote).
+- O evento `email_enviado` agora guarda também o `message_id` (cabeçalho `Message-ID`), útil para achar a mensagem no log do provedor.
 
 ## Decisões de adaptação
 | Spec | wacrm |
