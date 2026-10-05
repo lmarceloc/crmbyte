@@ -1,7 +1,8 @@
 "use client";
 
 import type { Deal, PipelineStage } from "@/types";
-import { Building2, Calendar, Check, Hourglass, Pencil, Users, X } from "lucide-react";
+import { Building2, Calendar, Check, Globe, Hourglass, Link2, Pencil, Users, X } from "lucide-react";
+import { linksDaEmpresa } from "@/lib/deals/dados-da-empresa";
 import { TemperatureBadge } from "./temperature-badge";
 import { formatCurrency } from "@/lib/currency";
 import { useDetailPanel } from "@/components/detail/detail-panel-provider";
@@ -26,6 +27,41 @@ function DiasNaEtapaBadge({ deal }: { deal: Deal }) {
     >
       <Hourglass className="h-3 w-3" />
       {rotuloDiasNaEtapa(dias)}
+    </span>
+  );
+}
+
+// span (não <a>): o cartão inteiro já é um <button>
+function LinkDaEmpresa({
+  url,
+  titulo,
+  children,
+}: {
+  url: string;
+  titulo: string;
+  children: React.ReactNode;
+}) {
+  const abrir = () => window.open(url, "_blank", "noopener,noreferrer");
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      title={titulo}
+      aria-label={titulo}
+      className="shrink-0 rounded text-muted-foreground hover:text-primary focus:text-primary"
+      onClick={(e) => {
+        e.stopPropagation();
+        abrir();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          abrir();
+        }
+      }}
+    >
+      {children}
     </span>
   );
 }
@@ -55,6 +91,7 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
   const { open: abrirPainel } = useDetailPanel();
   const contactLabel = deal.contact?.name || deal.contact?.phone || "No contact";
   const assigneeLabel = deal.assignee?.full_name || null;
+  const { site, linkedin } = linksDaEmpresa(deal.company);
 
   return (
     <button
@@ -128,6 +165,16 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
             <Building2 className="h-3 w-3 shrink-0" />
             <span className="truncate">{deal.company.name}</span>
           </span>
+        )}
+        {!isOverlay && site && (
+          <LinkDaEmpresa url={site} titulo="Abrir site da empresa">
+            <Globe className="h-3 w-3" />
+          </LinkDaEmpresa>
+        )}
+        {!isOverlay && linkedin && (
+          <LinkDaEmpresa url={linkedin} titulo="Abrir LinkedIn da empresa">
+            <Link2 className="h-3 w-3" />
+          </LinkDaEmpresa>
         )}
         <TemperatureBadge value={deal.temperature} />
         <DiasNaEtapaBadge deal={deal} />

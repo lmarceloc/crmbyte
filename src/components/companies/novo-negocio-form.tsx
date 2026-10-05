@@ -42,7 +42,8 @@ export function NovoNegocioForm({
   const supabase = createClient()
   const { accountId, user, defaultCurrency } = useAuth()
 
-  const [titulo, setTitulo] = useState("")
+  // empresa e negócio têm o mesmo nome por padrão (o vendedor pode ajustar)
+  const [titulo, setTitulo] = useState(empresa.name)
   const [funis, setFunis] = useState<FunilMini[] | null>(null)
   const [funilId, setFunilId] = useState("")
   const [etapas, setEtapas] = useState<EtapaMini[]>([])
@@ -178,7 +179,7 @@ export function NovoNegocioForm({
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        O negócio fica ligado a <strong>{empresa.name}</strong>. Em seguida você adiciona o contato.
+        O negócio fica ligado a <strong>{empresa.name}</strong> e usa o site e o LinkedIn dela. Em seguida você adiciona o contato.
       </p>
       <div className="flex justify-end gap-2">
         <Button type="button" size="sm" variant="ghost" onClick={onCancelar} disabled={salvando}>
