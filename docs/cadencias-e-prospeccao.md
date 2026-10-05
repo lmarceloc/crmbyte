@@ -27,7 +27,8 @@ e-mail enviado na pasta de enviados da caixa, marcado como lido.
 - Mesmo usuário e senha do SMTP (sem usuário, vale o e-mail da caixa). Só TLS ou STARTTLS.
 - A pasta é detectada (`\Sent`, ou nomes como `Sent`/`Enviados`); se o provedor usar outro nome, informe-o no campo *Pasta de enviados*.
 - Ao salvar a caixa, o sistema testa login e pasta, como já faz com o SMTP.
-- **Gmail e Outlook já guardam a cópia sozinhos**: neles, desmarque *Guardar cópia dos e-mails enviados* (os atalhos desses provedores já vêm assim) — o IMAP continua lendo respostas e bounces.
+- **Gmail já guarda a cópia sozinho**: nele, desmarque *Guardar cópia dos e-mails enviados* (o atalho do Gmail já vem assim; use senha de app com verificação em 2 etapas) — o IMAP continua lendo respostas e bounces.
+- **Microsoft 365 não aceita IMAP com usuário e senha** (Basic Auth desligado no Exchange Online; só OAuth). Nele, deixe o IMAP em branco: o envio funciona enquanto o SMTP com senha estiver liberado no tenant, mas resposta e bounce não são detectados. Suporte exigiria login OAuth com a Microsoft.
 - A cópia é gravada **depois** de o e-mail sair e de o estado da inscrição ser salvo. Falha de IMAP nunca derruba nem repete um envio: o erro aparece em *Cópia em Enviados falhou* na lista de caixas e a próxima tentativa acontece no minuto seguinte (uma por caixa por minuto, para um IMAP fora do ar não atrasar o lote).
 - O evento `email_enviado` agora guarda também o `message_id` (cabeçalho `Message-ID`), útil para achar a mensagem no log do provedor.
 

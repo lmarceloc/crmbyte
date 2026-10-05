@@ -42,7 +42,9 @@ interface Caixa {
 interface Membro { user_id: string; full_name: string }
 
 // IMAP lê a caixa de entrada (respostas e bounces) e, quando `copia`, grava a cópia
-// em "Enviados". Gmail e Outlook já guardam a cópia sozinhos: lá só a leitura.
+// em "Enviados". Gmail já guarda a cópia sozinho: lá só a leitura. Microsoft 365 não
+// aceita IMAP com senha (só OAuth), então o atalho dele fica sem IMAP — senão a caixa
+// não salvaria (o login IMAP é testado ao salvar).
 const PROVEDORES: {
   nome: string
   host: string
@@ -51,7 +53,7 @@ const PROVEDORES: {
   imap?: { host: string; port: number; security: "tls" | "starttls"; copia: boolean }
 }[] = [
   { nome: "Gmail / Workspace", host: "smtp.gmail.com", port: 587, security: "starttls", imap: { host: "imap.gmail.com", port: 993, security: "tls", copia: false } },
-  { nome: "Outlook / 365", host: "smtp.office365.com", port: 587, security: "starttls", imap: { host: "outlook.office365.com", port: 993, security: "tls", copia: false } },
+  { nome: "Outlook / 365", host: "smtp.office365.com", port: 587, security: "starttls" },
   { nome: "Zoho", host: "smtp.zoho.com", port: 465, security: "tls" },
   { nome: "Hostinger", host: "smtp.hostinger.com", port: 465, security: "tls" },
   { nome: "Umbler", host: "smtp.umbler.com", port: 587, security: "starttls", imap: { host: "imap.umbler.com", port: 993, security: "tls", copia: true } },
@@ -240,7 +242,8 @@ function Caixas() {
               Com o IMAP preenchido (mesmo usuário e senha do SMTP), o CRM lê a caixa de entrada a cada poucos minutos:
               quando o lead responde ou o e-mail volta (bounce), a cadência registra e para (conforme as configurações
               dela). Também pode gravar cada e-mail enviado em “Enviados” — útil em provedores como a Umbler; Gmail e
-              Outlook já gravam sozinhos, então deixe a cópia desligada neles.
+              Outlook já gravam sozinhos, então deixe a cópia desligada neles. O Microsoft 365 não aceita IMAP com senha:
+              nele, deixe o IMAP em branco (respostas e bounces não são detectados).
             </p>
           </div>
           <Campo label="Servidor IMAP">
