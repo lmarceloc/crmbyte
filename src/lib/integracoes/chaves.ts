@@ -4,16 +4,23 @@ import { decrypt, encrypt } from "@/lib/whatsapp/encryption";
 
 type Admin = SupabaseClient;
 
-export type Provedor = "apify" | "treg" | "openrouter";
-export const PROVEDORES: Provedor[] = ["apify", "treg", "openrouter"];
+export type Provedor = "apify" | "treg" | "openrouter" | "firecrawl";
+export const PROVEDORES: Provedor[] = ["apify", "treg", "openrouter", "firecrawl"];
 
 export function ehProvedor(v: unknown): v is Provedor {
   return typeof v === "string" && (PROVEDORES as string[]).includes(v);
 }
 
+/** Variável de ambiente com a chave da instalação, para os provedores que aceitam uma. */
+const VARIAVEL_DO_AMBIENTE: Partial<Record<Provedor, string>> = {
+  treg: "TREG_API_KEY",
+  firecrawl: "FIRECRAWL_API_KEY",
+};
+
 /** Chave da instalação (variável de ambiente), usada só se a conta não cadastrou a sua. */
 function chaveDoAmbiente(p: Provedor): string | null {
-  const v = p === "treg" ? process.env.TREG_API_KEY : undefined;
+  const nome = VARIAVEL_DO_AMBIENTE[p];
+  const v = nome ? process.env[nome] : undefined;
   return v?.trim() || null;
 }
 

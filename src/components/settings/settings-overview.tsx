@@ -217,7 +217,7 @@ export function SettingsOverview({
     {
       section: 'apikeys',
       loading: false,
-      subtitle: 'Apify, Treg (prospecção) e OpenRouter',
+      subtitle: 'Apify, Treg (prospecção), OpenRouter e Firecrawl',
     },
     {
       section: 'fields',
