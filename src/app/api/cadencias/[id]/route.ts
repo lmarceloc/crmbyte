@@ -2,8 +2,8 @@ import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { fail, json, toErrorResponse, validationFailed } from "@/lib/api-utils";
 import { requireRole } from "@/lib/auth/account";
 import { validarPassos, todosOsPassos } from "@/lib/cadencias/arvore";
-import { editarCadenciaSchema, mudarStatusSchema } from "@/lib/cadencias/schemas";
-import type { Passo } from "@/lib/cadencias/tipos";
+import { editarCadenciaSchema, mudarLimiarSchema, mudarStatusSchema } from "@/lib/cadencias/schemas";
+import { configuracaoPadrao, type Passo } from "@/lib/cadencias/tipos";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
@@ -73,6 +73,26 @@ export async function PATCH(request: Request, { params }: Params) {
       if (error) return fail("db_error", error.message, 500);
       if (!data?.length) return fail("cadencia_estado_invalido", "O estado mudou, recarregue a página.", 409);
       return json({ cadencia: data[0] });
+    }
+
+    // ---- só o limite de lead quente: vale com a cadência ativa (não mexe nos envios)
+    if (corpoBruto && typeof corpoBruto === "object" && "limiarLeadQuente" in corpoBruto) {
+      const l = mudarLimiarSchema.safeParse(corpoBruto);
+      if (!l.success) return validationFailed(l.error);
+      const configuracao = {
+        ...configuracaoPadrao(),
+        ...(atual.configuracao as object),
+        limiarLeadQuente: l.data.limiarLeadQuente,
+      };
+      const { data, error } = await admin
+        .from("email_cadences")
+        .update({ configuracao, updated_by: ctx.userId })
+        .eq("id", id)
+        .eq("account_id", ctx.accountId)
+        .select("*")
+        .single();
+      if (error) return fail("db_error", error.message, 500);
+      return json({ cadencia: data });
     }
 
     // ---- edição de conteúdo

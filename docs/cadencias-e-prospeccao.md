@@ -10,7 +10,9 @@ Implementado a partir das specs `spec-cadencias-fluxo-email` e
 - `038_mailbox_imap_sent_copy.sql` — colunas de IMAP em `email_mailboxes` (cópia em "Enviados"). **Rode antes de subir o código que a usa**: a tela e a listagem de caixas passam a ler essas colunas.
 - `042_cadence_reply_bounce_tracking.sql` — leitura da caixa de entrada: estado do IMAP em `email_mailboxes`, `respondeu_em`/`bounce_em` na inscrição, `contacts.email_bounced_at`, eventos `respondido`/`bounce`. **Rode antes de subir o código**: o worker e a tela de caixas leem essas colunas.
 
-Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 042).
+- `043_hot_lead_threshold_per_cadence.sql` — limite de lead quente por cadência: `quente_em` na inscrição (com backfill), a abertura marca ao atingir o limite e mudar o limite reclassifica. **Rode antes de subir o código**: a lista de leads quentes filtra por `quente_em`.
+
+Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 043).
 
 ## Cron (1×/min, com `Authorization: Bearer $CRON_SECRET`)
 - `GET /api/cadencias/worker` — envia e-mails, espera, ramifica, para.
@@ -31,6 +33,14 @@ e-mail enviado na pasta de enviados da caixa, marcado como lido.
 - **Microsoft 365 não aceita IMAP com usuário e senha** (Basic Auth desligado no Exchange Online; só OAuth). Nele, deixe o IMAP em branco: o envio funciona enquanto o SMTP com senha estiver liberado no tenant, mas resposta e bounce não são detectados. Suporte exigiria login OAuth com a Microsoft.
 - A cópia é gravada **depois** de o e-mail sair e de o estado da inscrição ser salvo. Falha de IMAP nunca derruba nem repete um envio: o erro aparece em *Cópia em Enviados falhou* na lista de caixas e a próxima tentativa acontece no minuto seguinte (uma por caixa por minuto, para um IMAP fora do ar não atrasar o lote).
 - O evento `email_enviado` agora guarda também o `message_id` (cabeçalho `Message-ID`), útil para achar a mensagem no log do provedor.
+
+## Leads quentes
+Lead quente = inscrição que somou **N aberturas** (todos os e-mails da cadência). N é de cada
+cadência, em *Configurações → Lead quente* (1 a 10; padrão **2**), e pode mudar mesmo com a
+cadência ativa. O banco guarda quando a inscrição ficou quente (`quente_em`): a abertura marca
+ao atingir o limite e mudar o limite reclassifica os inscritos daquela cadência na hora.
+O selo do menu e o aviso na tela contam os leads quentes com abertura desde a última visita à
+página. Aberturas são indício, não certeza: Apple Mail e antivírus podem abrir sozinhos.
 
 ## Resposta e bounce (caixa de entrada por IMAP)
 Toda caixa com IMAP também tem a **caixa de entrada lida** pelo worker (a cada 3 minutos por

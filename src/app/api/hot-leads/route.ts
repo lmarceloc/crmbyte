@@ -1,6 +1,5 @@
 import { fail, json, toErrorResponse } from "@/lib/api-utils";
 import { requireRole } from "@/lib/auth/account";
-import { LIMIAR_LEAD_QUENTE } from "@/lib/cadencias/vocabulario";
 import { ehLeadQuenteNovo } from "@/lib/cadencias/hot-leads";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +18,7 @@ export async function GET(request: Request) {
       .select(
         "id,cadence_id,deal_id,status,aberturas,primeira_abertura_em,ultima_abertura_em, email_cadences(name), deals(title,status,assigned_to,pipeline_id), contacts(name)",
       )
-      .gte("aberturas", LIMIAR_LEAD_QUENTE)
+      .not("quente_em", "is", null) // limite de cada cadência (migração 043)
       .order("aberturas", { ascending: false })
       .order("ultima_abertura_em", { ascending: false })
       .limit(limit);

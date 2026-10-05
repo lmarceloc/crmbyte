@@ -35,5 +35,10 @@ export type StatusDaInscricao = (typeof STATUS_DA_INSCRICAO)[number];
 export type MotivoDeParada = (typeof MOTIVOS_DE_PARADA)[number];
 export type TipoDeEventoDaCadencia = (typeof TIPOS_DE_EVENTO_DA_CADENCIA)[number];
 
-/** "Quente" = abriu o e-mail de uma cadência pelo menos N vezes. */
-export const LIMIAR_LEAD_QUENTE = 3;
+/**
+ * "Quente" = abriu os e-mails de uma cadência pelo menos N vezes. N é de cada
+ * cadência (configuracao.limiarLeadQuente); este é o padrão. O banco guarda
+ * quando a inscrição ficou quente (`quente_em`, migração 043).
+ */
+export const LIMIAR_LEAD_QUENTE_PADRAO = 2;
+export const LIMIAR_LEAD_QUENTE_MAX = 10;

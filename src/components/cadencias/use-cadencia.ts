@@ -87,5 +87,29 @@ export function useCadencia(id: string) {
     [id, gravar],
   )
 
-  return { cadencia, erro, salvando, editar, mudarStatus }
+  /** Limite de lead quente: grava na hora, inclusive com a cadência ativa. */
+  const mudarLimiar = useCallback(
+    async (limiarLeadQuente: number) => {
+      const anterior = confirmada.current
+      setCadencia((c) => (c ? { ...c, configuracao: { ...c.configuracao, limiarLeadQuente } } : c))
+      setSalvando(true)
+      const res = await fetch(`/api/cadencias/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ limiarLeadQuente }),
+      })
+      const body = await res.json().catch(() => ({}))
+      setSalvando(false)
+      if (!res.ok) {
+        toast.error(body?.error ?? "Não foi possível salvar o limite de lead quente.")
+        if (anterior) setCadencia((c) => (c ? { ...c, configuracao: anterior.configuracao } : c))
+        return
+      }
+      confirmada.current = body.cadencia
+      setCadencia((c) => (c ? { ...c, configuracao: body.cadencia.configuracao, updated_at: body.cadencia.updated_at } : c))
+    },
+    [id],
+  )
+
+  return { cadencia, erro, salvando, editar, mudarStatus, mudarLimiar }
 }

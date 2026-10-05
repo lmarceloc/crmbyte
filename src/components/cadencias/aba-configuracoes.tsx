@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import type { ConfiguracaoDaCadencia, DiaDaSemana } from "@/lib/cadencias/tipos"
+import { LIMIAR_LEAD_QUENTE_MAX } from "@/lib/cadencias/vocabulario"
 
 const DIAS: { v: DiaDaSemana; r: string }[] = [
   { v: "seg", r: "Seg" },
@@ -43,9 +44,12 @@ interface Props {
   config: ConfiguracaoDaCadencia
   somenteLeitura: boolean
   onChange: (c: ConfiguracaoDaCadencia) => void
+  /** O limite de lead quente pode mudar mesmo com a cadência ativa. */
+  podeMudarLimiar: boolean
+  onMudarLimiar: (n: number) => void
 }
 
-export function AbaConfiguracoes({ config, somenteLeitura, onChange }: Props) {
+export function AbaConfiguracoes({ config, somenteLeitura, onChange, podeMudarLimiar, onMudarLimiar }: Props) {
   const [caixas, setCaixas] = useState<Caixa[]>([])
   useEffect(() => {
     fetch("/api/caixas-de-envio")
@@ -179,6 +183,31 @@ export function AbaConfiguracoes({ config, somenteLeitura, onChange }: Props) {
             Ex.: America/Sao_Paulo. Fora da janela os e-mails esperam; as esperas em dias úteis são contadas em UTC.
           </p>
         </div>
+      </Secao>
+
+      <Secao titulo="Lead quente">
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="limiar-lead-quente">Entra em “Leads quentes” a partir de</Label>
+          <select
+            id="limiar-lead-quente"
+            className="h-9 rounded-md border bg-background px-2 text-sm"
+            disabled={!podeMudarLimiar}
+            value={config.limiarLeadQuente}
+            onChange={(e) => onMudarLimiar(Number(e.target.value))}
+          >
+            {Array.from({ length: LIMIAR_LEAD_QUENTE_MAX }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n} {n === 1 ? "abertura" : "aberturas"}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Soma as aberturas de todos os e-mails desta cadência. Quem atinge aparece em Leads quentes e gera o aviso
+          no menu. Pode mudar a qualquer momento, até com a cadência ativa; os inscritos são reclassificados na hora.
+          Cadências curtas pedem um número menor; em cadências longas, um número maior evita falso alarme (o Apple
+          Mail e alguns antivírus abrem o e-mail sozinhos).
+        </p>
       </Secao>
 
       <Secao titulo="Quando para">
