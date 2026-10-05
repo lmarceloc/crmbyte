@@ -341,3 +341,50 @@
 @media (max-width: 767px) {
   .cs-sidebar { display: none; }
 }
+
+/* ---------- Tema claro: mesmo visual, superfícies claras ---------- */
+.cs-studio { --cs-grid: rgba(255, 255, 255, 0.018); }
+
+html[data-mode="light"] .cs-studio {
+  --cs-bg: #f6f7f9;
+  --cs-panel: #ffffff;
+  --cs-text: #1f2328;
+  --cs-muted: #6b7280;
+  --cs-grid: rgba(15, 23, 42, 0.035);
+  border-color: #e3e5ea;
+  background-image: radial-gradient(rgba(15, 23, 42, 0.12) 1px, transparent 1px);
+}
+html[data-mode="light"] .cs-sidebar { border-right-color: #e3e5ea; }
+html[data-mode="light"] .cs-sidebar p { color: #8b919c; }
+html[data-mode="light"] .cs-action-card { background: #f8f9fb; border-color: #e3e5ea; }
+html[data-mode="light"] .cs-action-card:hover { background: #f1f3f6; border-color: #cfd3da; }
+html[data-mode="light"] .cs-ico { background: #eef0f4; }
+
+html[data-mode="light"] .cs-node {
+  border-color: #dfe2e8;
+  background: linear-gradient(180deg, #ffffff, #fafbfc);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+html[data-mode="light"] .cs-node:hover { border-color: #c7ccd4; }
+html[data-mode="light"] .cs-node.selected {
+  border-color: rgba(255, 152, 0, 0.8);
+  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.25), 0 0 18px rgba(255, 152, 0, 0.2), 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+html[data-mode="light"] .cs-head { border-bottom-color: #eceef2; color: #1f2328; }
+html[data-mode="light"] .cs-head .cs-num { color: #9aa0aa; }
+html[data-mode="light"] .cs-tool { color: #9aa0aa; }
+html[data-mode="light"] .cs-tool:hover { background: #f1f3f6; color: #1f2328; }
+html[data-mode="light"] .cs-desc { background: #f6f7f9; border-color: #eceef2; color: #5b616b; }
+html[data-mode="light"] .cs-desc .cs-line.forte { color: #1f2328; }
+html[data-mode="light"] .cs-param { color: #5b616b; }
+html[data-mode="light"] .cs-node.mini { background: rgba(255, 255, 255, 0.8); }
+html[data-mode="light"] .cs-plus { background: #ffffff; border-color: #cfd3da; color: #6b7280; }
+html[data-mode="light"] .cs-plus:hover,
+html[data-mode="light"] .cs-plus.snap-target { color: #1f2328; }
+/* brilho mais contido no claro, para a linha não "borrar" */
+html[data-mode="light"] .cs-edge-path { filter: drop-shadow(0 0 3px currentColor); }
+
+html[data-mode="light"] .cs-canvas .react-flow__controls { border-color: #e3e5ea; }
+html[data-mode="light"] .cs-canvas .react-flow__controls-button { background: #ffffff; border-bottom-color: #e3e5ea; }
+html[data-mode="light"] .cs-canvas .react-flow__controls-button:hover { background: #f1f3f6; }
+html[data-mode="light"] .cs-ghost { background: #ffffff; border-color: #cfd3da; color: #1f2328; }

@@ -551,7 +551,7 @@ function Interno(props: PropsDoCanvasStudio) {
             }}
             onPaneClick={() => onSelecionar(null)}
           >
-            <Background id="cs-grade" variant={BackgroundVariant.Lines} gap={48} lineWidth={1} color="rgba(255,255,255,0.018)" />
+            <Background id="cs-grade" variant={BackgroundVariant.Lines} gap={48} lineWidth={1} color="var(--cs-grid)" />
             <Controls position="bottom-left" showInteractive={false} />
           </ReactFlow>
         </div>
