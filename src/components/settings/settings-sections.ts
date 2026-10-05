@@ -8,6 +8,7 @@ import {
   Palette,
   PlugZap,
   Shield,
+  Sparkles,
   Tags,
   User,
   UsersRound,
@@ -33,6 +34,7 @@ export const SETTINGS_SECTIONS = [
   'deals',
   'products',
   'apikeys',
+  'ia',
   'motivos',
   'members',
 ] as const;
@@ -67,6 +69,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   products: { id: 'products', label: 'Produtos', icon: Package, group: 'workspace' },
   motivos: { id: 'motivos', label: 'Motivos', icon: ThumbsDown, group: 'workspace' },
   apikeys: { id: 'apikeys', label: 'Chaves de API', icon: KeyRound, group: 'workspace' },
+  ia: { id: 'ia', label: 'IA', icon: Sparkles, group: 'workspace' },
   members: { id: 'members', label: 'Membros da equipe', icon: UsersRound, group: 'workspace' },
 };
 

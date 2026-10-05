@@ -16,6 +16,7 @@ import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel'
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { ProductsSettings } from '@/components/settings/products-settings';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
+import { IaSettings } from '@/components/settings/ia-settings';
 import { LossReasonsSettings } from '@/components/settings/loss-reasons-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import {
@@ -63,6 +64,7 @@ export default function SettingsPage() {
     deals: <DealsSettings />,
     products: <ProductsSettings />,
     apikeys: <ApiKeysSettings />,
+    ia: <IaSettings />,
     motivos: <LossReasonsSettings />,
     members: <MembersTab />,
   };
