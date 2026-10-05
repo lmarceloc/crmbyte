@@ -54,7 +54,8 @@ export function DealProductsSection({ catalogo, itens, moeda, ocupado, onAdicion
   }
 
   return (
-    <div className="grid gap-2">
+    // minmax(0,1fr): sem isso a coluna automática cresce até o nome inteiro do produto no <select> e estoura o painel
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
       <Label className="flex items-center gap-1.5 text-muted-foreground">
         <Package className="h-3.5 w-3.5" />
         Produtos

@@ -136,7 +136,7 @@ export function DealContactsSection({
       )}
 
       <div className="flex gap-2">
-        <select value={escolhido} onChange={(e) => setEscolhido(e.target.value)} className={campo}>
+        <select value={escolhido} onChange={(e) => setEscolhido(e.target.value)} className={`${campo} min-w-0 flex-1`}>
           <option value="">Adicionar contato existente…</option>
           {naoVinculados.map((c) => (
             <option key={c.id} value={c.id}>

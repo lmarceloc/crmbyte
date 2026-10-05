@@ -88,6 +88,7 @@ export function SkillsDialog({
     if (texto.length > MAX_CONTEUDO)
       return toast.error(`O arquivo tem ${texto.length.toLocaleString("pt-BR")} caracteres; o máximo é ${MAX_CONTEUDO.toLocaleString("pt-BR")}.`)
     setConteudo(texto)
+    toast.success(`Arquivo carregado: ${texto.length.toLocaleString("pt-BR")} caracteres.`)
     if (!nome.trim()) setNome(arquivo.name.replace(/\.[^.]+$/, "").slice(0, MAX_NOME))
   }
 
@@ -133,8 +134,8 @@ export function SkillsDialog({
 
   return (
     <Dialog open={aberto} onOpenChange={fechar}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{edicao ? (edicao.id ? "Editar skill" : "Nova skill") : "Skills"}</DialogTitle>
           <DialogDescription>
             {edicao
@@ -144,7 +145,9 @@ export function SkillsDialog({
         </DialogHeader>
 
         {edicao ? (
-          <form onSubmit={salvar} className="min-w-0 space-y-3">
+          <form onSubmit={salvar} className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+            {/* só os campos rolam; o -m-1/p-1 evita cortar o anel de foco dos inputs */}
+            <div className="-m-1 min-h-0 flex-1 space-y-3 overflow-y-auto p-1">
             <div className="space-y-1.5">
               <Label htmlFor="skill-nome">Nome *</Label>
               <Input id="skill-nome" value={nome} maxLength={MAX_NOME} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Tom de voz da agência" autoFocus />
@@ -172,7 +175,7 @@ export function SkillsDialog({
                 id="skill-conteudo"
                 value={conteudo}
                 onChange={(e) => setConteudo(e.target.value)}
-                rows={10}
+                className="h-56 max-h-[40dvh] resize-y overflow-y-auto field-sizing-fixed"
                 maxLength={MAX_CONTEUDO}
                 placeholder="Regras: &quot;Escreva em primeira pessoa e termine propondo 15 minutos de conversa.&quot; Ou conhecimento: cole o resumo de um livro sobre escrita persuasiva."
               />
@@ -180,7 +183,8 @@ export function SkillsDialog({
                 {conteudo.length.toLocaleString("pt-BR")} / {MAX_CONTEUDO.toLocaleString("pt-BR")}
               </p>
             </div>
-            <DialogFooter>
+            </div>
+            <DialogFooter className="shrink-0">
               <Button type="button" variant="outline" onClick={() => setEdicao(null)} disabled={salvando}>
                 Voltar
               </Button>
@@ -190,13 +194,14 @@ export function SkillsDialog({
             </DialogFooter>
           </form>
         ) : (
-          <div className="min-w-0 space-y-3">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
             {skills.length === 0 ? (
               <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
                 Nenhuma skill ainda. Crie a primeira para orientar o modelo.
               </p>
             ) : (
-              <ul className="max-h-80 divide-y overflow-y-auto rounded-lg border">
+              <ul className="divide-y rounded-lg border">
                 {skills.map((s) => (
                   <li key={s.id} className="flex items-center gap-3 p-3">
                     <Checkbox
@@ -224,7 +229,8 @@ export function SkillsDialog({
                 {acimaDoLimite ? " — desmarque alguma para poder gerar." : "."}
               </p>
             )}
-            <DialogFooter>
+            </div>
+            <DialogFooter className="shrink-0">
               <Button type="button" variant="outline" onClick={() => abrirEdicao(null)}>
                 <Plus className="size-4" /> Nova skill
               </Button>
