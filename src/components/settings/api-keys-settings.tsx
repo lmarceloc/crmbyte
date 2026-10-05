@@ -11,7 +11,7 @@ import { SettingsPanelHead } from "./settings-panel-head"
 import { useConfirmarExclusao } from "@/components/ui/confirmar-exclusao"
 
 interface StatusChave {
-  provider: "apify" | "treg" | "openrouter"
+  provider: "apify" | "treg" | "openrouter" | "firecrawl"
   configurada: boolean
   origem: "conta" | "instalacao" | null
   hint: string | null
@@ -33,6 +33,11 @@ const SERVICOS: Record<StatusChave["provider"], { nome: string; para: string; on
     nome: "OpenRouter",
     para: "Modelos de IA pelo OpenRouter, usando o modelo gratuito openrouter/free.",
     onde: "openrouter.ai → Keys → Create Key (a chave começa com sk-or-).",
+  },
+  firecrawl: {
+    nome: "Firecrawl",
+    para: "Leitura e raspagem de páginas web pelo Firecrawl.",
+    onde: "firecrawl.dev → Dashboard → API Keys (a chave começa com fc-).",
   },
 }
 

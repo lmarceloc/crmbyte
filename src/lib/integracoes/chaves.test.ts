@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ehProvedor, PROVEDORES, statusChaves } from "./chaves";
 
 /** Admin falso: `from("integration_keys").select().eq()` resolve com as linhas dadas. */
@@ -9,9 +9,10 @@ function adminCom(linhas: { provider: string; key_hint: string | null; updated_a
 }
 
 describe("provedores de chave", () => {
-  it("o OpenRouter é um provedor válido, ao lado do Apify e da Treg", () => {
-    expect(PROVEDORES).toEqual(["apify", "treg", "openrouter"]);
+  it("OpenRouter e Firecrawl são provedores válidos, ao lado do Apify e da Treg", () => {
+    expect(PROVEDORES).toEqual(["apify", "treg", "openrouter", "firecrawl"]);
     expect(ehProvedor("openrouter")).toBe(true);
+    expect(ehProvedor("firecrawl")).toBe(true);
     expect(ehProvedor("apify")).toBe(true);
   });
 
@@ -47,5 +48,48 @@ describe("statusChaves", () => {
       updated_at: "2026-10-05T18:00:00Z",
     });
     expect(status.find((s) => s.provider === "apify")?.configurada).toBe(false);
+  });
+});
+
+describe("chave do Firecrawl", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("sem chave na conta nem no ambiente, aparece como não configurada", async () => {
+    vi.stubEnv("FIRECRAWL_API_KEY", "");
+    const status = await statusChaves(adminCom([]), "conta-1");
+    expect(status.find((s) => s.provider === "firecrawl")).toMatchObject({ configurada: false, origem: null });
+  });
+
+  it("usa FIRECRAWL_API_KEY da instalação quando a conta não cadastrou a sua", async () => {
+    vi.stubEnv("FIRECRAWL_API_KEY", "  fc-da-instalacao  ");
+    const status = await statusChaves(adminCom([]), "conta-1");
+    expect(status.find((s) => s.provider === "firecrawl")).toEqual({
+      provider: "firecrawl",
+      configurada: true,
+      origem: "instalacao",
+      hint: null,
+      updated_at: null,
+    });
+  });
+
+  it("a chave cadastrada na conta vale mais que a da instalação", async () => {
+    vi.stubEnv("FIRECRAWL_API_KEY", "fc-da-instalacao");
+    const status = await statusChaves(
+      adminCom([{ provider: "firecrawl", key_hint: "9z9z", updated_at: "2026-10-05T19:00:00Z" }]),
+      "conta-1",
+    );
+    expect(status.find((s) => s.provider === "firecrawl")).toMatchObject({
+      configurada: true,
+      origem: "conta",
+      hint: "9z9z",
+    });
+  });
+
+  it("FIRECRAWL_API_KEY não vaza para os outros provedores", async () => {
+    vi.stubEnv("FIRECRAWL_API_KEY", "fc-da-instalacao");
+    const status = await statusChaves(adminCom([]), "conta-1");
+    for (const p of ["apify", "openrouter"]) {
+      expect(status.find((s) => s.provider === p)).toMatchObject({ configurada: false });
+    }
   });
 });
