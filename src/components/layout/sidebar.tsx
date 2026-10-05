@@ -22,6 +22,7 @@ import {
   Radio,
   Settings,
   Shield,
+  Sparkles,
   User,
   UserCog,
   Users,
@@ -117,6 +118,7 @@ const navItems: NavItem[] = [
   { href: "/caixas-de-envio", label: "Caixas de envio", icon: Mail, minRole: "admin" },
   { href: "/prospecting", label: "Prospecção", icon: Search, minRole: "admin" },
   { href: "/prospecting/b2b", label: "Prospecção B2B", icon: Building2, minRole: "admin" },
+  { href: "/ia", label: "IA", icon: Sparkles, minRole: "agent" },
 ];
 
 const bottomNavItems = [

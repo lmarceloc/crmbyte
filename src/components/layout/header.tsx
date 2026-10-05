@@ -33,6 +33,7 @@ const pageTitles: Record<string, string> = {
   "/hot-leads": "Leads quentes",
   "/desempenho": "Desempenho",
   "/caixas-de-envio": "Caixas de envio",
+  "/ia": "IA",
   "/prospecting/b2b": "Prospecção B2B",
   "/prospecting": "Prospecção",
   "/settings": "Configurações",

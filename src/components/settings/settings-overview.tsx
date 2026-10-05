@@ -220,6 +220,11 @@ export function SettingsOverview({
       subtitle: 'Apify, Treg (prospecção), OpenRouter e Firecrawl',
     },
     {
+      section: 'ia',
+      loading: false,
+      subtitle: 'O que a sua empresa faz e os serviços que oferece (usado pela IA)',
+    },
+    {
       section: 'fields',
       loading: countsLoading,
       subtitle:
