@@ -8,8 +8,9 @@ Implementado a partir das specs `spec-cadencias-fluxo-email` e
 - `024_email_cadences.sql` — cadências, inscrições, eventos, caixas de envio, colunas novas em `contacts`, função de abertura atômica.
 - `025_prospecting.sql` — campanhas/candidatos/credencial/lock de prospecção, `deals.source/external_id`.
 - `038_mailbox_imap_sent_copy.sql` — colunas de IMAP em `email_mailboxes` (cópia em "Enviados"). **Rode antes de subir o código que a usa**: a tela e a listagem de caixas passam a ler essas colunas.
+- `042_cadence_reply_bounce_tracking.sql` — leitura da caixa de entrada: estado do IMAP em `email_mailboxes`, `respondeu_em`/`bounce_em` na inscrição, `contacts.email_bounced_at`, eventos `respondido`/`bounce`. **Rode antes de subir o código**: o worker e a tela de caixas leem essas colunas.
 
-Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 038).
+Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 042).
 
 ## Cron (1×/min, com `Authorization: Bearer $CRON_SECRET`)
 - `GET /api/cadencias/worker` — envia e-mails, espera, ramifica, para.
@@ -26,9 +27,29 @@ e-mail enviado na pasta de enviados da caixa, marcado como lido.
 - Mesmo usuário e senha do SMTP (sem usuário, vale o e-mail da caixa). Só TLS ou STARTTLS.
 - A pasta é detectada (`\Sent`, ou nomes como `Sent`/`Enviados`); se o provedor usar outro nome, informe-o no campo *Pasta de enviados*.
 - Ao salvar a caixa, o sistema testa login e pasta, como já faz com o SMTP.
-- **Gmail e Outlook já guardam a cópia sozinhos**: deixe o IMAP em branco neles, senão a mensagem aparece duas vezes.
+- **Gmail e Outlook já guardam a cópia sozinhos**: neles, desmarque *Guardar cópia dos e-mails enviados* (os atalhos desses provedores já vêm assim) — o IMAP continua lendo respostas e bounces.
 - A cópia é gravada **depois** de o e-mail sair e de o estado da inscrição ser salvo. Falha de IMAP nunca derruba nem repete um envio: o erro aparece em *Cópia em Enviados falhou* na lista de caixas e a próxima tentativa acontece no minuto seguinte (uma por caixa por minuto, para um IMAP fora do ar não atrasar o lote).
 - O evento `email_enviado` agora guarda também o `message_id` (cabeçalho `Message-ID`), útil para achar a mensagem no log do provedor.
+
+## Resposta e bounce (caixa de entrada por IMAP)
+Toda caixa com IMAP também tem a **caixa de entrada lida** pelo worker (a cada 3 minutos por
+caixa, no começo do tick, antes dos envios). A leitura é só leitura: não marca nada como lido.
+
+- **Resposta do lead**: casada pelo `In-Reply-To`/`References` com o `message_id` gravado no
+  `email_enviado`; sem isso, pelo remetente, entre os contatos que receberam e-mail **desta**
+  caixa. Grava `respondeu_em` e o evento `respondido`; se a cadência para em resposta
+  (Configurações), a inscrição para com motivo `respondeu`. O ramo *Respondeu?* passa a dar Sim.
+- **Bounce**: devolução do mailer-daemon/postmaster (relatório DSN, `X-Failed-Recipients`).
+  Só a permanente conta (status 5.x.x / `Action: failed`); aviso de atraso é ignorado. Grava
+  `bounce_em`, o evento `bounce`, marca `contacts.email_bounced_at` (o worker não envia mais para
+  esse endereço) e, se a cadência para em bounce, para a inscrição com motivo `bounce`. Trocar o
+  e-mail do contato limpa a marca.
+- **Resposta automática** ("estou de férias", `Auto-Submitted`) não conta como resposta.
+- Na primeira leitura olha só os últimos 14 dias; depois segue pelo UID (`imap_inbox_last_uid`).
+  Até 100 mensagens por leitura; o resto fica para a próxima.
+- Erro de leitura aparece em *Leitura da entrada falhou* na lista de caixas.
+- Sem IMAP na caixa (ou envio pelo SMTP da instalação), resposta e bounce não são detectados.
+- O ramo *Clicou?* passa a usar os cliques já registrados pelo redirecionador.
 
 ## Decisões de adaptação
 | Spec | wacrm |
@@ -48,6 +69,6 @@ variáveis renderizadas também no título da tarefa e no `Re:` · `updated_at` 
 servidor valida ≥1 e-mail/≥1 dia ao ativar.
 
 ## Ainda não implementado (como na spec)
-Envio de WhatsApp pela cadência (o passo para a inscrição com `falha`), rastreio de
-clique/resposta/bounce, inscrição automática por tag, threading real (`In-Reply-To`).
+Envio de WhatsApp pela cadência (o passo para a inscrição com `falha`), inscrição
+automática por tag, threading real (`In-Reply-To`) nos e-mails "na mesma conversa".
 A contagem de aberturas é acumulada por inscrição (não por e-mail).

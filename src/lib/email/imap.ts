@@ -35,8 +35,8 @@ export interface ClienteImap {
   close(): void;
 }
 
-export interface DependenciasImap {
-  criarCliente?: (cfg: ConfigImap) => ClienteImap;
+export interface DependenciasImap<C extends ClienteImap = ClienteImap> {
+  criarCliente?: (cfg: ConfigImap) => C;
   validarDestino?: (host: string) => Promise<void>;
   limiteMs?: number;
 }
@@ -85,7 +85,7 @@ export function escolherPastaEnviados(pastas: PastaImap[], preferida?: string | 
 
 class PastaNaoEncontradaError extends Error {}
 
-function criarCliente(cfg: ConfigImap): ClienteImap {
+export function criarClienteImapFlow(cfg: ConfigImap): ImapFlow {
   return new ImapFlow({
     host: cfg.host,
     port: cfg.port,
@@ -100,18 +100,19 @@ function criarCliente(cfg: ConfigImap): ClienteImap {
   });
 }
 
-function descreverErro(e: unknown): string {
+export function descreverErroImap(e: unknown): string {
   const err = e as { responseText?: string; message?: string };
   return (err.responseText || err.message || "Falha desconhecida.").slice(0, 300);
 }
 
-async function comConexao<T>(
+/** Conecta (com anti-SSRF), roda `trabalho` e desconecta, tudo dentro de um teto de tempo. */
+export async function comConexao<T, C extends ClienteImap = ClienteImap>(
   cfg: ConfigImap,
-  deps: DependenciasImap,
-  trabalho: (cliente: ClienteImap) => Promise<T>,
+  deps: DependenciasImap<C>,
+  trabalho: (cliente: C) => Promise<T>,
 ): Promise<T> {
   await (deps.validarDestino ?? ((host: string) => assertDestinoResolvidoSeguro(host, "IMAP")))(cfg.host);
-  const cliente = (deps.criarCliente ?? criarCliente)(cfg);
+  const cliente = deps.criarCliente ? deps.criarCliente(cfg) : (criarClienteImapFlow(cfg) as unknown as C);
   // O erro de rede chega pelo reject da chamada em andamento; sem ouvinte o Node derruba o processo.
   cliente.on("error", () => undefined);
   const trabalhando = (async () => {
@@ -163,7 +164,7 @@ export async function copiarParaEnviados(
     });
     return { ok: true, pasta };
   } catch (e) {
-    return { ok: false, erro: descreverErro(e) };
+    return { ok: false, erro: descreverErroImap(e) };
   }
 }
 
@@ -182,6 +183,6 @@ export async function verificarImap(
     if (e instanceof PastaNaoEncontradaError) return { ok: false, tipo: "folder_not_found", detalhe: e.message };
     if (e instanceof DestinoInseguroError) return { ok: false, tipo: "connection_failed", detalhe: e.message };
     const autenticacao = (e as { authenticationFailed?: boolean }).authenticationFailed === true;
-    return { ok: false, tipo: autenticacao ? "authentication_failed" : "connection_failed", detalhe: descreverErro(e) };
+    return { ok: false, tipo: autenticacao ? "authentication_failed" : "connection_failed", detalhe: descreverErroImap(e) };
   }
 }

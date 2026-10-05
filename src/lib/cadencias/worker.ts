@@ -11,6 +11,7 @@ import {
 import { assinaturaEmTexto } from "@/lib/email/assinatura";
 import { copiarParaEnviados } from "@/lib/email/imap";
 import { enviarPorSmtp, smtpDaInstalacao, type ConfigSmtp } from "@/lib/email/smtp";
+import { processarCaixasDeEntrada } from "./caixa-de-entrada";
 import { avancarDiasUteis } from "./dias-uteis";
 import { corpoEmHtml, corpoEmTexto, escaparMarkdown } from "./corpo-rico";
 import { dentroDaJanela } from "./janela";
@@ -35,6 +36,9 @@ export interface ResultadoDoTick {
   concluidas: number;
   paradas: number;
   falhas: number;
+  /** Lidos da caixa de entrada neste tick. */
+  respostas: number;
+  bounces: number;
 }
 
 interface Inscricao {
@@ -47,6 +51,8 @@ interface Inscricao {
   ultimo_email_em: string | null;
   ultimo_email_passo_id: string | null;
   aberturas: number;
+  cliques: number;
+  respondeu_em: string | null;
   emails_enviados: number;
   tentativas: number;
   inscrito_por: string | null;
@@ -70,20 +76,27 @@ const mais = (d: Date, min: number) => new Date(d.getTime() + min * 60_000).toIS
 
 // ---------- funções puras (testáveis) ----------
 
-/** true = sim · false = não · null = ainda não dá para decidir. */
+/**
+ * true = sim · false = não · null = ainda não dá para decidir.
+ * Aberturas e cliques são acumulados na inscrição; a resposta vem da leitura
+ * da caixa de entrada (IMAP) — sem IMAP na caixa, "respondeu" só dá "não".
+ */
 export function avaliarRamo(
   ramo: PassoRamo,
-  insc: { ultimo_email_em: string | null; aberturas: number },
+  insc: { ultimo_email_em: string | null; aberturas: number; cliques?: number; respondeu_em?: string | null },
   agora: Date,
 ): boolean | null {
   const { condicao } = ramo;
   const desde = insc.ultimo_email_em ? new Date(insc.ultimo_email_em) : null;
   const prazoVenceu = desde ? agora.getTime() - desde.getTime() >= condicao.dentroDeDias * DIA_MS : true;
-  if (condicao.tipo === "abriu") {
-    if (insc.aberturas >= condicao.vezes) return true;
-    return prazoVenceu ? false : null;
-  }
-  return prazoVenceu ? false : null; // clicou/respondeu: sem rastreio ⇒ nunca "sim"
+  const atendeu =
+    condicao.tipo === "abriu"
+      ? insc.aberturas >= condicao.vezes
+      : condicao.tipo === "clicou"
+        ? (insc.cliques ?? 0) > 0
+        : !!insc.respondeu_em;
+  if (atendeu) return true;
+  return prazoVenceu ? false : null;
 }
 
 export function acharPassoPorId(passos: Passo[], id: string | null): Passo | null {
@@ -170,7 +183,7 @@ async function parar(ctx: Ctx, i: Inscricao, motivo: MotivoDeParada, erro?: stri
  * uma falha, as demais cópias dessa caixa neste tick são puladas.
  */
 async function guardarCopiaEmEnviados(ctx: Ctx, i: Inscricao, caixa: CaixaDeEnvio, mensagem: Buffer) {
-  if (!caixa.imap || ctx.imapComFalha.has(caixa.id)) return;
+  if (!caixa.imap || !caixa.copiarEnviados || ctx.imapComFalha.has(caixa.id)) return;
   try {
     const r = await copiarParaEnviados(caixa.imap, mensagem);
     if (!r.ok) ctx.imapComFalha.add(caixa.id);
@@ -255,11 +268,20 @@ async function executarEmail(
   passo: PassoEmail,
   cadencia: { passos: Passo[]; configuracao: ConfiguracaoDaCadencia },
   deal: { assigned_to: string | null; user_id: string },
-  contato: { name: string | null; email: string | null; company: string | null; job_title: string | null; unsub: string | null },
+  contato: {
+    name: string | null;
+    email: string | null;
+    company: string | null;
+    job_title: string | null;
+    unsub: string | null;
+    bounce: string | null;
+  },
 ) {
   if (contato.unsub) return parar(ctx, i, "descadastro");
   if (!contato.email?.trim()) return parar(ctx, i, "sem_email");
   const cfg = cadencia.configuracao;
+  // o endereço já voltou (bounce) numa cadência: não adianta insistir
+  if (contato.bounce && cfg.paradas.bounce) return parar(ctx, i, "bounce");
 
   if (!dentroDaJanela(ctx.agora, cfg)) return liberarSemAvancar(ctx, i, MIN_FORA_DA_JANELA);
 
@@ -395,7 +417,7 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
     case "email": {
       const { data: c } = await ctx.admin
         .from("contacts")
-        .select("name,email,company,job_title,email_unsubscribed_at,companies(name)")
+        .select("name,email,company,job_title,email_unsubscribed_at,email_bounced_at,companies(name)")
         .eq("id", i.contact_id)
         .eq("account_id", i.account_id)
         .maybeSingle();
@@ -406,6 +428,7 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
         company: nomeDaEmpresa(deal.companies) ?? nomeDaEmpresa(c?.companies) ?? c?.company ?? null,
         job_title: c?.job_title ?? null,
         unsub: c?.email_unsubscribed_at ?? null,
+        bounce: c?.email_bounced_at ?? null,
       });
     }
     case "espera":
@@ -469,13 +492,18 @@ export async function processarCadencias(admin: SupabaseClient, agora = new Date
   const ctx: Ctx = {
     admin,
     agora,
-    resultado: { processadas: 0, emailsEnviados: 0, concluidas: 0, paradas: 0, falhas: 0 },
+    resultado: { processadas: 0, emailsEnviados: 0, concluidas: 0, paradas: 0, falhas: 0, respostas: 0, bounces: 0 },
     imapComFalha: new Set(),
   };
+  // primeiro a caixa de entrada: quem respondeu (ou deu bounce) para ANTES do próximo envio
+  const entrada = await processarCaixasDeEntrada(admin, agora);
+  ctx.resultado.respostas = entrada.respostas;
+  ctx.resultado.bounces = entrada.bounces;
+
   const { data: candidatas } = await admin
     .from("email_cadence_enrollments")
     .select(
-      "id,account_id,cadence_id,deal_id,contact_id,passo_atual_id,ultimo_email_em,ultimo_email_passo_id,aberturas,emails_enviados,tentativas,inscrito_por",
+      "id,account_id,cadence_id,deal_id,contact_id,passo_atual_id,ultimo_email_em,ultimo_email_passo_id,aberturas,cliques,respondeu_em,emails_enviados,tentativas,inscrito_por",
     )
     .eq("status", "ativa")
     .lte("proximo_em", agora.toISOString())
