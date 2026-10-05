@@ -28,14 +28,28 @@ interface Caixa {
   verified_at: string | null
   last_error: string | null
   signature_html: string
+  imap_host: string | null
+  imap_port: number
+  imap_security: "tls" | "starttls"
+  imap_sent_folder: string | null
+  imap_last_error: string | null
 }
 interface Membro { user_id: string; full_name: string }
 
-const PROVEDORES = [
-  { nome: "Gmail / Workspace", host: "smtp.gmail.com", port: 587, security: "starttls" as const },
-  { nome: "Outlook / 365", host: "smtp.office365.com", port: 587, security: "starttls" as const },
-  { nome: "Zoho", host: "smtp.zoho.com", port: 465, security: "tls" as const },
-  { nome: "Hostinger", host: "smtp.hostinger.com", port: 465, security: "tls" as const },
+// `imap` só nos provedores que não guardam a cópia em "Enviados" sozinhos. Gmail e
+// Outlook guardam: com IMAP ligado a mensagem apareceria duas vezes.
+const PROVEDORES: {
+  nome: string
+  host: string
+  port: number
+  security: "starttls" | "tls" | "none"
+  imap?: { host: string; port: number; security: "tls" | "starttls" }
+}[] = [
+  { nome: "Gmail / Workspace", host: "smtp.gmail.com", port: 587, security: "starttls" },
+  { nome: "Outlook / 365", host: "smtp.office365.com", port: 587, security: "starttls" },
+  { nome: "Zoho", host: "smtp.zoho.com", port: 465, security: "tls" },
+  { nome: "Hostinger", host: "smtp.hostinger.com", port: 465, security: "tls" },
+  { nome: "Umbler", host: "smtp.umbler.com", port: 587, security: "starttls", imap: { host: "imap.umbler.com", port: 993, security: "tls" } },
 ]
 
 const VAZIO = {
@@ -50,6 +64,10 @@ const VAZIO = {
   smtp_password: "",
   daily_limit: 50,
   signature_html: "",
+  imap_host: "",
+  imap_port: 993,
+  imap_security: "tls" as Caixa["imap_security"],
+  imap_sent_folder: "",
 }
 
 function Caixas() {
@@ -98,6 +116,10 @@ function Caixas() {
         ...(f.smtp_password ? { smtp_password: f.smtp_password } : {}),
         daily_limit: f.daily_limit,
         signature_html: f.signature_html,
+        imap_host: f.imap_host.trim() || null,
+        imap_port: f.imap_port,
+        imap_security: f.imap_security,
+        imap_sent_folder: f.imap_sent_folder.trim() || null,
       }
       const r = await fetch("/api/caixas-de-envio", {
         method: "POST",
@@ -136,6 +158,10 @@ function Caixas() {
       smtp_password: "",
       daily_limit: c.daily_limit,
       signature_html: c.signature_html,
+      imap_host: c.imap_host ?? "",
+      imap_port: c.imap_port,
+      imap_security: c.imap_security,
+      imap_sent_folder: c.imap_sent_folder ?? "",
     })
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -159,7 +185,17 @@ function Caixas() {
           <h2 className="text-sm font-semibold">{f.id ? "Editar caixa" : "Nova caixa"}</h2>
           {PROVEDORES.map((p) => (
             <Button key={p.nome} type="button" size="sm" variant="outline"
-              onClick={() => setF((x) => ({ ...x, smtp_host: p.host, smtp_port: p.port, smtp_security: p.security }))}>
+              onClick={() =>
+                setF((x) => ({
+                  ...x,
+                  smtp_host: p.host,
+                  smtp_port: p.port,
+                  smtp_security: p.security,
+                  imap_host: p.imap?.host ?? "",
+                  imap_port: p.imap?.port ?? 993,
+                  imap_security: p.imap?.security ?? "tls",
+                }))
+              }>
               {p.nome}
             </Button>
           ))}
@@ -188,6 +224,35 @@ function Caixas() {
         <Campo label={f.id ? "Senha (vazio mantém a atual)" : "Senha (use senha de app no Gmail/Outlook)"}>
           <Input type="password" autoComplete="new-password" value={f.smtp_password} onChange={(e) => set("smtp_password", e.target.value)} />
         </Campo>
+        <div className="grid gap-3 rounded-md border border-dashed p-3 sm:col-span-2 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <h3 className="text-sm font-semibold">Cópia em “Enviados” (IMAP) — opcional</h3>
+            <p className="text-xs text-muted-foreground">
+              O SMTP só entrega o e-mail; alguns provedores (ex.: Umbler) não guardam cópia na caixa. Com o IMAP
+              preenchido, cada e-mail da cadência também é gravado em “Enviados”, usando o mesmo usuário e a mesma
+              senha. Gmail e Outlook já guardam sozinhos: deixe em branco para não duplicar.
+            </p>
+          </div>
+          <Campo label="Servidor IMAP">
+            <Input placeholder="imap.seudominio.com" value={f.imap_host} onChange={(e) => set("imap_host", e.target.value)} />
+          </Campo>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo label="Porta">
+              <Input type="number" min={1} max={65535} value={f.imap_port} onChange={(e) => set("imap_port", Number(e.target.value))} />
+            </Campo>
+            <Campo label="Segurança">
+              <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={f.imap_security} onChange={(e) => set("imap_security", e.target.value as Caixa["imap_security"])}>
+                <option value="tls">TLS (993)</option>
+                <option value="starttls">STARTTLS (143)</option>
+              </select>
+            </Campo>
+          </div>
+          <div className="sm:col-span-2">
+            <Campo label="Pasta de enviados (vazio = detectar sozinho)">
+              <Input placeholder="Sent" value={f.imap_sent_folder} onChange={(e) => set("imap_sent_folder", e.target.value)} />
+            </Campo>
+          </div>
+        </div>
         <div className="sm:col-span-2">
           <Campo label="Assinatura (HTML)">
             <Textarea rows={5} value={f.signature_html} onChange={(e) => set("signature_html", e.target.value)} />
@@ -219,7 +284,13 @@ function Caixas() {
                 <p className="truncate text-xs text-muted-foreground">
                   {nomeDono(c.owner_user_id)} · {c.smtp_host}:{c.smtp_port} · {c.daily_limit}/dia
                 </p>
+                {c.imap_host && (
+                  <p className="truncate text-xs text-muted-foreground">Cópia em Enviados: {c.imap_host}</p>
+                )}
                 {c.last_error && <p className="truncate text-xs text-destructive">{c.last_error}</p>}
+                {c.imap_last_error && (
+                  <p className="truncate text-xs text-destructive">Cópia em Enviados falhou: {c.imap_last_error}</p>
+                )}
               </div>
               <Badge variant={c.verified_at ? "outline" : "destructive"}>{c.verified_at ? "Verificada" : "Não verificada"}</Badge>
               <Button size="sm" variant="outline" onClick={() => editar(c)}>Editar</Button>

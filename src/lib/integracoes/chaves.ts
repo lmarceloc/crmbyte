@@ -4,8 +4,8 @@ import { decrypt, encrypt } from "@/lib/whatsapp/encryption";
 
 type Admin = SupabaseClient;
 
-export type Provedor = "apify" | "treg";
-export const PROVEDORES: Provedor[] = ["apify", "treg"];
+export type Provedor = "apify" | "treg" | "openrouter";
+export const PROVEDORES: Provedor[] = ["apify", "treg", "openrouter"];
 
 export function ehProvedor(v: unknown): v is Provedor {
   return typeof v === "string" && (PROVEDORES as string[]).includes(v);

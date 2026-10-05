@@ -27,6 +27,8 @@ import {
   type ProdutoDoCatalogo,
 } from "./deal-products-section";
 import { formatMoeda } from "@/lib/money";
+import { linksDaEmpresa, tituloSugerido } from "@/lib/deals/dados-da-empresa";
+import { normalizarUrl } from "@/lib/url";
 import {
   Sheet,
   SheetContent,
@@ -46,6 +48,8 @@ import {
   Loader2,
   Building2,
   ExternalLink,
+  Globe,
+  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -80,7 +84,6 @@ export function DealForm({
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [notes, setNotes] = useState("");
   const [companyId, setCompanyId] = useState("");
-  const [linkedin, setLinkedin] = useState("");
   const [temperature, setTemperature] = useState<DealTemperature>("frio");
   const [membros, setMembros] = useState<MembroDoNegocio[]>([]);
   const [membrosBusy, setMembrosBusy] = useState(false);
@@ -91,6 +94,7 @@ export function DealForm({
   const [novaEmpresa, setNovaEmpresa] = useState(false);
   const [novaEmpresaNome, setNovaEmpresaNome] = useState("");
   const [novaEmpresaSite, setNovaEmpresaSite] = useState("");
+  const [novaEmpresaLinkedin, setNovaEmpresaLinkedin] = useState("");
   const [criandoEmpresa, setCriandoEmpresa] = useState(false);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -125,7 +129,6 @@ export function DealForm({
       setExpectedCloseDate(deal.expected_close_date ?? "");
       setNotes(deal.notes ?? "");
       setCompanyId(deal.company_id ?? "");
-      setLinkedin(deal.linkedin_url ?? "");
       setTemperature(deal.temperature ?? "frio");
     } else {
       setTitle("");
@@ -137,7 +140,6 @@ export function DealForm({
       setExpectedCloseDate("");
       setNotes("");
       setCompanyId("");
-      setLinkedin("");
       setTemperature("frio");
       setMembros([]);
       setItens([]);
@@ -145,6 +147,7 @@ export function DealForm({
     setNovaEmpresa(false);
     setNovaEmpresaNome("");
     setNovaEmpresaSite("");
+    setNovaEmpresaLinkedin("");
   }, [open, deal, defaultStageId, stages, defaultCurrency]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -238,16 +241,31 @@ export function DealForm({
 
   // O contato principal alimenta o vínculo com a conversa e a validação.
   const principalId = membros.find((m) => m.isPrimary)?.contactId ?? "";
+  const empresaSelecionada = companies.find((c) => c.id === companyId);
+  const { site, linkedin: linkedinEmpresa } = linksDaEmpresa(empresaSelecionada);
   useEffect(() => {
     setContactId(principalId);
   }, [principalId]);
 
+  // Empresa e negócio compartilham nome, site e LinkedIn: escolher a empresa já
+  // sugere o nome do negócio, e o site/LinkedIn dela aparecem no formulário.
+  function escolherEmpresa(id: string) {
+    setCompanyId(id);
+    const empresa = companies.find((c) => c.id === id);
+    setTitle((t) => tituloSugerido(t, empresa?.name));
+  }
+
   async function criarEmpresa() {
     const nome = novaEmpresaNome.trim();
     if (!nome || !accountId) return;
-    const site = novaEmpresaSite.trim();
-    if (site && !/^https?:\/\//i.test(site)) {
-      toast.error("O site precisa começar com http:// ou https://");
+    const site = normalizarUrl(novaEmpresaSite);
+    if (novaEmpresaSite.trim() && !site) {
+      toast.error("Site inválido: use um link http(s).");
+      return;
+    }
+    const linkedinUrl = normalizarUrl(novaEmpresaLinkedin);
+    if (novaEmpresaLinkedin.trim() && !linkedinUrl) {
+      toast.error("LinkedIn inválido: use um link http(s).");
       return;
     }
     setCriandoEmpresa(true);
@@ -256,7 +274,13 @@ export function DealForm({
     } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from("companies")
-      .insert({ account_id: accountId, user_id: user?.id ?? null, name: nome, website: site || null })
+      .insert({
+        account_id: accountId,
+        user_id: user?.id ?? null,
+        name: nome,
+        website: site,
+        linkedin_url: linkedinUrl,
+      })
       .select("*")
       .single();
     setCriandoEmpresa(false);
@@ -268,9 +292,11 @@ export function DealForm({
     }
     setCompanies((cs) => [...cs, data as Company].sort((a, b) => a.name.localeCompare(b.name)));
     setCompanyId((data as Company).id);
+    setTitle((t) => tituloSugerido(t, (data as Company).name));
     setNovaEmpresa(false);
     setNovaEmpresaNome("");
     setNovaEmpresaSite("");
+    setNovaEmpresaLinkedin("");
   }
 
   // ---- contatos do negócio (na edição, gravam na hora; na criação, só no estado)
@@ -503,11 +529,6 @@ export function DealForm({
       toast.error("Título, contato principal e etapa são obrigatórios");
       return;
     }
-    const li = linkedin.trim();
-    if (li && !/^https?:\/\//i.test(li)) {
-      toast.error("O LinkedIn precisa começar com http:// ou https://");
-      return;
-    }
     setSaving(true);
 
     const payload = {
@@ -521,7 +542,6 @@ export function DealForm({
       notes: notes.trim() || null,
       expected_close_date: expectedCloseDate || null,
       company_id: companyId || null,
-      linkedin_url: li || null,
       temperature,
     };
 
@@ -679,6 +699,12 @@ export function DealForm({
                     placeholder="Site (https://…)"
                     className="border-border bg-muted text-foreground"
                   />
+                  <Input
+                    value={novaEmpresaLinkedin}
+                    onChange={(e) => setNovaEmpresaLinkedin(e.target.value)}
+                    placeholder="LinkedIn (linkedin.com/company/…)"
+                    className="border-border bg-muted text-foreground"
+                  />
                   <div className="flex justify-end gap-2">
                     <Button type="button" size="sm" variant="ghost" onClick={() => setNovaEmpresa(false)} disabled={criandoEmpresa}>
                       Cancelar
@@ -693,7 +719,7 @@ export function DealForm({
                   value={companyId}
                   onChange={(e) => {
                     if (e.target.value === "__nova__") setNovaEmpresa(true);
-                    else setCompanyId(e.target.value);
+                    else escolherEmpresa(e.target.value);
                   }}
                   className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                 >
@@ -708,28 +734,35 @@ export function DealForm({
               )}
             </div>
 
-            <div className="grid gap-2">
-              <Label className="text-muted-foreground">LinkedIn do negócio</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  value={linkedin}
-                  onChange={(e) => setLinkedin(e.target.value)}
-                  placeholder="https://www.linkedin.com/…"
-                  className="border-border bg-muted text-foreground"
-                />
-                {/^https?:\/\//i.test(linkedin.trim()) && (
+            {empresaSelecionada && (site || linkedinEmpresa) && (
+              <div className="space-y-1 rounded-md border border-border/60 bg-muted/40 p-2 text-xs">
+                {site && (
                   <a
-                    href={linkedin.trim()}
+                    href={site}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title="Abrir no LinkedIn"
-                    className="shrink-0 text-primary hover:opacity-80"
+                    className="flex items-center gap-1.5 text-primary hover:underline"
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <Globe className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{empresaSelecionada.website}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0" />
                   </a>
                 )}
+                {linkedinEmpresa && (
+                  <a
+                    href={linkedinEmpresa}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-primary hover:underline"
+                  >
+                    <Link2 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{empresaSelecionada.linkedin_url}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </a>
+                )}
+                <p className="text-muted-foreground">Site e LinkedIn vêm da empresa. Para alterar, edite a empresa.</p>
               </div>
-            </div>
+            )}
 
             <div className="grid gap-2">
               <Label className="text-muted-foreground">Temperatura</Label>

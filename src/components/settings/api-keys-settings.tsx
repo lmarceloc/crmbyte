@@ -11,7 +11,7 @@ import { SettingsPanelHead } from "./settings-panel-head"
 import { useConfirmarExclusao } from "@/components/ui/confirmar-exclusao"
 
 interface StatusChave {
-  provider: "apify" | "treg"
+  provider: "apify" | "treg" | "openrouter"
   configurada: boolean
   origem: "conta" | "instalacao" | null
   hint: string | null
@@ -28,6 +28,11 @@ const SERVICOS: Record<StatusChave["provider"], { nome: string; para: string; on
     nome: "Treg",
     para: "Prospecção B2B: busca de pessoas por cargo/empresa e descoberta e verificação de e-mails.",
     onde: "Painel da Treg → chave de API (token usado no cabeçalho X-Treg-Token).",
+  },
+  openrouter: {
+    nome: "OpenRouter",
+    para: "Modelos de IA pelo OpenRouter, usando o modelo gratuito openrouter/free.",
+    onde: "openrouter.ai → Keys → Create Key (a chave começa com sk-or-).",
   },
 }
 

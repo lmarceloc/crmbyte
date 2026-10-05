@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { decrypt, encrypt } from "@/lib/whatsapp/encryption";
 import { sanitizarAssinatura } from "./assinatura";
+import { verificarImap, type ConfigImap, type SegurancaImap } from "./imap";
 import { verificarSmtp, type ConfigSmtp } from "./smtp";
 import { assertDestinoResolvidoSeguro, DestinoInseguroError } from "./ssrf";
 
@@ -12,19 +13,36 @@ export class CaixaError extends Error {
   }
 }
 
+const SERVIDOR = /^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$/;
+
 export const caixaInputSchema = z
   .object({
     id: z.string().uuid().optional(),
     email: z.string().trim().toLowerCase().email().max(320),
     from_name: z.string().trim().max(120).default(""),
     owner_user_id: z.string().uuid().nullable().default(null),
-    smtp_host: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$/, "Servidor SMTP inválido."),
+    smtp_host: z.string().trim().regex(SERVIDOR, "Servidor SMTP inválido."),
     smtp_port: z.number().int().min(1).max(65535).default(587),
     smtp_security: z.enum(["starttls", "tls", "none"]).default("starttls"),
     smtp_username: z.string().trim().max(320).default(""),
     smtp_password: z.string().max(500).optional(),
     daily_limit: z.number().int().min(1).max(2000).default(50),
     signature_html: z.string().max(20_000).default(""),
+    // Cópia em "Enviados" via IMAP (opcional). Vazio/null = desligado.
+    imap_host: z
+      .union([z.string().trim().regex(SERVIDOR, "Servidor IMAP inválido."), z.literal("")])
+      .nullable()
+      .default(null)
+      .transform((v) => v || null),
+    imap_port: z.number().int().min(1).max(65535).default(993),
+    imap_security: z.enum(["tls", "starttls"]).default("tls"),
+    imap_sent_folder: z
+      .string()
+      .trim()
+      .max(200)
+      .nullable()
+      .default(null)
+      .transform((v) => v || null),
   })
   .strict();
 export type CaixaInput = z.infer<typeof caixaInputSchema>;
@@ -43,10 +61,39 @@ export interface CaixaPublica {
   verified_at: string | null;
   last_error: string | null;
   signature_html: string;
+  imap_host: string | null;
+  imap_port: number;
+  imap_security: SegurancaImap;
+  imap_sent_folder: string | null;
+  imap_last_error: string | null;
 }
 
 const COLUNAS_PUBLICAS =
-  "id,email,from_name,owner_user_id,smtp_host,smtp_port,smtp_security,smtp_username,smtp_password_encrypted,daily_limit,verified_at,last_error,signature_html";
+  "id,email,from_name,owner_user_id,smtp_host,smtp_port,smtp_security,smtp_username,smtp_password_encrypted,daily_limit,verified_at,last_error,signature_html,imap_host,imap_port,imap_security,imap_sent_folder,imap_last_error";
+
+/**
+ * Config do IMAP da caixa, ou null se a cópia em "Enviados" está desligada.
+ * Usuário e senha são os do SMTP; sem usuário, vale o e-mail da caixa.
+ */
+export function montarConfigImap(c: {
+  imapHost: string | null | undefined;
+  imapPort: number | null | undefined;
+  imapSecurity: string | null | undefined;
+  pastaEnviados: string | null | undefined;
+  smtpUsername: string | null | undefined;
+  email: string;
+  password: string | null | undefined;
+}): ConfigImap | null {
+  if (!c.imapHost || !c.password) return null;
+  return {
+    host: c.imapHost,
+    port: c.imapPort || 993,
+    security: c.imapSecurity === "starttls" ? "starttls" : "tls",
+    username: c.smtpUsername?.trim() || c.email,
+    password: c.password,
+    pastaEnviados: c.pastaEnviados?.trim() || null,
+  };
+}
 
 type LinhaCaixa = Omit<CaixaPublica, "tem_senha"> & { smtp_password_encrypted: string | null };
 
@@ -128,6 +175,30 @@ export async function salvarCaixa(
     );
   }
 
+  // 4b. IMAP (opcional): login + pasta de enviados, também ANTES de gravar
+  if (input.imap_host) {
+    const imap = montarConfigImap({
+      imapHost: input.imap_host,
+      imapPort: input.imap_port,
+      imapSecurity: input.imap_security,
+      pastaEnviados: input.imap_sent_folder,
+      smtpUsername: input.smtp_username,
+      email: input.email,
+      password: senhaPura,
+    });
+    if (!imap) throw new CaixaError("Informe a senha da caixa para usar o IMAP.");
+    const testeImap = await verificarImap(imap);
+    if (!testeImap.ok) {
+      throw new CaixaError(
+        testeImap.tipo === "authentication_failed"
+          ? "Usuário ou senha recusados pelo servidor IMAP (são os mesmos do SMTP)."
+          : testeImap.tipo === "folder_not_found"
+            ? testeImap.detalhe
+            : `Não foi possível conectar ao servidor IMAP (993 = TLS, 143 = STARTTLS): ${testeImap.detalhe}`,
+      );
+    }
+  }
+
   // 5-6. cifra, sanitiza e grava
   const linha = {
     account_id: accountId,
@@ -143,6 +214,11 @@ export async function salvarCaixa(
     signature_html: sanitizarAssinatura(input.signature_html),
     verified_at: new Date().toISOString(),
     last_error: null,
+    imap_host: input.imap_host,
+    imap_port: input.imap_port,
+    imap_security: input.imap_security,
+    imap_sent_folder: input.imap_sent_folder,
+    imap_last_error: null,
   };
   const consulta = input.id
     ? admin.from("email_mailboxes").update(linha).eq("id", input.id).eq("account_id", accountId)
@@ -179,6 +255,10 @@ export interface CaixaDeEnvio {
   dailyLimit: number;
   signatureHtml: string;
   smtp: ConfigSmtp;
+  /** null = cópia em "Enviados" desligada. */
+  imap: ConfigImap | null;
+  /** Havia erro gravado de uma cópia anterior (para limpar quando voltar a funcionar). */
+  imapTinhaErro: boolean;
 }
 
 export async function carregarCaixaDeEnvio(
@@ -213,7 +293,33 @@ export async function carregarCaixaDeEnvio(
       username: data.smtp_username,
       password,
     },
+    imap: montarConfigImap({
+      imapHost: data.imap_host,
+      imapPort: data.imap_port,
+      imapSecurity: data.imap_security,
+      pastaEnviados: data.imap_sent_folder,
+      smtpUsername: data.smtp_username,
+      email: data.email,
+      password,
+    }),
+    imapTinhaErro: !!data.imap_last_error,
   };
+}
+
+async function gravarUltimoErro(
+  admin: SupabaseClient,
+  accountId: string,
+  id: string,
+  coluna: "last_error" | "imap_last_error",
+  erro: string | null,
+  tinhaErro: boolean,
+): Promise<void> {
+  if (!erro && !tinhaErro) return;
+  await admin
+    .from("email_mailboxes")
+    .update({ [coluna]: erro ? erro.slice(0, 500) : null })
+    .eq("id", id)
+    .eq("account_id", accountId);
 }
 
 export async function registrarResultadoDaCaixa(
@@ -223,17 +329,16 @@ export async function registrarResultadoDaCaixa(
   erro: string | null,
   tinhaErro: boolean,
 ): Promise<void> {
-  if (erro) {
-    await admin
-      .from("email_mailboxes")
-      .update({ last_error: erro.slice(0, 500) })
-      .eq("id", id)
-      .eq("account_id", accountId);
-  } else if (tinhaErro) {
-    await admin
-      .from("email_mailboxes")
-      .update({ last_error: null })
-      .eq("id", id)
-      .eq("account_id", accountId);
-  }
+  await gravarUltimoErro(admin, accountId, id, "last_error", erro, tinhaErro);
+}
+
+/** Resultado da cópia em "Enviados": grava o erro (ou limpa o anterior) sem mexer no estado do SMTP. */
+export async function registrarResultadoDoImapDaCaixa(
+  admin: SupabaseClient,
+  accountId: string,
+  id: string,
+  erro: string | null,
+  tinhaErro: boolean,
+): Promise<void> {
+  await gravarUltimoErro(admin, accountId, id, "imap_last_error", erro, tinhaErro);
 }

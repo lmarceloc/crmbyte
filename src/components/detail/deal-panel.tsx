@@ -2,13 +2,14 @@
 
 import { useCallback, useState } from "react"
 import { toast } from "sonner"
-import { Building2, Calendar, Pencil, CircleDollarSign, FileText, Flag, Layers, Link2, Mail, MessageCircle, StickyNote, Tag, UserRound } from "lucide-react"
+import { Building2, Calendar, Pencil, CircleDollarSign, FileText, Flag, Globe, Layers, Link2, Mail, MessageCircle, StickyNote, Tag, UserRound } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/currency"
 import { formatMoeda } from "@/lib/money"
+import { linkedinSoDoNegocio, linksDaEmpresa } from "@/lib/deals/dados-da-empresa"
 import { TemperaturePicker } from "@/components/pipelines/temperature-badge"
 import type { DealTemperature } from "@/types"
 import { useDetailPanel } from "./detail-panel-provider"
@@ -28,7 +29,6 @@ import {
   type EventoDaLinha,
   Linha,
   LinhaDoTempo,
-  linkSeguro,
   Metrica,
   ROTULO_RESULTADO,
   ROTULO_STATUS_NEGOCIO,
@@ -39,6 +39,12 @@ import {
   Vazio,
 } from "./shared"
 
+interface EmpresaDoNegocio {
+  id: string
+  name: string
+  website: string | null
+  linkedin_url: string | null
+}
 interface Negocio {
   id: string
   title: string
@@ -51,7 +57,7 @@ interface Negocio {
   temperature: DealTemperature | null
   source: string | null
   assigned_to: string | null
-  company: { id: string; name: string } | { id: string; name: string }[] | null
+  company: EmpresaDoNegocio | EmpresaDoNegocio[] | null
   stage: { name: string; color: string } | { name: string; color: string }[] | null
   pipeline: { name: string } | { name: string }[] | null
 }
@@ -108,7 +114,7 @@ export function DealPanel({ id }: { id: string }) {
       db
         .from("deals")
         .select(
-          "id,title,value,currency,status,notes,expected_close_date,linkedin_url,temperature,source,assigned_to,company:companies(id,name),stage:pipeline_stages(name,color),pipeline:pipelines(name)",
+          "id,title,value,currency,status,notes,expected_close_date,linkedin_url,temperature,source,assigned_to,company:companies(id,name,website,linkedin_url),stage:pipeline_stages(name,color),pipeline:pipelines(name)",
         )
         .eq("id", id)
         .maybeSingle(),
@@ -200,7 +206,9 @@ export function DealPanel({ id }: { id: string }) {
   const empresa = um(negocio.company)
   const etapa = um(negocio.stage)
   const funil = um(negocio.pipeline)
-  const linkedin = linkSeguro(negocio.linkedin_url)
+  // nome, site e LinkedIn são da empresa; o do negócio é legado e só aparece se for diferente
+  const { site, linkedin } = linksDaEmpresa(empresa)
+  const linkedinDoNegocio = linkedinSoDoNegocio(negocio.linkedin_url, empresa)
   const principal = um(contatos.find((c) => c.is_primary)?.contacts ?? contatos[0]?.contacts ?? null)
   const temp = temperatura ?? negocio.temperature ?? "frio"
   const enviados = inscricoes.reduce((s, x) => s + x.emails_enviados, 0)
@@ -221,7 +229,13 @@ export function DealPanel({ id }: { id: string }) {
                   {empresa.name}
                 </button>
               )}
-              {empresa && linkedin ? " · " : ""}
+              {empresa && site ? " · " : ""}
+              {site && (
+                <a href={site} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  Site
+                </a>
+              )}
+              {(empresa || site) && linkedin ? " · " : ""}
               {linkedin && (
                 <a href={linkedin} target="_blank" rel="noopener noreferrer" className="hover:underline">
                   LinkedIn
@@ -300,9 +314,17 @@ export function DealPanel({ id }: { id: string }) {
                   </button>
                 )}
               </Linha>
-              <Linha icone={Link2} rotulo="LinkedIn">
-                {linkedin && <a href={linkedin} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{negocio.linkedin_url}</a>}
+              <Linha icone={Globe} rotulo="Site">
+                {site && <a href={site} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{empresa?.website}</a>}
               </Linha>
+              <Linha icone={Link2} rotulo="LinkedIn">
+                {linkedin && <a href={linkedin} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{empresa?.linkedin_url}</a>}
+              </Linha>
+              {linkedinDoNegocio && (
+                <Linha icone={Link2} rotulo="LinkedIn do negócio">
+                  <a href={linkedinDoNegocio} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{negocio.linkedin_url}</a>
+                </Linha>
+              )}
               <Linha icone={Tag} rotulo="Origem">{negocio.source}</Linha>
               <Linha icone={FileText} rotulo="Notas do negócio">
                 {negocio.notes && <span className="whitespace-pre-wrap">{negocio.notes}</span>}

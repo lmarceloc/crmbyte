@@ -1,4 +1,4 @@
-// Anti-SSRF para host SMTP: resolve DNS e recusa IP interno/metadata.
+// Anti-SSRF para host SMTP/IMAP: resolve DNS e recusa IP interno/metadata.
 // Roda ao salvar a caixa E a cada envio (o DNS pode mudar depois).
 import dns from "dns/promises";
 import net from "net";
@@ -29,14 +29,15 @@ export function ipEInterno(ip: string): boolean {
 
 export class DestinoInseguroError extends Error {}
 
-export async function assertDestinoResolvidoSeguro(host: string): Promise<void> {
+/** `protocolo` só entra na mensagem de erro ("servidor SMTP", "servidor IMAP"). */
+export async function assertDestinoResolvidoSeguro(host: string, protocolo = "SMTP"): Promise<void> {
   const ips = net.isIP(host)
     ? [host]
     : (await dns.lookup(host, { all: true }).catch(() => [])).map((r) => r.address);
   if (ips.length === 0) {
-    throw new DestinoInseguroError("Não foi possível resolver o servidor SMTP informado.");
+    throw new DestinoInseguroError(`Não foi possível resolver o servidor ${protocolo} informado.`);
   }
   if (ips.some(ipEInterno)) {
-    throw new DestinoInseguroError("O servidor SMTP aponta para um endereço interno e foi recusado.");
+    throw new DestinoInseguroError(`O servidor ${protocolo} aponta para um endereço interno e foi recusado.`);
   }
 }

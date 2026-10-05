@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/client"
 import { useCan } from "@/hooks/use-can"
 import { useDetailPanel } from "@/components/detail/detail-panel-provider"
+import { resumoDeInscricao, rotuloDoInscrito } from "@/lib/cadencias/inscricao-do-negocio"
 
 interface Inscricao {
   id: string
@@ -48,6 +49,23 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
   const [busca, setBusca] = useState("")
   const [negocios, setNegocios] = useState<Negocio[]>([])
   const [inscrevendo, setInscrevendo] = useState<string | null>(null)
+  // status da inscrição nesta cadência, por "negócio:contato" (qualquer status impede inscrever de novo)
+  const [inscritos, setInscritos] = useState<Record<string, string>>({})
+
+  const carregarInscritos = useCallback(
+    async (idsDosNegocios: string[]) => {
+      if (idsDosNegocios.length === 0) return setInscritos({})
+      const { data } = await createClient()
+        .from("email_cadence_enrollments")
+        .select("deal_id,contact_id,status")
+        .eq("cadence_id", cadenciaId)
+        .in("deal_id", idsDosNegocios)
+      setInscritos(
+        Object.fromEntries((data ?? []).map((r) => [`${r.deal_id}:${r.contact_id}`, r.status as string])),
+      )
+    },
+    [cadenciaId],
+  )
 
   const carregar = useCallback(async () => {
     const res = await fetch(`/api/cadencias/${cadenciaId}/inscricoes?limit=200`)
@@ -72,10 +90,12 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
         .limit(20)
       if (busca.trim()) q = q.ilike("title", `%${busca.trim()}%`)
       const { data } = await q
-      setNegocios((data ?? []) as unknown as Negocio[])
+      const achados = (data ?? []) as unknown as Negocio[]
+      setNegocios(achados)
+      await carregarInscritos(achados.map((n) => n.id))
     }, 300)
     return () => clearTimeout(t)
-  }, [busca, ativa, podeInscrever])
+  }, [busca, ativa, podeInscrever, carregarInscritos])
 
   async function marcarResultado(inscricaoId: string, valor: string) {
     const resultado = valor === "" ? null : valor
@@ -102,6 +122,8 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
     })
     const body = await res.json().catch(() => ({}))
     setInscrevendo(null)
+    // atualiza também no erro: um 409 "já estão nesta cadência" significa que a tela estava defasada
+    void carregarInscritos(negocios.map((n) => n.id))
     if (!res.ok) return toast.error(body?.error ?? "Falha ao inscrever.")
     toast.success(`${body.inscritos ?? 1} contato(s) inscrito(s)`)
     carregar()
@@ -123,14 +145,24 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
               {negocios.map((n) => {
                 const contatos = n.deal_contacts.map((d) => ({ id: d.contact_id, c: um(d.contacts) }))
                 const elegiveis = contatos.filter((x) => x.c?.email?.trim() && !x.c.email_unsubscribed_at)
+                const { pendentes, rotuloQuandoInscrito } = resumoDeInscricao(
+                  elegiveis.map((x) => x.id),
+                  (contatoId) => inscritos[`${n.id}:${contatoId}`],
+                )
                 return (
                   <li key={n.id} className="space-y-1.5 p-2 text-sm">
                     <div className="flex items-center justify-between gap-3">
                       <span className="min-w-0 truncate font-medium">{n.title}</span>
-                      <Button size="sm" disabled={elegiveis.length === 0 || inscrevendo === n.id} onClick={() => inscrever(n.id)}>
-                        {inscrevendo === n.id && <Loader2 className="size-3.5 animate-spin" />} Inscrever
-                        {elegiveis.length > 0 ? ` (${elegiveis.length})` : ""}
-                      </Button>
+                      {rotuloQuandoInscrito ? (
+                        <Button size="sm" variant="secondary" disabled>
+                          {rotuloQuandoInscrito}
+                        </Button>
+                      ) : (
+                        <Button size="sm" disabled={pendentes === 0 || inscrevendo === n.id} onClick={() => inscrever(n.id)}>
+                          {inscrevendo === n.id && <Loader2 className="size-3.5 animate-spin" />} Inscrever
+                          {pendentes > 0 ? ` (${pendentes})` : ""}
+                        </Button>
+                      )}
                     </div>
                     {contatos.length === 0 ? (
                       <p className="text-xs text-muted-foreground">Sem contatos — adicione um contato ao negócio.</p>
@@ -138,13 +170,17 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
                       <ul className="space-y-0.5 pl-2">
                         {contatos.map(({ id, c }) => {
                           const ok = !!c?.email?.trim() && !c.email_unsubscribed_at
+                          const statusInscricao = inscritos[`${n.id}:${id}`]
                           return (
                             <li key={id} className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                               <span className="truncate">
                                 {c?.name ?? "—"} · {c?.email || "sem e-mail"}
                                 {c?.email_unsubscribed_at ? " · descadastrado" : ""}
                               </span>
-                              {ok && (
+                              {ok && statusInscricao && (
+                                <span className="shrink-0">{rotuloDoInscrito(statusInscricao)}</span>
+                              )}
+                              {ok && !statusInscricao && (
                                 <button
                                   className="shrink-0 text-primary hover:underline disabled:opacity-50"
                                   disabled={inscrevendo === id}
