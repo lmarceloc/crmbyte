@@ -17,6 +17,7 @@ import { DealsSettings } from '@/components/settings/deals-settings';
 import { ProductsSettings } from '@/components/settings/products-settings';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
 import { IaSettings } from '@/components/settings/ia-settings';
+import { AnalisarDealsSettings } from '@/components/settings/analisar-deals-settings';
 import { LossReasonsSettings } from '@/components/settings/loss-reasons-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import {
@@ -64,7 +65,12 @@ export default function SettingsPage() {
     deals: <DealsSettings />,
     products: <ProductsSettings />,
     apikeys: <ApiKeysSettings />,
-    ia: <IaSettings />,
+    ia: (
+      <>
+        <IaSettings />
+        <AnalisarDealsSettings />
+      </>
+    ),
     motivos: <LossReasonsSettings />,
     members: <MembersTab />,
   };

@@ -9,10 +9,11 @@ function adminCom(linhas: { provider: string; key_hint: string | null; updated_a
 }
 
 describe("provedores de chave", () => {
-  it("OpenRouter e Firecrawl são provedores válidos, ao lado do Apify e da Treg", () => {
-    expect(PROVEDORES).toEqual(["apify", "treg", "openrouter", "firecrawl"]);
+  it("OpenRouter, Firecrawl e Analisar Deals são provedores válidos, ao lado do Apify e da Treg", () => {
+    expect(PROVEDORES).toEqual(["apify", "treg", "openrouter", "firecrawl", "analisar_deals"]);
     expect(ehProvedor("openrouter")).toBe(true);
     expect(ehProvedor("firecrawl")).toBe(true);
+    expect(ehProvedor("analisar_deals")).toBe(true);
     expect(ehProvedor("apify")).toBe(true);
   });
 
@@ -24,6 +25,17 @@ describe("provedores de chave", () => {
 });
 
 describe("statusChaves", () => {
+  it("a chave do Analisar Deals só existe se a conta cadastrou (não há chave da instalação)", async () => {
+    const status = await statusChaves(adminCom([]), "conta-1");
+    expect(status.find((s) => s.provider === "analisar_deals")).toEqual({
+      provider: "analisar_deals",
+      configurada: false,
+      origem: null,
+      hint: null,
+      updated_at: null,
+    });
+  });
+
   it("lista o OpenRouter como não configurado quando a conta não cadastrou a chave", async () => {
     const status = await statusChaves(adminCom([]), "conta-1");
     expect(status.find((s) => s.provider === "openrouter")).toEqual({

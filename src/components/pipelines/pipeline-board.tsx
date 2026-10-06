@@ -27,6 +27,8 @@ interface PipelineBoardProps {
   onDealMoved: (dealId: string, newStageId: string) => void;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  /** Negócio a destacar (escolhido no painel do Analisar Deals). */
+  destaqueId?: string | null;
 }
 
 export function PipelineBoard({
@@ -35,6 +37,7 @@ export function PipelineBoard({
   onDealMoved,
   onAddDeal,
   onEditDeal,
+  destaqueId,
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
@@ -121,6 +124,7 @@ export function PipelineBoard({
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              destaqueId={destaqueId}
             />
           );
         })}
@@ -195,6 +199,7 @@ function StageColumn({
   currency,
   onAddDeal,
   onEditDeal,
+  destaqueId,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -202,6 +207,7 @@ function StageColumn({
   currency: string;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  destaqueId?: string | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
@@ -252,6 +258,7 @@ function StageColumn({
                 deal={deal}
                 stage={stage}
                 onEdit={onEditDeal}
+                destacado={deal.id === destaqueId}
               />
             ))
           )}
@@ -275,10 +282,12 @@ function DraggableDealCard({
   deal,
   stage,
   onEdit,
+  destacado,
 }: {
   deal: Deal;
   stage: PipelineStage;
   onEdit: (deal: Deal) => void;
+  destacado?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: deal.id,
@@ -291,7 +300,7 @@ function DraggableDealCard({
       {...attributes}
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: "none" }}
     >
-      <DealCard deal={deal} stage={stage} onEdit={onEdit} />
+      <DealCard deal={deal} stage={stage} onEdit={onEdit} destacado={destacado} />
     </div>
   );
 }
