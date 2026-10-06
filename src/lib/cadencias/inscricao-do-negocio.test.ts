@@ -41,3 +41,42 @@ describe("rotuloDoInscrito", () => {
     expect(rotuloDoInscrito("parada")).toBe("já inscrito");
   });
 });
+
+describe("ocupacaoEmOutraCadencia — um lead numa cadência por vez", () => {
+  const ativas = [
+    { deal_id: "d-topflex", contact_id: "c-marlon", company_id: "emp-topflex", cadencia: "Indústria" },
+    { deal_id: "d-outro", contact_id: "c-ana", company_id: "emp-latec", cadencia: "Química" },
+  ];
+
+  it("o próprio negócio já em outra cadência", async () => {
+    const { ocupacaoEmOutraCadencia, textoDaOcupacao } = await import("./inscricao-do-negocio");
+    const o = ocupacaoEmOutraCadencia({ id: "d-topflex", company_id: "emp-topflex", contatos: ["c-marlon"] }, ativas);
+    expect(o).toEqual({ cadencia: "Indústria", motivo: "negocio" });
+    expect(textoDaOcupacao(o!)).toBe("Já está na cadência “Indústria”.");
+  });
+
+  it("outro negócio da mesma empresa já em cadência também bloqueia", async () => {
+    const { ocupacaoEmOutraCadencia, textoDaOcupacao } = await import("./inscricao-do-negocio");
+    const o = ocupacaoEmOutraCadencia({ id: "d-latec-2", company_id: "emp-latec", contatos: ["c-novo"] }, ativas);
+    expect(o).toEqual({ cadencia: "Química", motivo: "empresa" });
+    expect(textoDaOcupacao(o!)).toMatch(/A empresa já está/);
+  });
+
+  it("contato já em cadência por outro negócio bloqueia (não recebe duas sequências)", async () => {
+    const { ocupacaoEmOutraCadencia } = await import("./inscricao-do-negocio");
+    expect(ocupacaoEmOutraCadencia({ id: "d-x", company_id: null, contatos: ["c-ana"] }, ativas)).toEqual({
+      cadencia: "Química",
+      motivo: "contato",
+    });
+  });
+
+  it("sem nada ativo em outra cadência: livre; empresa nula não casa com empresa nula", async () => {
+    const { ocupacaoEmOutraCadencia } = await import("./inscricao-do-negocio");
+    expect(ocupacaoEmOutraCadencia({ id: "d-x", company_id: "emp-y", contatos: ["c-z"] }, ativas)).toBeNull();
+    expect(
+      ocupacaoEmOutraCadencia({ id: "d-x", company_id: null, contatos: [] }, [
+        { deal_id: "d-1", contact_id: "c-1", company_id: null, cadencia: "A" },
+      ]),
+    ).toBeNull();
+  });
+});

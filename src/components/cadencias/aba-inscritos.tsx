@@ -9,7 +9,14 @@ import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/client"
 import { useCan } from "@/hooks/use-can"
 import { useDetailPanel } from "@/components/detail/detail-panel-provider"
-import { resumoDeInscricao, rotuloDoInscrito } from "@/lib/cadencias/inscricao-do-negocio"
+import {
+  ocupacaoEmOutraCadencia,
+  resumoDeInscricao,
+  rotuloDoInscrito,
+  textoDaOcupacao,
+  type InscricaoEmOutraCadencia,
+} from "@/lib/cadencias/inscricao-do-negocio"
+import { inscricoesAtivasEmOutras } from "@/lib/cadencias/ocupacao"
 
 interface Inscricao {
   id: string
@@ -37,6 +44,7 @@ interface ContatoInfo {
 interface Negocio {
   id: string
   title: string
+  company_id: string | null
   deal_contacts: ContatoDoNegocio[]
 }
 
@@ -51,18 +59,34 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
   const [inscrevendo, setInscrevendo] = useState<string | null>(null)
   // status da inscrição nesta cadência, por "negócio:contato" (qualquer status impede inscrever de novo)
   const [inscritos, setInscritos] = useState<Record<string, string>>({})
+  // inscrições ATIVAS em outras cadências que tocam os negócios listados (negócio, empresa ou contato)
+  const [emOutras, setEmOutras] = useState<InscricaoEmOutraCadencia[]>([])
 
   const carregarInscritos = useCallback(
-    async (idsDosNegocios: string[]) => {
-      if (idsDosNegocios.length === 0) return setInscritos({})
-      const { data } = await createClient()
-        .from("email_cadence_enrollments")
-        .select("deal_id,contact_id,status")
-        .eq("cadence_id", cadenciaId)
-        .in("deal_id", idsDosNegocios)
+    async (lista: Negocio[]) => {
+      if (lista.length === 0) {
+        setInscritos({})
+        setEmOutras([])
+        return
+      }
+      const db = createClient()
+      const idsDosNegocios = lista.map((n) => n.id)
+      const [{ data }, outras] = await Promise.all([
+        db
+          .from("email_cadence_enrollments")
+          .select("deal_id,contact_id,status")
+          .eq("cadence_id", cadenciaId)
+          .in("deal_id", idsDosNegocios),
+        inscricoesAtivasEmOutras(db, cadenciaId, {
+          dealIds: idsDosNegocios,
+          contactIds: [...new Set(lista.flatMap((n) => n.deal_contacts.map((d) => d.contact_id)))],
+          companyIds: [...new Set(lista.map((n) => n.company_id).filter((c): c is string => !!c))],
+        }).catch(() => [] as InscricaoEmOutraCadencia[]),
+      ])
       setInscritos(
         Object.fromEntries((data ?? []).map((r) => [`${r.deal_id}:${r.contact_id}`, r.status as string])),
       )
+      setEmOutras(outras)
     },
     [cadenciaId],
   )
@@ -84,7 +108,7 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
     const t = setTimeout(async () => {
       let q = createClient()
         .from("deals")
-        .select("id,title,deal_contacts(contact_id,contacts(name,email,email_unsubscribed_at))")
+        .select("id,title,company_id,deal_contacts(contact_id,contacts(name,email,email_unsubscribed_at))")
         .eq("status", "open")
         .order("created_at", { ascending: false })
         .limit(20)
@@ -92,7 +116,7 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
       const { data } = await q
       const achados = (data ?? []) as unknown as Negocio[]
       setNegocios(achados)
-      await carregarInscritos(achados.map((n) => n.id))
+      await carregarInscritos(achados)
     }, 300)
     return () => clearTimeout(t)
   }, [busca, ativa, podeInscrever, carregarInscritos])
@@ -123,7 +147,7 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
     const body = await res.json().catch(() => ({}))
     setInscrevendo(null)
     // atualiza também no erro: um 409 "já estão nesta cadência" significa que a tela estava defasada
-    void carregarInscritos(negocios.map((n) => n.id))
+    void carregarInscritos(negocios)
     if (!res.ok) return toast.error(body?.error ?? "Falha ao inscrever.")
     toast.success(`${body.inscritos ?? 1} contato(s) inscrito(s)`)
     carregar()
@@ -149,6 +173,13 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
                   elegiveis.map((x) => x.id),
                   (contatoId) => inscritos[`${n.id}:${contatoId}`],
                 )
+                // um lead fica numa cadência por vez (a API também recusa)
+                const ocupacao = rotuloQuandoInscrito
+                  ? null
+                  : ocupacaoEmOutraCadencia(
+                      { id: n.id, company_id: n.company_id, contatos: elegiveis.map((x) => x.id) },
+                      emOutras,
+                    )
                 return (
                   <li key={n.id} className="space-y-1.5 p-2 text-sm">
                     <div className="flex items-center justify-between gap-3">
@@ -157,6 +188,10 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
                         <Button size="sm" variant="secondary" disabled>
                           {rotuloQuandoInscrito}
                         </Button>
+                      ) : ocupacao ? (
+                        <Button size="sm" variant="secondary" disabled title={textoDaOcupacao(ocupacao)}>
+                          Em outra cadência
+                        </Button>
                       ) : (
                         <Button size="sm" disabled={pendentes === 0 || inscrevendo === n.id} onClick={() => inscrever(n.id)}>
                           {inscrevendo === n.id && <Loader2 className="size-3.5 animate-spin" />} Inscrever
@@ -164,6 +199,9 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
                         </Button>
                       )}
                     </div>
+                    {ocupacao && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">{textoDaOcupacao(ocupacao)}</p>
+                    )}
                     {contatos.length === 0 ? (
                       <p className="text-xs text-muted-foreground">Sem contatos — adicione um contato ao negócio.</p>
                     ) : (
@@ -180,7 +218,7 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
                               {ok && statusInscricao && (
                                 <span className="shrink-0">{rotuloDoInscrito(statusInscricao)}</span>
                               )}
-                              {ok && !statusInscricao && (
+                              {ok && !statusInscricao && !ocupacao && (
                                 <button
                                   className="shrink-0 text-primary hover:underline disabled:opacity-50"
                                   disabled={inscrevendo === id}

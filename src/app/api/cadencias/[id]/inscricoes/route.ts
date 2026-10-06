@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { fail, json, toErrorResponse, validationFailed } from "@/lib/api-utils";
 import { requireRole } from "@/lib/auth/account";
+import { ocupacaoEmOutraCadencia, textoDaOcupacao } from "@/lib/cadencias/inscricao-do-negocio";
+import { inscricoesAtivasEmOutras } from "@/lib/cadencias/ocupacao";
 import { inscreverNegocioSchema } from "@/lib/cadencias/schemas";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +48,7 @@ export async function POST(request: Request, { params }: Params) {
 
     const { data: deal } = await admin
       .from("deals")
-      .select("id,status")
+      .select("id,status,company_id")
       .eq("id", corpo.data.deal_id)
       .eq("account_id", ctx.accountId)
       .maybeSingle();
@@ -72,6 +74,28 @@ export async function POST(request: Request, { params }: Params) {
       return fail(
         "cadencia_lead_indisponivel",
         "Nenhum contato do negócio pode receber e-mail (sem e-mail ou descadastrado).",
+        409,
+      );
+
+    // Um lead fica numa cadência por vez: negócio, empresa ou contato já ativo em outra = recusa.
+    const ativas = await inscricoesAtivasEmOutras(
+      admin,
+      id,
+      {
+        dealIds: [deal.id],
+        contactIds: elegiveis.map((t) => t.id),
+        companyIds: deal.company_id ? [deal.company_id as string] : [],
+      },
+      ctx.accountId,
+    );
+    const ocupacao = ocupacaoEmOutraCadencia(
+      { id: deal.id, company_id: (deal.company_id as string | null) ?? null, contatos: elegiveis.map((t) => t.id) },
+      ativas,
+    );
+    if (ocupacao)
+      return fail(
+        "cadencia_lead_indisponivel",
+        `${textoDaOcupacao(ocupacao)} Um lead fica em uma cadência por vez: pare a outra inscrição antes.`,
         409,
       );
 
