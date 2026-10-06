@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import type { Deal, PipelineStage } from "@/types";
 import { Building2, Calendar, Check, Globe, Hourglass, Link2, Pencil, Users, X } from "lucide-react";
 import { linksDaEmpresa } from "@/lib/deals/dados-da-empresa";
@@ -71,6 +72,8 @@ interface DealCardProps {
   stage: PipelineStage | null;
   onEdit: (deal: Deal) => void;
   isOverlay?: boolean;
+  /** Negócio escolhido no painel do Analisar Deals. */
+  destacado?: boolean;
 }
 
 function formatDate(dateStr: string) {
@@ -87,15 +90,22 @@ function initials(name?: string, fallback?: string) {
   return source.charAt(0).toUpperCase();
 }
 
-export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
+export function DealCard({ deal, stage, onEdit, isOverlay, destacado }: DealCardProps) {
   const { open: abrirPainel } = useDetailPanel();
+  const ref = useRef<HTMLButtonElement>(null);
+  // um negócio escolhido no painel do Analisar Deals rola até aparecer e ganha um anel
+  useEffect(() => {
+    if (destacado) ref.current?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+  }, [destacado]);
   const contactLabel = deal.contact?.name || deal.contact?.phone || "No contact";
   const assigneeLabel = deal.assignee?.full_name || null;
   const { site, linkedin } = linksDaEmpresa(deal.company);
 
   return (
     <button
+      ref={ref}
       type="button"
+      data-deal-id={deal.id}
       onClick={(e) => {
         // `onClick` still fires after a non-drag tap because the PointerSensor
         // requires 5px movement before it counts as a drag.
@@ -104,6 +114,8 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         abrirPainel({ type: "deal", id: deal.id });
       }}
       className={`group relative w-full cursor-pointer rounded-xl border border-border/50 bg-muted/70 pl-4 pr-3 py-3 text-left shadow-sm transition-all ${
+        destacado ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
+      } ${
         isOverlay
           ? "shadow-xl"
           : "hover:-translate-y-0.5 hover:border-border hover:bg-muted hover:shadow-lg"

@@ -11,7 +11,7 @@ import { SettingsPanelHead } from "./settings-panel-head"
 import { useConfirmarExclusao } from "@/components/ui/confirmar-exclusao"
 
 interface StatusChave {
-  provider: "apify" | "treg" | "openrouter" | "firecrawl"
+  provider: "apify" | "treg" | "openrouter" | "firecrawl" | "analisar_deals"
   configurada: boolean
   origem: "conta" | "instalacao" | null
   hint: string | null
@@ -38,6 +38,12 @@ const SERVICOS: Record<StatusChave["provider"], { nome: string; para: string; on
     nome: "Firecrawl",
     para: "Leitura e raspagem de páginas web pelo Firecrawl.",
     onde: "firecrawl.dev → Dashboard → API Keys (a chave começa com fc-).",
+  },
+  analisar_deals: {
+    nome: "Analisar Deals",
+    para:
+      "IA do botão Analisar Deals no funil: lê notas e mensagens e avalia intenção de compra, urgência e risco de perda. Sem esta chave o botão usa o modelo gratuito do OpenRouter, em modo reduzido.",
+    onde: "Console do TypeSafe → API Keys (a chave começa com apikey_).",
   },
 }
 

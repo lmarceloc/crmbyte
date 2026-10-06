@@ -8,6 +8,10 @@ import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
 import { PipelineFilters, type MembroDoFunil } from "@/components/pipelines/pipeline-filters";
+import { AnalisarDealsDialog } from "@/components/pipelines/analisar-deals-dialog";
+import { PainelDePrioridades } from "@/components/pipelines/painel-de-prioridades";
+import { useAnalisarDeals, type PedidoDeAnalise } from "@/components/pipelines/use-analisar-deals";
+import { useDetailPanel } from "@/components/detail/detail-panel-provider";
 import { filtrarNegocios, type FiltroDono } from "@/lib/deals/filtro";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Funnel, Plus, ChevronDown, Settings } from "lucide-react";
+import { Funnel, Plus, ChevronDown, Settings, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
@@ -52,6 +56,7 @@ export default function PipelinesPage() {
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
   const { accountId, defaultCurrency, profile } = useAuth();
+  const { open: abrirPainelDoNegocio } = useDetailPanel();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
@@ -82,6 +87,11 @@ export default function PipelinesPage() {
       cancelado = true;
     };
   }, [supabase]);
+
+  // Analisar Deals: modal de critérios + painel lateral "Prioridades de hoje".
+  const [analisarOpen, setAnalisarOpen] = useState(false);
+  const [painelAberto, setPainelAberto] = useState(false);
+  const [destaqueId, setDestaqueId] = useState<string | null>(null);
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -337,6 +347,29 @@ export default function PipelinesPage() {
 
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
 
+  const analise = useAnalisarDeals(selectedPipelineId);
+  const iniciarAnalise = useCallback(
+    (pedido: PedidoDeAnalise) => {
+      setDestaqueId(null);
+      setPainelAberto(true);
+      void analise.analisar(pedido);
+    },
+    [analise],
+  );
+  const fecharPainel = useCallback(() => {
+    setPainelAberto(false);
+    setDestaqueId(null);
+    analise.limpar();
+  }, [analise]);
+  // trocar de funil descarta a análise do anterior
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPainelAberto(false);
+      setDestaqueId(null);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [selectedPipelineId]);
+
   // Resumo do funil no cabeçalho: só negócios EM ABERTO.
   const abertos = dealsVisiveis.filter((d) => (d.status ?? "open") === "open");
   const valorAberto = abertos.reduce((s, d) => s + (Number(d.value) || 0), 0);
@@ -430,6 +463,17 @@ export default function PipelinesPage() {
         <div className="flex items-center gap-2">
           <GatedButton
             variant="outline"
+            canAct={canCreateDeals}
+            gateReason="analyze deals"
+            disabled={!selectedPipelineId || stages.length === 0}
+            onClick={() => setAnalisarOpen(true)}
+            className="border-border bg-card text-foreground hover:bg-muted"
+          >
+            <Sparkles className="mr-1 h-4 w-4 text-primary" />
+            Analisar Deals
+          </GatedButton>
+          <GatedButton
+            variant="outline"
             canAct={canEditSettings}
             gateReason="create pipelines"
             onClick={() => setNewPipelineOpen(true)}
@@ -488,15 +532,44 @@ export default function PipelinesPage() {
           <div className="shrink-0">
             <PipelineAnalytics stages={stages} deals={dealsVisiveis} />
           </div>
-          <PipelineBoard
-            stages={stages}
-            deals={dealsVisiveis}
-            onDealMoved={handleDealMoved}
-            onAddDeal={handleAddDeal}
-            onEditDeal={handleEditDeal}
-          />
+          {/* lg+: o painel de prioridades fica ao lado do quadro; abaixo disso cobre a tela */}
+          <div className="lg:flex lg:min-h-0 lg:flex-1 lg:gap-4">
+            <div className="min-w-0 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+              <PipelineBoard
+                stages={stages}
+                deals={dealsVisiveis}
+                onDealMoved={handleDealMoved}
+                onAddDeal={handleAddDeal}
+                onEditDeal={handleEditDeal}
+                destaqueId={destaqueId}
+              />
+            </div>
+            {painelAberto && (
+              <PainelDePrioridades
+                estado={analise.estado}
+                itens={analise.itens}
+                moedaPadrao={defaultCurrency}
+                destaqueId={destaqueId}
+                onAbrir={(id) => {
+                  setDestaqueId(id);
+                  abrirPainelDoNegocio({ type: "deal", id });
+                }}
+                onFechar={fecharPainel}
+                onRefazer={() => analise.estado.pedido && iniciarAnalise(analise.estado.pedido)}
+              />
+            )}
+          </div>
         </>
       )}
+
+      <AnalisarDealsDialog
+        open={analisarOpen}
+        onOpenChange={setAnalisarOpen}
+        stages={stages}
+        meuPerfilId={profile?.id ?? null}
+        inicial={analise.estado.pedido}
+        onAnalisar={iniciarAnalise}
+      />
 
       {/* New Pipeline Dialog */}
       <Dialog open={newPipelineOpen} onOpenChange={setNewPipelineOpen}>

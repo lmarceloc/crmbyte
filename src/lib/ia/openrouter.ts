@@ -11,6 +11,10 @@ interface Opcoes {
   modelo?: string;
   fetchFn?: typeof fetch;
   tempoMaxMs?: number;
+  /** Padrão 0,7 (texto criativo); respostas em JSON pedem valores baixos. */
+  temperatura?: number;
+  /** Padrão 800. */
+  maxTokens?: number;
 }
 
 const MSG_LIMITE =
@@ -35,8 +39,8 @@ export async function completar(chave: string, mensagens: MensagemDoModelo[], op
       body: JSON.stringify({
         model: opcoes.modelo ?? MODELO_GRATUITO,
         messages: mensagens,
-        temperature: 0.7,
-        max_tokens: 800,
+        temperature: opcoes.temperatura ?? 0.7,
+        max_tokens: opcoes.maxTokens ?? 800,
       }),
       signal: AbortSignal.timeout(opcoes.tempoMaxMs ?? TEMPO_MAX_MS),
     });
