@@ -1,9 +1,10 @@
 // Posições do fluxo da cadência no canvas (da esquerda para a direita).
 // A árvore de passos continua sendo a fonte da verdade: aqui só se calcula
 // onde cada cartão fica e quais ligações desenhar. Cada ligação carrega o
-// ponto de inserção que o "+" dela usa. Função pura (testável).
+// ponto de inserção que o "+" dela usa. Blocos soltos ficam onde foram
+// deixados. Função pura (testável).
 import type { PontoDeInsercao } from "./arvore";
-import type { Passo } from "./tipos";
+import type { BlocoSolto, Passo } from "./tipos";
 
 export const LARGURA_DO_NO = 240;
 /** Espaço entre colunas: o "+" de cada ligação fica no meio dele. */
@@ -12,15 +13,15 @@ export const ESPACO_X = 90;
 export const ESPACO_Y = 40;
 
 /** Alturas fixas dos cartões (o CSS do canvas usa as mesmas). */
+/** Alturas fixas dos cartões (o CSS do canvas usa as mesmas). */
 export const ALTURA = {
   gatilho: 138,
   passo: 164,
   ramo: 190,
-  fim: 138,
-  fimDoCaminho: 56,
+  fim: 56,
 } as const;
 
-export type TipoDeNoDoGrafo = "gatilho" | "passo" | "fim" | "fimDoCaminho";
+export type TipoDeNoDoGrafo = "gatilho" | "passo" | "fim";
 /** Saída do nó de onde a ligação parte. */
 export type SaidaDoNo = "out" | "sim" | "nao";
 
@@ -31,6 +32,8 @@ export interface NoDoGrafo {
   y: number;
   altura: number;
   passo?: Passo;
+  /** Id do bloco solto (fora do fluxo); ausente = ligado ao gatilho. */
+  solto?: string;
 }
 
 export interface LigacaoDoGrafo {
@@ -43,15 +46,17 @@ export interface LigacaoDoGrafo {
 }
 
 export const ID_GATILHO = "__gatilho";
-export const ID_FIM = "__fim";
 
 function alturaDoPasso(p: Passo) {
-  return p.tipo === "ramo" ? ALTURA.ramo : ALTURA.passo;
+  return p.tipo === "ramo" ? ALTURA.ramo : p.tipo === "fim" ? ALTURA.fim : ALTURA.passo;
 }
+
+/** Espaço mínimo de um lado vazio do ramo (as portas Sim/Não não encostam). */
+const ALTURA_MINIMA = 56;
 
 /** Altura que uma lista ocupa: os passos ficam lado a lado; só um ramo abre dois caminhos. */
 export function alturaDaLista(passos: Passo[]): number {
-  let h: number = ALTURA.fimDoCaminho;
+  let h = ALTURA_MINIMA;
   for (const p of passos) {
     h = Math.max(h, alturaDoPasso(p));
     if (p.tipo === "ramo") h = Math.max(h, alturaDaLista(p.sim) + ESPACO_Y + alturaDaLista(p.nao));
@@ -59,43 +64,101 @@ export function alturaDaLista(passos: Passo[]): number {
   return h;
 }
 
-export function montarGrafo(passos: Passo[]): { nos: NoDoGrafo[]; ligacoes: LigacaoDoGrafo[] } {
+/**
+ * Nós e ligações do fluxo (a partir do gatilho, da esquerda para a direita) e
+ * dos blocos soltos (cada um a partir da posição onde foi deixado). O fim de
+ * cada caminho é a caixa Fim colocada à mão; caminho sem ela termina numa
+ * saída livre, pronta para ligar.
+ */
+export function montarGrafo(passos: Passo[], soltos: BlocoSolto[] = []): { nos: NoDoGrafo[]; ligacoes: LigacaoDoGrafo[] } {
   const nos: NoDoGrafo[] = [];
   const ligacoes: LigacaoDoGrafo[] = [];
 
   const ligar = (origem: string, saida: SaidaDoNo, destino: string, ponto: PontoDeInsercao) =>
     ligacoes.push({ id: `${origem}:${saida}->${destino}`, origem, saida, destino, ponto });
 
-  const colocar = (lista: Passo[], listaId: string, x: number, centroY: number, de: { id: string; saida: SaidaDoNo }) => {
+  const colocar = (
+    lista: Passo[],
+    listaId: string,
+    x: number,
+    centroY: number,
+    de: { id: string; saida: SaidaDoNo } | null,
+    solto: string | undefined,
+  ) => {
     let anterior = de;
     for (let i = 0; i < lista.length; i++) {
       const p = lista[i];
       const altura = alturaDoPasso(p);
-      nos.push({ id: p.id, tipo: "passo", x, y: centroY - altura / 2, altura, passo: p });
-      ligar(anterior.id, anterior.saida, p.id, { lista: listaId, indice: i });
+      nos.push({ id: p.id, tipo: p.tipo === "fim" ? "fim" : "passo", x, y: centroY - altura / 2, altura, passo: p, solto });
+      if (anterior) ligar(anterior.id, anterior.saida, p.id, { lista: listaId, indice: i });
       anterior = { id: p.id, saida: "out" };
       x += LARGURA_DO_NO + ESPACO_X;
 
       if (p.tipo === "ramo") {
-        // um ramo termina o caminho: os passos seguintes vivem nos lados dele
+        // um ramo termina a sequência: o que vem depois vive nos lados dele
         const hSim = alturaDaLista(p.sim);
         const hNao = alturaDaLista(p.nao);
         const topo = centroY - (hSim + ESPACO_Y + hNao) / 2;
-        colocar(p.sim, `${p.id}:sim`, x, topo + hSim / 2, { id: p.id, saida: "sim" });
-        colocar(p.nao, `${p.id}:nao`, x, topo + hSim + ESPACO_Y + hNao / 2, { id: p.id, saida: "nao" });
+        colocar(p.sim, `${p.id}:sim`, x, topo + hSim / 2, { id: p.id, saida: "sim" }, solto);
+        colocar(p.nao, `${p.id}:nao`, x, topo + hSim + ESPACO_Y + hNao / 2, { id: p.id, saida: "nao" }, solto);
         return;
       }
     }
-    const raiz = listaId === "raiz";
-    const id = raiz ? ID_FIM : `__fim:${listaId}`;
-    const altura = raiz ? ALTURA.fim : ALTURA.fimDoCaminho;
-    nos.push({ id, tipo: raiz ? "fim" : "fimDoCaminho", x, y: centroY - altura / 2, altura });
-    ligar(anterior.id, anterior.saida, id, { lista: listaId, indice: lista.length });
   };
 
   nos.push({ id: ID_GATILHO, tipo: "gatilho", x: 0, y: -ALTURA.gatilho / 2, altura: ALTURA.gatilho });
-  colocar(passos, "raiz", LARGURA_DO_NO + ESPACO_X, 0, { id: ID_GATILHO, saida: "out" });
+  colocar(passos, "raiz", LARGURA_DO_NO + ESPACO_X, 0, { id: ID_GATILHO, saida: "out" }, undefined);
+  for (const b of soltos) {
+    if (b.passos.length === 0) continue;
+    // (x, y) do bloco = canto superior esquerdo da primeira caixa
+    colocar(b.passos, `solto:${b.id}`, b.x, b.y + alturaDoPasso(b.passos[0]) / 2, null, b.id);
+  }
   return { nos, ligacoes };
+}
+
+export interface Retangulo {
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
+}
+
+/**
+ * Posição livre (canto superior esquerdo) mais perto de `alvo` para uma caixa
+ * nova, sem encostar em nenhum cartão (`margem` de folga): a caixa solta não
+ * nasce em cima de outra, escondendo as portas dela.
+ */
+export function pontoLivre(
+  ocupados: Retangulo[],
+  alvo: { x: number; y: number },
+  tamanho: { largura: number; altura: number },
+  margem = 24,
+): { x: number; y: number } {
+  const colide = (x: number, y: number) =>
+    ocupados.some(
+      (r) =>
+        x < r.x + r.largura + margem &&
+        x + tamanho.largura + margem > r.x &&
+        y < r.y + r.altura + margem &&
+        y + tamanho.altura + margem > r.y,
+    );
+  if (!colide(alvo.x, alvo.y)) return alvo;
+  const PASSO = 40;
+  const candidatos: { x: number; y: number; d: number }[] = [];
+  for (let i = -20; i <= 20; i++) {
+    for (let j = -20; j <= 20; j++) {
+      if (i === 0 && j === 0) continue;
+      candidatos.push({ x: alvo.x + i * PASSO, y: alvo.y + j * PASSO, d: Math.hypot(i, j * 1.15) });
+    }
+  }
+  candidatos.sort((a, b) => a.d - b.d);
+  const livre = candidatos.find((c) => !colide(c.x, c.y));
+  return livre ? { x: livre.x, y: livre.y } : alvo;
+}
+
+/** Altura do cartão de um tipo de passo (para achar espaço livre antes de criar). */
+export function alturaDoTipo(tipo: Passo["tipo"]): number {
+  return tipo === "ramo" ? ALTURA.ramo : tipo === "fim" ? ALTURA.fim : ALTURA.passo;
 }
 
 /** Curva da ligação: mesma fórmula do canvas de referência (alças horizontais). */

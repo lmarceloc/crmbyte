@@ -33,6 +33,8 @@ export function resumirPasso(p: Passo): string {
       return p.mensagem || "Sem mensagem"
     case "tarefa":
       return p.titulo || "Sem título"
+    case "fim":
+      return "A cadência termina aqui para o lead"
   }
 }
 

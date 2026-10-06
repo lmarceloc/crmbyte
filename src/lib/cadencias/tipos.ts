@@ -40,13 +40,31 @@ export interface PassoTarefa {
   /** Tipo da tarefa criada em /tarefas; ausente = "outra" (passos antigos). */
   tipoDaTarefa?: "retornar_ligacao" | "ligacao" | "email" | "whatsapp" | "reuniao" | "outra";
 }
+/** Fim deste caminho: colocado à mão; encerra a cadência para o lead. Sempre o último da lista. */
+export interface PassoFim {
+  id: string;
+  tipo: "fim";
+}
 export type Passo =
   | PassoEmail
   | PassoEspera
   | PassoRamo
   | PassoWhatsapp
-  | PassoTarefa;
+  | PassoTarefa
+  | PassoFim;
 export type TipoDePasso = Passo["tipo"];
+
+/**
+ * Caixas soltas no canvas (ainda fora do fluxo). Cada bloco é uma sequência
+ * — como uma lista do fluxo, pode terminar em ramo ou em fim — posicionada
+ * em (x, y). O worker ignora: só o que está ligado ao gatilho é executado.
+ */
+export interface BlocoSolto {
+  id: string;
+  x: number;
+  y: number;
+  passos: Passo[];
+}
 
 export type DiaDaSemana = "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom";
 
@@ -78,6 +96,8 @@ export interface Cadencia {
   status: StatusDaCadencia;
   configuracao: ConfiguracaoDaCadencia;
   passos: Passo[];
+  /** Caixas soltas no canvas (migração 044); ausente em respostas antigas. */
+  soltos?: BlocoSolto[];
   versao: number;
   created_at: string;
   updated_at: string;

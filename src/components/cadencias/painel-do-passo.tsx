@@ -153,6 +153,13 @@ export function PainelDoPasso({ passo, todos, somenteLeitura, onChange, onFechar
         </div>
       )}
 
+      {passo.tipo === "fim" && (
+        <p className="text-sm text-muted-foreground">
+          A cadência termina aqui para o lead (inscrição concluída). Todo caminho do fluxo precisa terminar em uma caixa
+          Fim para a cadência poder ser ativada.
+        </p>
+      )}
+
       {passo.tipo === "ramo" && (
         <>
           <div className="space-y-1.5">
@@ -206,7 +213,7 @@ export function PainelDoPasso({ passo, todos, somenteLeitura, onChange, onFechar
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            As aberturas contam no acumulado da inscrição (todos os e-mails). Depois de um ramo o caminho termina em cada lado.
+            “Abriu” conta só as aberturas do último e-mail enviado antes do ramo; “Clicou” vale para qualquer link da cadência; “Respondeu” vem da caixa de entrada (IMAP). Depois do ramo, cada lado segue o próprio caminho até uma caixa Fim.
           </p>
         </>
       )}

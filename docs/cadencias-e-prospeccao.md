@@ -12,7 +12,9 @@ Implementado a partir das specs `spec-cadencias-fluxo-email` e
 
 - `043_hot_lead_threshold_per_cadence.sql` — limite de lead quente por cadência: `quente_em` na inscrição (com backfill), a abertura marca ao atingir o limite e mudar o limite reclassifica. **Rode antes de subir o código**: a lista de leads quentes filtra por `quente_em`.
 
-Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 043).
+- `044_cadence_loose_steps.sql` — `email_cadences.soltos`: caixas soltas do canvas (ainda não ligadas ao fluxo). **Rode antes de subir o código**: o editor grava as caixas soltas nessa coluna.
+
+Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 044).
 
 ## Cron (1×/min, com `Authorization: Bearer $CRON_SECRET`)
 - `GET /api/cadencias/worker` — envia e-mails, espera, ramifica, para.
@@ -33,6 +35,21 @@ e-mail enviado na pasta de enviados da caixa, marcado como lido.
 - **Microsoft 365 não aceita IMAP com usuário e senha** (Basic Auth desligado no Exchange Online; só OAuth). Nele, deixe o IMAP em branco: o envio funciona enquanto o SMTP com senha estiver liberado no tenant, mas resposta e bounce não são detectados. Suporte exigiria login OAuth com a Microsoft.
 - A cópia é gravada **depois** de o e-mail sair e de o estado da inscrição ser salvo. Falha de IMAP nunca derruba nem repete um envio: o erro aparece em *Cópia em Enviados falhou* na lista de caixas e a próxima tentativa acontece no minuto seguinte (uma por caixa por minuto, para um IMAP fora do ar não atrasar o lote).
 - O evento `email_enviado` agora guarda também o `message_id` (cabeçalho `Message-ID`), útil para achar a mensagem no log do provedor.
+
+## Montagem do fluxo (canvas)
+O fluxo é montado à mão no canvas da aba *Fluxo*:
+- **Clicar** num item da paleta cria a caixa **solta** num espaço livre do canvas (ou arraste até
+  onde quiser); caixa solta tem borda tracejada e a etiqueta "solta", e pode ser arrastada.
+- **Ligar**: arraste da saída de uma caixa (Saída, Sim ou Não) até a entrada de outra. Encaixe
+  aceito brilha (mini-raio) e a caixa pisca; recusado fica **vermelho** e diz o motivo.
+- Regras (o fluxo continua sendo uma árvore; o worker não muda): cada saída leva a uma caixa só;
+  cada caixa recebe uma ligação só (sem juntar caminhos); não há laço; só se liga numa caixa
+  solta (a primeira de um bloco); para pôr uma caixa no meio de duas ligadas use o "+".
+- **Clicar numa ligação** desfaz: a caixa e o que vinha depois viram um bloco solto.
+- **Fim deste caminho** é uma caixa da paleta, colocada à mão. Todo caminho precisa terminar em
+  Fim (ou ramo) e não pode haver caixa solta para ativar. Cadências antigas ganham a caixa Fim
+  nos caminhos abertos ao abrir o editor (mesmo comportamento de antes).
+- Ramo *Abriu N× em X dias?* conta só as aberturas do **último e-mail** enviado antes dele.
 
 ## Leads quentes
 Lead quente = inscrição que somou **N aberturas** (todos os e-mails da cadência). N é de cada

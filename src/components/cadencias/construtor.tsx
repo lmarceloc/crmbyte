@@ -10,17 +10,22 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCan } from "@/hooks/use-can"
+import { numerarPassos, passoVazio, todosOsPassos } from "@/lib/cadencias/arvore"
 import {
-  atualizarPasso,
-  duplicarPasso,
-  inserirPasso,
-  numerarPassos,
-  passoVazio,
-  removerPasso,
-  todosOsPassos,
-  validarPassos,
-} from "@/lib/cadencias/arvore"
-import { configuracaoPadrao, type Cadencia, type Passo } from "@/lib/cadencias/tipos"
+  atualizarNaFloresta,
+  criarSolto,
+  desligar,
+  duplicarNaFloresta,
+  encontrarNaFloresta,
+  inserirNaFloresta,
+  ligar,
+  moverSolto,
+  removerNaFloresta,
+  todosNaFloresta,
+  validarFloresta,
+  type Floresta,
+} from "@/lib/cadencias/montagem"
+import { configuracaoPadrao, type Cadencia } from "@/lib/cadencias/tipos"
 import { AbaConfiguracoes } from "./aba-configuracoes"
 import { AbaInscritos } from "./aba-inscritos"
 import { CanvasStudio } from "./canvas-studio"
@@ -37,9 +42,13 @@ export function Construtor({ id }: { id: string }) {
   // passos recém-inseridos/duplicados piscam no canvas
   const [destaques, setDestaques] = useState<Record<string, number>>({})
 
-  const passos = useMemo(() => cadencia?.passos ?? [], [cadencia?.passos])
+  const floresta = useMemo<Floresta>(
+    () => ({ passos: cadencia?.passos ?? [], soltos: cadencia?.soltos ?? [] }),
+    [cadencia?.passos, cadencia?.soltos],
+  )
+  const passos = floresta.passos
   const numeros = useMemo(() => numerarPassos(passos), [passos])
-  const erros = useMemo(() => validarPassos(passos), [passos])
+  const erros = useMemo(() => validarFloresta(floresta), [floresta])
 
   if (erro) return <div className="p-6 text-sm text-destructive">{erro}</div>
   if (!cadencia)
@@ -52,9 +61,15 @@ export function Construtor({ id }: { id: string }) {
   const ativa = cadencia.status === "ativa"
   const somenteLeitura = ativa || !podeEditar
   const config = { ...configuracaoPadrao(), ...cadencia.configuracao }
-  const passoSel = selecionado ? (todosOsPassos(passos).find((p) => p.id === selecionado) ?? null) : null
+  const passoSel = selecionado ? encontrarNaFloresta(floresta, selecionado) : null
 
-  const setPassos = (novos: Passo[]) => editar({ passos: novos })
+  /** Grava só o que mudou (passos e/ou caixas soltas). */
+  const aplicar = (nova: Floresta) => {
+    const mudanca: Partial<Pick<Cadencia, "passos" | "soltos">> = {}
+    if (nova.passos !== floresta.passos) mudanca.passos = nova.passos
+    if (nova.soltos !== floresta.soltos) mudanca.soltos = nova.soltos
+    if (Object.keys(mudanca).length) editar(mudanca)
+  }
 
   function acender(ids: string[]) {
     if (ids.length === 0) return
@@ -81,7 +96,8 @@ export function Construtor({ id }: { id: string }) {
     const problemas: string[] = []
     if (!todosOsPassos(passos).some((p) => p.tipo === "email")) problemas.push("Adicione pelo menos um passo de e-mail.")
     if (config.janela.dias.length === 0) problemas.push("Escolha ao menos um dia da semana na janela de envio.")
-    if (erros.size > 0) problemas.push("Há passos incompletos (veja os avisos em vermelho).")
+    if (erros.size > 0) problemas.push("Há passos incompletos ou caminho sem caixa Fim (veja os avisos em vermelho).")
+    if (floresta.soltos.length > 0) problemas.push("Há caixas soltas no canvas: ligue-as ao fluxo ou exclua.")
     if (problemas.length) return toast.error(problemas.join(" "))
     setMudando(true)
     if (await mudarStatus("ativa")) toast.success("Cadência ativada")
@@ -128,7 +144,7 @@ export function Construtor({ id }: { id: string }) {
 
         <TabsContent value="fluxo" className="flex min-h-0 flex-1 gap-3">
           <CanvasStudio
-            passos={passos}
+            floresta={floresta}
             destaques={destaques}
             configuracao={config}
             somenteLeitura={somenteLeitura}
@@ -139,19 +155,33 @@ export function Construtor({ id }: { id: string }) {
             onAbrirConfig={() => setAba("configuracoes")}
             onInserir={(ponto, tipo) => {
               const novo = passoVazio(tipo)
-              setPassos(inserirPasso(passos, ponto, novo))
+              aplicar(inserirNaFloresta(floresta, ponto, novo))
               setSelecionado(novo.id)
               acender([novo.id])
             }}
+            onCriarSolto={(tipo, x, y) => {
+              const novo = passoVazio(tipo)
+              aplicar(criarSolto(floresta, novo, x, y))
+              if (tipo !== "fim") setSelecionado(novo.id)
+              acender([novo.id])
+            }}
+            onLigar={(origem, saida, destino) => {
+              const nova = ligar(floresta, origem, saida, destino)
+              if (nova === floresta) return
+              aplicar(nova)
+              acender([destino])
+            }}
+            onDesligar={(destino, x, y) => aplicar(desligar(floresta, destino, x, y))}
+            onMoverSolto={(bloco, x, y) => aplicar(moverSolto(floresta, bloco, x, y))}
             onDuplicar={(pid) => {
-              const antes = new Set(todosOsPassos(passos).map((p) => p.id))
-              const novos = duplicarPasso(passos, pid)
-              setPassos(novos)
-              acender(todosOsPassos(novos).map((p) => p.id).filter((i) => !antes.has(i)))
+              const antes = new Set(todosNaFloresta(floresta).map((p) => p.id))
+              const nova = duplicarNaFloresta(floresta, pid)
+              aplicar(nova)
+              acender(todosNaFloresta(nova).map((p) => p.id).filter((i) => !antes.has(i)))
             }}
             onExcluir={(pid) => {
               if (selecionado === pid) setSelecionado(null)
-              setPassos(removerPasso(passos, pid))
+              aplicar(removerNaFloresta(floresta, pid))
             }}
           />
           {passoSel && (
@@ -160,7 +190,7 @@ export function Construtor({ id }: { id: string }) {
               passo={passoSel}
               todos={passos}
               somenteLeitura={somenteLeitura}
-              onChange={(novo) => setPassos(atualizarPasso(passos, passoSel.id, () => novo))}
+              onChange={(novo) => aplicar(atualizarNaFloresta(floresta, passoSel.id, () => novo))}
               onFechar={() => setSelecionado(null)}
             />
           )}

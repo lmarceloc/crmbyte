@@ -78,12 +78,18 @@ const mais = (d: Date, min: number) => new Date(d.getTime() + min * 60_000).toIS
 
 /**
  * true = sim · false = não · null = ainda não dá para decidir.
- * Aberturas e cliques são acumulados na inscrição; a resposta vem da leitura
- * da caixa de entrada (IMAP) — sem IMAP na caixa, "respondeu" só dá "não".
+ * "Abriu" conta só as aberturas do ÚLTIMO e-mail enviado antes do ramo
+ * (`aberturasDoUltimoEmail`); cliques são os da inscrição; a resposta vem da
+ * leitura da caixa de entrada (IMAP) — sem IMAP na caixa, "respondeu" só dá "não".
  */
 export function avaliarRamo(
   ramo: PassoRamo,
-  insc: { ultimo_email_em: string | null; aberturas: number; cliques?: number; respondeu_em?: string | null },
+  insc: {
+    ultimo_email_em: string | null;
+    aberturasDoUltimoEmail?: number;
+    cliques?: number;
+    respondeu_em?: string | null;
+  },
   agora: Date,
 ): boolean | null {
   const { condicao } = ramo;
@@ -91,7 +97,7 @@ export function avaliarRamo(
   const prazoVenceu = desde ? agora.getTime() - desde.getTime() >= condicao.dentroDeDias * DIA_MS : true;
   const atendeu =
     condicao.tipo === "abriu"
-      ? insc.aberturas >= condicao.vezes
+      ? (insc.aberturasDoUltimoEmail ?? 0) >= condicao.vezes
       : condicao.tipo === "clicou"
         ? (insc.cliques ?? 0) > 0
         : !!insc.respondeu_em;
@@ -159,8 +165,8 @@ async function liberarSemAvancar(ctx: Ctx, i: Inscricao, minutos: number) {
   await atualizar(ctx, i, { proximo_em: mais(ctx.agora, minutos) });
 }
 
-async function concluir(ctx: Ctx, i: Inscricao) {
-  await atualizar(ctx, i, { status: "concluida", concluida_em: ctx.agora.toISOString() });
+async function concluir(ctx: Ctx, i: Inscricao, extra: Record<string, unknown> = {}) {
+  await atualizar(ctx, i, { ...extra, status: "concluida", concluida_em: ctx.agora.toISOString() });
   await evento(ctx, i, "concluida", null);
   ctx.resultado.concluidas++;
 }
@@ -194,7 +200,8 @@ async function guardarCopiaEmEnviados(ctx: Ctx, i: Inscricao, caixa: CaixaDeEnvi
 }
 
 async function avancarPara(ctx: Ctx, i: Inscricao, proximo: Passo | null, extra: Record<string, unknown> = {}) {
-  if (!proximo) return concluir(ctx, i);
+  // fim da lista (cadências antigas) ou caixa Fim: a cadência termina para o lead
+  if (!proximo || proximo.tipo === "fim") return concluir(ctx, i, { ...extra, passo_atual_id: proximo?.id ?? null });
   await atualizar(ctx, i, { passo_atual_id: proximo.id, proximo_em: ctx.agora.toISOString(), ...extra });
 }
 
@@ -211,6 +218,19 @@ async function registrarTentativaFalha(ctx: Ctx, i: Inscricao, erro: string) {
   });
   await evento(ctx, i, "email_falhou", i.passo_atual_id, { erro, tentativa: tentativas });
   ctx.resultado.falhas++;
+}
+
+/** Aberturas do último e-mail enviado nesta inscrição (eventos "aberto" daquele passo). */
+async function contarAberturasDoUltimoEmail(ctx: Ctx, i: Inscricao): Promise<number> {
+  if (!i.ultimo_email_passo_id) return 0;
+  const { count } = await ctx.admin
+    .from("email_cadence_events")
+    .select("id", { count: "exact", head: true })
+    .eq("enrollment_id", i.id)
+    .eq("account_id", i.account_id)
+    .eq("tipo", "aberto")
+    .eq("passo_id", i.ultimo_email_passo_id);
+  return count ?? 0;
 }
 
 // ---------- contexto do lead ----------
@@ -478,13 +498,16 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
       return avancarPara(ctx, i, proximoIrmao(passos, passo.id));
     }
     case "ramo": {
-      const r = avaliarRamo(passo, i, ctx.agora);
+      const aberturasDoUltimoEmail = passo.condicao.tipo === "abriu" ? await contarAberturasDoUltimoEmail(ctx, i) : 0;
+      const r = avaliarRamo(passo, { ...i, aberturasDoUltimoEmail }, ctx.agora);
       if (r === null) return liberarSemAvancar(ctx, i, MIN_RAMO_SEM_DECISAO);
       await evento(ctx, i, r ? "ramo_sim" : "ramo_nao", passo.id);
       return avancarPara(ctx, i, primeiroDoLado(passo, r ? "sim" : "nao"));
     }
     case "whatsapp":
       return parar(ctx, i, "falha", "Passo de WhatsApp ainda não é enviado pelo worker.");
+    case "fim":
+      return concluir(ctx, i);
   }
 }
 

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import { garantirFins } from "@/lib/cadencias/arvore"
 import type { Cadencia, StatusDaCadencia } from "@/lib/cadencias/tipos"
 
-type Edicao = Partial<Pick<Cadencia, "name" | "configuracao" | "passos">>
+type Edicao = Partial<Pick<Cadencia, "name" | "configuracao" | "passos" | "soltos">>
 
 /** Carrega a cadência; edições de conteúdo gravam com debounce de 700 ms,
  *  mudança de status é imediata e reverte se o servidor recusar. */
@@ -15,6 +16,8 @@ export function useCadencia(id: string) {
   const pendente = useRef<Edicao>({})
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const confirmada = useRef<Cadencia | null>(null)
+  // Cadência de antes da caixa Fim, convertida na tela mas ainda não salva
+  const conversaoPendente = useRef<Cadencia["passos"] | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -23,8 +26,26 @@ export function useCadencia(id: string) {
       .then(({ ok, body }) => {
         if (!vivo) return
         if (!ok) return setErro(body?.error ?? "Falha ao carregar a cadência.")
-        confirmada.current = body.cadencia
-        setCadencia(body.cadencia)
+        const bruta = body.cadencia as Cadencia
+        // caminhos sem caixa Fim (cadências antigas) ganham uma: mesmo comportamento, tela igual
+        const { passos, mudou } = garantirFins(bruta.passos ?? [])
+        const cad: Cadencia = { ...bruta, passos, soltos: bruta.soltos ?? [] }
+        confirmada.current = cad
+        setCadencia(cad)
+        if (!mudou) return
+        conversaoPendente.current = passos
+        // salva já, em silêncio (sem permissão ou com a cadência ativa, fica para a próxima edição)
+        if (bruta.status !== "ativa") {
+          fetch(`/api/cadencias/${id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ passos }),
+          })
+            .then((r) => {
+              if (r.ok) conversaoPendente.current = null
+            })
+            .catch(() => undefined)
+        }
       })
     return () => {
       vivo = false
@@ -49,6 +70,7 @@ export function useCadencia(id: string) {
       return
     }
     confirmada.current = body.cadencia
+    if (mudanca.passos) conversaoPendente.current = null
     // só o `versao`/`updated_at` vêm do servidor; não sobrescreve edições em andamento
     setCadencia((atual) => (atual ? { ...atual, versao: body.cadencia.versao, updated_at: body.cadencia.updated_at } : atual))
   }, [id])
@@ -66,6 +88,9 @@ export function useCadencia(id: string) {
   const mudarStatus = useCallback(
     async (status: StatusDaCadencia) => {
       if (timer.current) clearTimeout(timer.current)
+      // ativar uma cadência antiga ainda não convertida: grava as caixas Fim antes
+      if (status === "ativa" && conversaoPendente.current && !pendente.current.passos)
+        pendente.current = { ...pendente.current, passos: conversaoPendente.current }
       await gravar()
       const anterior = confirmada.current
       setCadencia((c) => (c ? { ...c, status } : c))

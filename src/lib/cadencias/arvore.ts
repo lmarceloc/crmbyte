@@ -34,6 +34,8 @@ export function passoVazio(tipo: TipoDePasso): Passo {
       return { id, tipo, mensagem: "" };
     case "tarefa":
       return { id, tipo, titulo: "", prazoDias: 1 };
+    case "fim":
+      return { id, tipo };
   }
 }
 
@@ -142,11 +144,39 @@ export function encontrarPasso(passos: Passo[], id: string): Passo | null {
   return todosOsPassos(passos).find((p) => p.id === id) ?? null;
 }
 
-/** Numeração em ordem de leitura (`sim` antes de `nao`). */
+/** Numeração em ordem de leitura (`sim` antes de `nao`); a caixa Fim não leva número. */
 export function numerarPassos(passos: Passo[]): Map<string, number> {
   const mapa = new Map<string, number>();
-  todosOsPassos(passos).forEach((p, i) => mapa.set(p.id, i + 1));
+  todosOsPassos(passos)
+    .filter((p) => p.tipo !== "fim")
+    .forEach((p, i) => mapa.set(p.id, i + 1));
   return mapa;
+}
+
+/** O caminho já está fechado (termina em ramo ou em Fim)? */
+export function caminhoFechado(lista: Passo[]): boolean {
+  const ultimo = lista[lista.length - 1];
+  return !!ultimo && (ultimo.tipo === "ramo" || ultimo.tipo === "fim");
+}
+
+/**
+ * Cadências de antes da caixa Fim: o fim de cada caminho era implícito. Põe a
+ * caixa Fim em cada caminho aberto (o lado vazio de um ramo também era um fim),
+ * para a tela ficar igual e a ativação não ser barrada. Mesmo comportamento no worker.
+ */
+export function garantirFins(passos: Passo[]): { passos: Passo[]; mudou: boolean } {
+  let mudou = false;
+  const fechar = (lista: Passo[], raiz: boolean): Passo[] => {
+    const saida = lista.map((p) =>
+      p.tipo === "ramo" ? { ...p, sim: fechar(p.sim, false), nao: fechar(p.nao, false) } : p,
+    );
+    if (raiz && saida.length === 0) return saida;
+    if (caminhoFechado(saida)) return saida;
+    mudou = true;
+    return [...saida, passoVazio("fim")];
+  };
+  const novos = fechar(passos, true);
+  return { passos: mudou ? novos : passos, mudou };
 }
 
 /** Há e-mail antes deste passo no caminho (habilita "responder na mesma conversa")? */
@@ -170,11 +200,31 @@ export interface Problema {
   mensagem: string;
 }
 
-export function validarPassos(passos: Passo[]): Map<string, Problema[]> {
+/**
+ * Problemas por passo. `exigirFim` (padrão): todo caminho do fluxo termina em
+ * ramo ou em caixa Fim — a ativação é barrada se não. Para caixas soltas só
+ * valem os campos (`exigirFim: false`).
+ */
+export function validarPassos(passos: Passo[], opcoes: { exigirFim?: boolean } = {}): Map<string, Problema[]> {
+  const exigirFim = opcoes.exigirFim ?? true;
   const erros = new Map<string, Problema[]>();
   const add = (id: string, mensagem: string) => {
     erros.set(id, [...(erros.get(id) ?? []), { mensagem }]);
   };
+  const estrutura = (lista: Passo[], dono: { ramoId: string; lado: "Sim" | "Não" } | null) => {
+    lista.forEach((p, i) => {
+      if (p.tipo === "fim" && i < lista.length - 1) add(p.id, "A caixa Fim precisa ser a última do caminho.");
+      if (p.tipo === "ramo" && i < lista.length - 1) add(p.id, "Nada pode vir depois de um ramo: use os lados Sim e Não.");
+      if (p.tipo === "ramo") {
+        estrutura(p.sim, { ramoId: p.id, lado: "Sim" });
+        estrutura(p.nao, { ramoId: p.id, lado: "Não" });
+      }
+    });
+    if (!exigirFim || caminhoFechado(lista)) return;
+    if (lista.length > 0) add(lista[lista.length - 1].id, "Este caminho precisa terminar em uma caixa Fim.");
+    else if (dono) add(dono.ramoId, `O lado ${dono.lado} precisa terminar em uma caixa Fim.`);
+  };
+  estrutura(passos, null);
   for (const p of todosOsPassos(passos)) {
     switch (p.tipo) {
       case "email":
@@ -190,9 +240,12 @@ export function validarPassos(passos: Passo[]): Map<string, Problema[]> {
       case "tarefa":
         if (!p.titulo.trim()) add(p.id, "A tarefa precisa de título.");
         break;
-      case "ramo":
-        if (p.sim.length === 0 && p.nao.length === 0)
-          add(p.id, "O ramo precisa de passos em pelo menos um dos lados.");
+      case "ramo": {
+        const util = (l: Passo[]) => l.some((x) => x.tipo !== "fim");
+        if (!util(p.sim) && !util(p.nao)) add(p.id, "O ramo precisa de passos em pelo menos um dos lados.");
+        break;
+      }
+      case "fim":
         break;
     }
   }
