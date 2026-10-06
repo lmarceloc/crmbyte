@@ -34,19 +34,30 @@ as observações do negócio e as últimas mensagens do cliente (WhatsApp) e res
 situações descritas em palavras (`src/lib/pipeline/perguntas.ts`). Também sugere a próxima ação.
 
 ### Como a nota é calculada (`src/lib/pipeline/prioridade.ts`)
-Cada critério vira uma intensidade de 0 a 1; a nota é a **média ponderada** dos critérios escolhidos,
-com os pesos de Configurações → IA. Um critério de IA com confiança abaixo do mínimo (padrão 0,3) é
-ignorado e o item mostra "IA incerta"; negócio que a IA não avaliou fica só com as regras. Faixas:
-**> 80** crítica, **60–80** alta, **40–60** média, **< 40** baixa.
+1. Cada critério vira uma intensidade de 0 a 1; a **nota base** é a **média ponderada** dos critérios
+   escolhidos, com os pesos de Configurações → IA. Um critério de IA com confiança abaixo do mínimo
+   (padrão 0,3) é ignorado e o item mostra "IA incerta"; negócio que a IA não avaliou fica só com as
+   regras.
+2. **Reforço (sempre aplicado, mesmo sem marcar):** a **temperatura** e a **previsão de fechamento**
+   multiplicam a nota base. Com a força no padrão (5): quase fechando ×1,8, quente ×1,6, morno ×1,2,
+   frio ×1 (sem efeito) e sem interesse ×0,5; fechamento previsto para hoje ou vencido soma +0,8 ao
+   multiplicador, e o efeito cai até zero quando a data está além da janela (7 dias). Por ser
+   multiplicação, o reforço age sobre a nota e não a substitui: um lead quente **parado** sobe na lista,
+   e um quente já bem atendido continua baixo. O teto da nota é 100.
 
-Como a nota é uma média, **escolher muitos critérios achata as notas** (um negócio só chega a 80+ se
-quase tudo apontar atenção). Para ver o que é urgente em uma dimensão, escolha poucos critérios.
+Faixas: **> 80** crítica, **60–80** alta, **40–60** média, **< 40** baixa.
+
+Como a nota base é uma média, **escolher muitos critérios achata as notas** (sem o reforço, um negócio
+só chegaria a 80+ se quase tudo apontasse atenção). Para ver o que é urgente em uma dimensão, escolha
+poucos critérios. O "Equilibrado" não marca temperatura nem fechamento porque eles já reforçam toda análise.
 
 ## Configuração (por um admin)
 - **Configurações → Chaves de API → Analisar Deals:** chave do serviço de IA. Fica cifrada e nunca
   volta ao navegador.
-- **Configurações → IA → Analisar Deals:** peso de cada critério (0 ignora), limites em dias (sem
-  contato, sem atualização, parado na etapa, janela do fechamento) e a confiança mínima da IA.
+- **Configurações → IA → Analisar Deals:** peso de cada critério (0 ignora), a força dos reforços da
+  temperatura e do fechamento (5 padrão, 0 desliga, 10 dobra), limites em dias (sem contato, sem
+  atualização, parado na etapa, janela do fechamento) e a confiança mínima da IA. Configuração salva
+  antes dos reforços continua valendo (os reforços entram com o padrão).
 
 ## IA: dois modos
 - **Com a chave do Analisar Deals:** serviço de decisão do TypeSafe

@@ -111,6 +111,26 @@ export const INFO_DOS_CRITERIOS: Record<Criterio, InfoDoCriterio> = {
   },
 };
 
+/**
+ * Sinais que não são só mais um termo da média: **reforçam** a nota de qualquer análise, mesmo sem
+ * estarem marcados. Um lead quente parado precisa subir na lista; um frio parado, não.
+ */
+export const REFORCOS = ["temperatura", "fechamento_proximo"] as const;
+export type Reforco = (typeof REFORCOS)[number];
+
+export const INFO_DOS_REFORCOS: Record<Reforco, { rotulo: string; descricao: string; pesoPadrao: number }> = {
+  temperatura: {
+    rotulo: "Temperatura do negócio",
+    descricao: "Quente e quase fechando aumentam a nota (sem interesse a reduz). Frio não muda.",
+    pesoPadrao: 5,
+  },
+  fechamento_proximo: {
+    rotulo: "Previsão de fechamento",
+    descricao: "Quanto mais perto da data prevista (ou já vencida), mais a nota aumenta.",
+    pesoPadrao: 5,
+  },
+};
+
 export function ehCriterio(v: unknown): v is Criterio {
   return typeof v === "string" && (CRITERIOS as readonly string[]).includes(v);
 }
@@ -125,8 +145,13 @@ const EXCLUSIVOS: Partial<Record<Criterio, Criterio>> = {
   menor_valor: "maior_valor",
 };
 
-/** "Equilibrado": todos os critérios de regra, menos "menor valor" (que anularia "maior valor"). */
-export const EQUILIBRADO: Criterio[] = CRITERIOS_DE_REGRA.filter((c) => c !== "menor_valor");
+/**
+ * "Equilibrado": os critérios de regra, menos "menor valor" (que anularia "maior valor") e menos
+ * temperatura e fechamento, que já reforçam toda análise (ver `REFORCOS`).
+ */
+export const EQUILIBRADO: Criterio[] = CRITERIOS_DE_REGRA.filter(
+  (c) => c !== "menor_valor" && !(REFORCOS as readonly string[]).includes(c),
+);
 
 /** Liga ou desliga um critério; ligar "maior valor" desliga "menor valor" e vice-versa. */
 export function alternarCriterio(escolhidos: Criterio[], criterio: Criterio): Criterio[] {

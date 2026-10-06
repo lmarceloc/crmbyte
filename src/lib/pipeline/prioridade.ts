@@ -1,7 +1,8 @@
 // Motor do "Analisar Deals": junta os sinais por regra e o julgamento da IA num
 // score de atenção de 0 a 100 por negócio. Função pura (testável).
 //
-//   score = média ponderada dos critérios ESCOLHIDOS (peso de Configurações) × 100
+//   base  = média ponderada dos critérios ESCOLHIDOS (peso de Configurações) × 100
+//   score = base × reforço da temperatura e da previsão de fechamento (sempre aplicado)
 //
 // Cada critério vira uma intensidade de 0 a 1. Um critério da IA só entra quando
 // a resposta existe e a confiança passa do mínimo; senão sai da média daquele
@@ -16,6 +17,7 @@ import {
 import type { ConfigAnalisarDeals } from "./config";
 import { notaDoNivel, rotuloDoNivel, ROTULO_DA_ACAO, type AcaoSugerida } from "./perguntas";
 import type { SinaisDoNegocio } from "./sinais";
+import type { DealTemperature } from "@/types";
 
 export type FaixaDePrioridade = "critica" | "alta" | "media" | "baixa";
 
@@ -90,6 +92,55 @@ const PESO_DA_TEMPERATURA: Record<string, number> = {
   quase_fechando: 1,
 };
 
+/**
+ * Quanto cada temperatura mexe na nota com o reforço no padrão (5): a nota é multiplicada por
+ * `1 + efeito`. "Frio" (o padrão de todo negócio novo) não muda nada.
+ */
+const EFEITO_DA_TEMPERATURA: Record<DealTemperature, number> = {
+  sem_interesse: -0.5,
+  frio: 0,
+  morno: 0.2,
+  quente: 0.6,
+  quase_fechando: 0.8,
+};
+/** Efeito de um fechamento previsto para hoje (ou vencido), com o reforço no padrão. */
+const EFEITO_DO_FECHAMENTO = 0.8;
+/** Reforço de 5 (o padrão) = efeito cheio da tabela; 10 dobra, 0 desliga. */
+const REFORCO_NEUTRO = 5;
+/** Efeitos menores que isto não viram motivo na lista. */
+const EFEITO_MINIMO_PARA_MOTIVO = 0.3;
+
+interface ReforcoDoNegocio {
+  /** Multiplicador da nota (1 = sem efeito). */
+  multiplicador: number;
+  motivos: { criterio: CriterioDeRegra; texto: string }[];
+}
+
+/**
+ * Temperatura e previsão de fechamento reforçam a nota de toda análise: multiplicam o que os
+ * critérios escolhidos deram. Assim um lead quente parado sobe na lista (um frio parado, não) e um
+ * quente já bem atendido continua baixo, porque o reforço age sobre a nota e não a substitui.
+ */
+function reforcoDoNegocio(s: SinaisDoNegocio, c: ConfigAnalisarDeals, regras: Intensidades): ReforcoDoNegocio {
+  const efeitoDaTemperatura = s.temperatura
+    ? EFEITO_DA_TEMPERATURA[s.temperatura] * (c.reforcos.temperatura / REFORCO_NEUTRO)
+    : 0;
+  const efeitoDoFechamento =
+    (regras.fechamento_proximo ?? 0) * EFEITO_DO_FECHAMENTO * (c.reforcos.fechamento_proximo / REFORCO_NEUTRO);
+
+  const motivos: ReforcoDoNegocio["motivos"] = [];
+  if (Math.abs(efeitoDaTemperatura) >= EFEITO_MINIMO_PARA_MOTIVO) {
+    motivos.push({
+      criterio: "temperatura",
+      texto: `${motivoDeRegra("temperatura", s)} (${efeitoDaTemperatura > 0 ? "reforça" : "reduz"} a nota)`,
+    });
+  }
+  if (efeitoDoFechamento >= EFEITO_MINIMO_PARA_MOTIVO) {
+    motivos.push({ criterio: "fechamento_proximo", texto: `${motivoDeRegra("fechamento_proximo", s)} (reforça a nota)` });
+  }
+  return { multiplicador: Math.max(0.3, 1 + efeitoDaTemperatura + efeitoDoFechamento), motivos };
+}
+
 function intensidadesDeRegra(s: SinaisDoNegocio, c: ConfigAnalisarDeals, posicaoDoValor: number): Intensidades {
   return {
     // nunca houve contato registrado = o máximo
@@ -149,13 +200,17 @@ function motivoDeRegra(c: CriterioDeRegra, s: SinaisDoNegocio): string {
     case "sem_proxima_tarefa":
       return "Sem tarefa pendente";
     case "temperatura":
-      return s.temperatura === "quase_fechando"
-        ? "Marcado como quase fechando"
-        : s.temperatura === "quente"
-          ? "Marcado como quente"
-          : "Marcado como morno";
+      return `Marcado como ${ROTULO_DA_TEMPERATURA[s.temperatura ?? "frio"]}`;
   }
 }
+
+const ROTULO_DA_TEMPERATURA: Record<DealTemperature, string> = {
+  sem_interesse: "sem interesse",
+  frio: "frio",
+  morno: "morno",
+  quente: "quente",
+  quase_fechando: "quase fechando",
+};
 
 const ACAO_DA_REGRA: Record<CriterioDeRegra, string> = {
   sem_contato: "Fazer contato hoje",
@@ -224,12 +279,21 @@ export function calcularPrioridades(
 
     const pesoTotal = contribuicoes.reduce((t, x) => t + x.peso, 0);
     const soma = contribuicoes.reduce((t, x) => t + x.peso * x.intensidade, 0);
-    const score = pesoTotal > 0 ? Math.round((soma / pesoTotal) * 100) : 0;
+    const base = pesoTotal > 0 ? (soma / pesoTotal) * 100 : 0;
+    const reforco = reforcoDoNegocio(s, config, regras);
+    const score = Math.min(100, Math.round(base * reforco.multiplicador));
 
     const ordenadas = contribuicoes
       .filter((x) => x.peso > 0 && x.intensidade >= 0.25)
       .sort((a, b) => b.peso * b.intensidade - a.peso * a.intensidade);
-    const motivos = ordenadas.slice(0, 3).map((x) => x.motivo);
+    // até 4 motivos no total: com os dois reforços na lista sobram 2 para os critérios
+    const principais = ordenadas.slice(0, Math.max(2, Math.min(3, 4 - reforco.motivos.length)));
+    const jaMostrados = new Set<Criterio>(principais.map((x) => x.criterio));
+    // o reforço aparece como motivo (sem repetir um critério que já está na lista)
+    const motivos = [
+      ...principais.map((x) => x.motivo),
+      ...reforco.motivos.filter((m) => !jaMostrados.has(m.criterio)).map((m) => m.texto),
+    ];
 
     // ação: a da IA quando ela está confiante; senão a do critério de regra que mais pesou
     const acaoDaIa = resposta?.acao && (resposta.acao.confianca === null || resposta.acao.confianca >= config.confiancaMinima);

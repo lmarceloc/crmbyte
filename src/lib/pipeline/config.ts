@@ -1,11 +1,16 @@
 // Pesos e limites do "Analisar Deals" (Configurações → IA). Valores ausentes ou
 // inválidos caem no padrão: a análise funciona mesmo sem nada configurado.
 import { z } from "zod";
-import { CRITERIOS, INFO_DOS_CRITERIOS, type Criterio } from "./criterios";
+import { CRITERIOS, INFO_DOS_CRITERIOS, INFO_DOS_REFORCOS, REFORCOS, type Criterio, type Reforco } from "./criterios";
 
 export interface ConfigAnalisarDeals {
   /** Peso de cada critério na média (0 = ignora). */
   pesos: Record<Criterio, number>;
+  /**
+   * Força com que temperatura e previsão de fechamento reforçam a nota de TODA análise (0 desliga;
+   * 5 é o padrão: quente multiplica a nota por 1,6).
+   */
+  reforcos: Record<Reforco, number>;
   /** Dias sem contato para o critério chegar ao máximo. */
   diasSemContato: number;
   diasSemAtualizacao: number;
@@ -36,6 +41,7 @@ export const LIMITES_DA_CONFIG = {
 
 export const CONFIG_PADRAO: ConfigAnalisarDeals = {
   pesos: Object.fromEntries(CRITERIOS.map((c) => [c, INFO_DOS_CRITERIOS[c].pesoPadrao])) as Record<Criterio, number>,
+  reforcos: Object.fromEntries(REFORCOS.map((r) => [r, INFO_DOS_REFORCOS[r].pesoPadrao])) as Record<Reforco, number>,
   diasSemContato: 7,
   diasSemAtualizacao: 14,
   diasParadoNaEtapa: 14,
@@ -55,11 +61,15 @@ function numero(v: unknown, padrao: number, min: number, max: number, inteiro = 
 export function normalizarConfig(bruto: unknown): ConfigAnalisarDeals {
   const o = bruto && typeof bruto === "object" ? (bruto as Record<string, unknown>) : {};
   const pesosBrutos = o.pesos && typeof o.pesos === "object" ? (o.pesos as Record<string, unknown>) : {};
+  const reforcosBrutos = o.reforcos && typeof o.reforcos === "object" ? (o.reforcos as Record<string, unknown>) : {};
   const { peso, dias, confianca } = LIMITES_DA_CONFIG;
   return {
     pesos: Object.fromEntries(
       CRITERIOS.map((c) => [c, numero(pesosBrutos[c], CONFIG_PADRAO.pesos[c], peso.min, peso.max)]),
     ) as Record<Criterio, number>,
+    reforcos: Object.fromEntries(
+      REFORCOS.map((r) => [r, numero(reforcosBrutos[r], CONFIG_PADRAO.reforcos[r], peso.min, peso.max)]),
+    ) as Record<Reforco, number>,
     diasSemContato: numero(o.diasSemContato, CONFIG_PADRAO.diasSemContato, dias.min, dias.max, true),
     diasSemAtualizacao: numero(o.diasSemAtualizacao, CONFIG_PADRAO.diasSemAtualizacao, dias.min, dias.max, true),
     diasParadoNaEtapa: numero(o.diasParadoNaEtapa, CONFIG_PADRAO.diasParadoNaEtapa, dias.min, dias.max, true),
@@ -75,6 +85,7 @@ const dias = z.number().int().min(LIMITES_DA_CONFIG.dias.min).max(LIMITES_DA_CON
 export const configSchema = z
   .object({
     pesos: z.object(Object.fromEntries(CRITERIOS.map((c) => [c, peso])) as Record<Criterio, typeof peso>).strict(),
+    reforcos: z.object(Object.fromEntries(REFORCOS.map((r) => [r, peso])) as Record<Reforco, typeof peso>).strict(),
     diasSemContato: dias,
     diasSemAtualizacao: dias,
     diasParadoNaEtapa: dias,

@@ -208,7 +208,8 @@ export function AnalisarDealsDialog({ open, onOpenChange, stages, meuPerfilId, i
           </section>
 
           <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-            Analisa no máximo {LIMITES_DA_ANALISE.negocios} negócios em aberto por vez.
+            A temperatura do negócio e a previsão de fechamento reforçam a nota de qualquer análise: um lead quente parado sobe na lista. A força de cada um fica em Configurações → IA.
+            {" "}Analisa no máximo {LIMITES_DA_ANALISE.negocios} negócios em aberto por vez.
             {usaIa &&
               " Nos critérios com IA, o texto das notas e das mensagens do cliente (sem e-mail nem telefone) é enviado a um serviço externo de análise."}
           </p>

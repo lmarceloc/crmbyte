@@ -18,7 +18,7 @@ import {
   normalizarConfig,
   type ConfigAnalisarDeals,
 } from "@/lib/pipeline/config"
-import { CRITERIOS_DE_IA, CRITERIOS_DE_REGRA, INFO_DOS_CRITERIOS, type Criterio } from "@/lib/pipeline/criterios"
+import { CRITERIOS_DE_IA, CRITERIOS_DE_REGRA, INFO_DOS_CRITERIOS, INFO_DOS_REFORCOS, REFORCOS, type Criterio } from "@/lib/pipeline/criterios"
 
 type Limites = Exclude<keyof ConfigAnalisarDeals, "pesos" | "confiancaMinima">
 
@@ -33,6 +33,7 @@ const LIMITES_EM_DIAS: { campo: Limites; rotulo: string; ajuda: string }[] = [
 function paraTexto(c: ConfigAnalisarDeals): Record<string, string> {
   const t: Record<string, string> = { confiancaMinima: String(c.confiancaMinima) }
   for (const k of Object.keys(c.pesos)) t[`peso.${k}`] = String(c.pesos[k as Criterio])
+  for (const r of REFORCOS) t[`reforco.${r}`] = String(c.reforcos[r])
   for (const { campo } of LIMITES_EM_DIAS) t[campo] = String(c[campo])
   return t
 }
@@ -44,6 +45,7 @@ function deTexto(t: Record<string, string>): unknown {
     pesos: Object.fromEntries(
       [...CRITERIOS_DE_REGRA, ...CRITERIOS_DE_IA].map((c) => [c, numero(t[`peso.${c}`])]),
     ),
+    reforcos: Object.fromEntries(REFORCOS.map((r) => [r, numero(t[`reforco.${r}`])])),
     diasSemContato: numero(t.diasSemContato),
     diasSemAtualizacao: numero(t.diasSemAtualizacao),
     diasParadoNaEtapa: numero(t.diasParadoNaEtapa),
@@ -173,6 +175,28 @@ export function AnalisarDealsSettings() {
               )}
               {grupo("Pesos dos critérios", CRITERIOS_DE_REGRA)}
               {grupo("Pesos dos critérios com IA", CRITERIOS_DE_IA)}
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reforços (sempre aplicados)</h4>
+                <p className="text-xs text-muted-foreground">
+                  Temperatura e previsão de fechamento multiplicam a nota de qualquer análise, marcados ou não: um lead quente parado sobe na
+                  lista; um frio parado, não. 5 é o padrão (quente multiplica a nota por 1,6), 10 dobra o efeito e 0 desliga.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {REFORCOS.map((r) => (
+                    <Campo
+                      key={r}
+                      id={`ad-reforco-${r}`}
+                      rotulo={INFO_DOS_REFORCOS[r].rotulo}
+                      ajuda={INFO_DOS_REFORCOS[r].descricao}
+                      valor={texto[`reforco.${r}`] ?? ""}
+                      onChange={editar(`reforco.${r}`)}
+                      desabilitado={!canEditSettings}
+                      passo="0.5"
+                    />
+                  ))}
+                </div>
+              </div>
 
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Limites</h4>

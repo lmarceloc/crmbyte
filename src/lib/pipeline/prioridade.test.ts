@@ -160,13 +160,16 @@ describe("score final", () => {
     const barato = negocio({ id: "barato", valor: 800, temperatura: "frio" });
     const r = calcularPrioridades([emDia, abandonado, barato], EQUILIBRADO, cfg());
     expect(r[0]).toMatchObject({ id: "abandonado", faixa: "critica" });
-    expect(r[0].motivos).toHaveLength(3);
+    expect(r[0].motivos).toHaveLength(4); // 2 critérios + os 2 reforços (quente e fechamento vencido)
+    expect(r[0].motivos.filter((m) => m.includes("reforça a nota"))).toHaveLength(2);
     expect(r.filter((i) => i.id !== "abandonado").every((i) => i.faixa === "baixa")).toBe(true);
   });
 
-  it("um negócio com poucos sinais ativos no 'Equilibrado' não passa de alta (a média dilui)", () => {
+  it("quente e com fechamento a 2 dias, abandonado: o reforço leva ao crítico, que só a média não alcançaria", () => {
     const s = negocio({ valor: 42_000, diasNaEtapa: 4, diasSemContato: 9, leadQuente: true, aberturas: 3, diasRespostaSemAcao: 4, temTarefaPendente: false, diasParaFechar: 2, temperatura: "quente" });
-    expect(calcularPrioridades([s], EQUILIBRADO, cfg())[0].faixa).toBe("alta");
+    const semReforco = { ...CONFIG_PADRAO, reforcos: { temperatura: 0, fechamento_proximo: 0 } };
+    expect(calcularPrioridades([s], EQUILIBRADO, semReforco)[0].faixa).toBe("alta");
+    expect(calcularPrioridades([s], EQUILIBRADO, cfg())[0].faixa).toBe("critica");
   });
 
   it("ordena do maior para o menor score; empate vai para o maior valor", () => {
@@ -187,6 +190,81 @@ describe("score final", () => {
 
   it("sem nenhum sinal forte, avisa em vez de listar motivo vazio", () => {
     expect(unico("sem_contato", { diasSemContato: 0 }).motivos).toEqual(["Sem sinais fortes entre os critérios escolhidos"]);
+  });
+});
+
+describe("reforço da temperatura e da previsão de fechamento", () => {
+  /** Lead parado há 10 dias, com tarefa pendente: o caso de "quente parado". */
+  const parado = (extra: Partial<SinaisDoNegocio> = {}) =>
+    negocio({ diasSemContato: 10, diasSemAtualizar: 10, diasNaEtapa: 10, temTarefaPendente: true, ...extra });
+  const nota = (s: SinaisDoNegocio, config = cfg()) => calcularPrioridades([s], EQUILIBRADO, config)[0];
+
+  it("lead quente parado há 10 dias sobe para 'alta'; o frio parado igual fica na média", () => {
+    const frio = nota(parado({ temperatura: "frio" }));
+    const quente = nota(parado({ temperatura: "quente" }));
+    expect(frio.faixa).toBe("media");
+    expect(quente.faixa).toBe("alta");
+    expect(quente.score).toBe(Math.round(frio.score * 1.6)); // quente multiplica por 1,6
+    expect(quente.motivos).toContain("Marcado como quente (reforça a nota)");
+    expect(frio.motivos.some((m) => m.includes("reforça"))).toBe(false);
+  });
+
+  it("o reforço age sobre a nota e não a substitui: quente bem atendido continua baixo", () => {
+    const atendido = nota(negocio({ temperatura: "quente", diasSemContato: 0, diasSemAtualizar: 0, diasNaEtapa: 1 }));
+    expect(atendido.faixa).toBe("baixa");
+  });
+
+  it("quase fechando reforça mais que quente; morno pouco; sem interesse reduz; frio não muda", () => {
+    const score = (t: SinaisDoNegocio["temperatura"]) => nota(parado({ temperatura: t })).score;
+    expect(score("quase_fechando")).toBeGreaterThan(score("quente"));
+    expect(score("quente")).toBeGreaterThan(score("morno"));
+    expect(score("morno")).toBeGreaterThan(score("frio"));
+    expect(score("frio")).toBe(score(null));
+    expect(score("sem_interesse")).toBeLessThan(score("frio"));
+    expect(nota(parado({ temperatura: "sem_interesse" })).motivos).toContain("Marcado como sem interesse (reduz a nota)");
+  });
+
+  it("previsão de fechamento: vencido e perto reforçam; longe ou sem data não mudam nada", () => {
+    const score = (dias: number | null) => nota(parado({ diasParaFechar: dias })).score;
+    expect(score(-3)).toBeGreaterThan(score(3));
+    expect(score(3)).toBeGreaterThan(score(7));
+    expect(score(20)).toBe(score(null));
+    expect(nota(parado({ diasParaFechar: -3 })).motivos).toContain("Previsão de fechamento venceu há 3 dias (reforça a nota)");
+  });
+
+  it("vale mesmo com os critérios 'temperatura' e 'fechamento' desmarcados, e sem repetir o motivo quando marcados", () => {
+    const s = parado({ temperatura: "quente" });
+    const so = calcularPrioridades([s], ["sem_contato"], cfg())[0];
+    expect(so.score).toBe(100); // base 100 e o teto
+    const marcado = calcularPrioridades([s], ["sem_contato", "temperatura"], cfg())[0];
+    expect(marcado.motivos.filter((m) => m.startsWith("Marcado como quente"))).toHaveLength(1);
+    const baixo = calcularPrioridades([parado({ temperatura: "quente", diasSemContato: 4 })], ["sem_contato"], cfg())[0];
+    const frio = calcularPrioridades([parado({ temperatura: "frio", diasSemContato: 4 })], ["sem_contato"], cfg())[0];
+    expect(baixo.score).toBeGreaterThan(frio.score);
+  });
+
+  it("a força é configurável: 0 desliga, 10 dobra o efeito, e o teto é 100", () => {
+    const s = parado({ temperatura: "quente" });
+    const base = nota(s, cfg({ reforcos: { temperatura: 0, fechamento_proximo: 5 } })).score;
+    const padrao = nota(s).score;
+    const forte = nota(s, cfg({ reforcos: { temperatura: 10, fechamento_proximo: 5 } })).score;
+    expect(base).toBe(nota(parado({ temperatura: "frio" })).score);
+    expect(padrao).toBe(Math.round(base * 1.6));
+    expect(forte).toBe(Math.round(base * 2.2));
+    expect(nota(parado({ temperatura: "quase_fechando", diasParaFechar: -1 }), cfg({ reforcos: { temperatura: 10, fechamento_proximo: 10 } })).score).toBe(100);
+  });
+
+  it("a lista de motivos tem no máximo 4 linhas, mesmo com os dois reforços", () => {
+    const r = nota(parado({ temperatura: "quase_fechando", diasParaFechar: 0, leadQuente: true, aberturas: 3, diasRespostaSemAcao: 5 }));
+    expect(r.motivos.length).toBeLessThanOrEqual(4);
+    expect(r.motivos.filter((m) => m.includes("reforça")).length).toBe(2);
+  });
+
+  it("a seleção dos 100 melhores usa o mesmo cálculo: o quente parado não fica de fora", () => {
+    const lista = [negocio({ id: "quente", temperatura: "quente", diasSemContato: 10, diasSemAtualizar: 10, diasNaEtapa: 10 })];
+    for (let i = 0; i < 20; i++) lista.push(negocio({ id: `frio${i}`, temperatura: "frio", diasSemContato: 11, diasSemAtualizar: 11, diasNaEtapa: 11 }));
+    const ordem = calcularPrioridades(lista, EQUILIBRADO, cfg()).map((i) => i.id);
+    expect(ordem[0]).toBe("quente");
   });
 });
 
@@ -270,6 +348,11 @@ describe("critérios e configuração", () => {
     expect(alternarCriterio(["sem_contato"], "aberturas")).toEqual(["sem_contato", "aberturas"]);
   });
 
+  it("'Equilibrado' deixa temperatura e fechamento de fora: eles já reforçam toda análise", () => {
+    expect(EQUILIBRADO).not.toContain("temperatura");
+    expect(EQUILIBRADO).not.toContain("fechamento_proximo");
+  });
+
   it("'Equilibrado' usa as regras e deixa a IA e 'menor valor' de fora", () => {
     expect(EQUILIBRADO).toContain("maior_valor");
     expect(EQUILIBRADO).not.toContain("menor_valor");
@@ -287,12 +370,22 @@ describe("critérios e configuração", () => {
     expect(Object.keys(c.pesos).sort()).toEqual([...CRITERIOS].sort());
   });
 
+  it("configuração salva antes do reforço não tem 'reforcos': completa com o padrão e limita o resto", () => {
+    expect(normalizarConfig({ pesos: { sem_contato: 4 } }).reforcos).toEqual({ temperatura: 5, fechamento_proximo: 5 });
+    expect(normalizarConfig({ reforcos: { temperatura: 99, fechamento_proximo: -3 } }).reforcos).toEqual({ temperatura: 10, fechamento_proximo: 0 });
+    expect(normalizarConfig({ reforcos: "x" }).reforcos).toEqual(CONFIG_PADRAO.reforcos);
+  });
+
   it("o schema de gravação exige a configuração inteira e recusa o que está fora dos limites", () => {
     expect(configSchema.safeParse(CONFIG_PADRAO).success).toBe(true);
     expect(configSchema.safeParse({ ...CONFIG_PADRAO, diasSemContato: 0 }).success).toBe(false);
     expect(configSchema.safeParse({ ...CONFIG_PADRAO, confiancaMinima: 1.5 }).success).toBe(false);
     expect(configSchema.safeParse({ ...CONFIG_PADRAO, pesos: { ...CONFIG_PADRAO.pesos, sem_contato: 11 } }).success).toBe(false);
     expect(configSchema.safeParse({ ...CONFIG_PADRAO, extra: 1 }).success).toBe(false);
+    expect(configSchema.safeParse({ ...CONFIG_PADRAO, reforcos: { temperatura: 11, fechamento_proximo: 5 } }).success).toBe(false);
+    const { reforcos: _r, ...semReforcos } = CONFIG_PADRAO;
+    void _r;
+    expect(configSchema.safeParse(semReforcos).success).toBe(false);
     const { diasSemContato: _ignorado, ...incompleta } = CONFIG_PADRAO;
     void _ignorado;
     expect(configSchema.safeParse(incompleta).success).toBe(false);
