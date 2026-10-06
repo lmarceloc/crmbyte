@@ -15,6 +15,7 @@ export const TIPOS: { tipo: TipoDePasso; rotulo: string; cor: string }[] = [
   { tipo: "ramo", rotulo: "Ramo (se abriu…)", cor: "bg-violet-500" },
   { tipo: "whatsapp", rotulo: "WhatsApp", cor: "bg-green-500" },
   { tipo: "tarefa", rotulo: "Tarefa", cor: "bg-amber-500" },
+  { tipo: "fim", rotulo: "Fim deste caminho", cor: "bg-slate-500" },
 ]
 
 export const corDoTipo = (t: TipoDePasso) => TIPOS.find((x) => x.tipo === t)!.cor

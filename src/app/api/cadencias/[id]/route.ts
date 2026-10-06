@@ -59,7 +59,13 @@ export async function PATCH(request: Request, { params }: Params) {
         if (passos.length === 0 || emails.length === 0)
           return fail("cadencia_sem_passos", "Adicione pelo menos um passo de e-mail antes de ativar.", 422);
         if (validarPassos(passos).size > 0)
-          return fail("cadencia_sem_passos", "Há passos incompletos. Corrija antes de ativar.", 422);
+          return fail(
+            "cadencia_sem_passos",
+            "Há passos incompletos ou caminho sem caixa Fim. Corrija antes de ativar.",
+            422,
+          );
+        if (Array.isArray(atual.soltos) && atual.soltos.length > 0)
+          return fail("cadencia_sem_passos", "Há caixas soltas no canvas: ligue-as ao fluxo ou exclua antes de ativar.", 422);
         if (!cfg.janela?.dias?.length)
           return fail("cadencia_sem_passos", "Escolha ao menos um dia da semana na janela de envio.", 422);
       }
@@ -107,6 +113,7 @@ export async function PATCH(request: Request, { params }: Params) {
       mudanca.passos = c.data.passos;
       mudanca.versao = atual.versao + 1;
     }
+    if (c.data.soltos !== undefined) mudanca.soltos = c.data.soltos;
     const { data, error } = await admin
       .from("email_cadences")
       .update(mudanca)

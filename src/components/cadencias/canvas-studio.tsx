@@ -2,8 +2,12 @@
 
 // Canvas da cadência no visual "Node Flow" (fundo escuro, cartões com portas,
 // ligações animadas, mini-raio ao encaixar, brilho no cartão novo).
-// A árvore de passos segue sendo a fonte da verdade: posições e ligações saem
-// de montarGrafo(); as ações são as mesmas do canvas em lista.
+//
+// Montagem à mão: clicar na paleta cria a caixa SOLTA no canvas (arrastável);
+// arrastar da saída de uma caixa até a entrada de outra liga as duas — se o
+// encaixe é aceito, a linha brilha com o mini-raio; se não, fica vermelha e
+// diz por quê. Clicar numa ligação desfaz. O fluxo continua sendo uma árvore
+// (regras em lib/cadencias/montagem.ts) e o worker não muda.
 
 import "@xyflow/react/dist/style.css"
 import "./canvas-studio.css"
@@ -20,6 +24,9 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
+  useReactFlow,
+  useStore,
+  type ConnectionLineComponentProps,
   type Edge,
   type EdgeProps,
   type Node,
@@ -35,13 +42,16 @@ import { corpoEmTexto } from "@/lib/cadencias/corpo-rico"
 import {
   ESPACO_X,
   LARGURA_DO_NO,
+  alturaDoTipo,
   caminhoDaLigacao,
   caminhoDoRaio,
   montarGrafo,
+  pontoLivre,
   type LigacaoDoGrafo,
   type NoDoGrafo,
   type SaidaDoNo,
 } from "@/lib/cadencias/grafo"
+import { podeLigar, type Floresta } from "@/lib/cadencias/montagem"
 import type { ConfiguracaoDaCadencia, Passo, TipoDePasso } from "@/lib/cadencias/tipos"
 import { resumirPasso } from "./canvas"
 
@@ -75,26 +85,37 @@ const PALETA: { secao: string; itens: { tipo: TipoDePasso; rotulo: string; Icone
     ],
   },
   { secao: "Automações", itens: [{ tipo: "tarefa", rotulo: "Tarefa", Icone: ListTodo }] },
+  { secao: "Encerrar", itens: [{ tipo: "fim", rotulo: "Fim deste caminho", Icone: Flag }] },
 ]
 const ITENS = PALETA.flatMap((s) => s.itens)
 const itemDoTipo = (t: TipoDePasso) => ITENS.find((i) => i.tipo === t)!
+/** No "+" do meio de uma ligação: tudo menos Fim (Fim no meio cortaria o caminho). */
+const ITENS_DO_MAIS = ITENS.filter((i) => i.tipo !== "fim")
 
 // ---------- contexto: estado e ações vistos por nós e ligações ----------
 
 export interface PropsDoCanvasStudio {
-  passos: Passo[]
+  /** O fluxo (ligado ao gatilho) e as caixas soltas. */
+  floresta: Floresta
   configuracao: ConfiguracaoDaCadencia
   somenteLeitura: boolean
   numeros: Map<string, number>
   erros: Map<string, { mensagem: string }[]>
   selecionado: string | null
-  /** id do passo → marca de tempo do último "acender" (passo novo ou duplicado). */
+  /** id do passo → marca de tempo do último "acender" (passo novo, duplicado ou ligado). */
   destaques: Record<string, number>
   onSelecionar: (id: string | null) => void
+  onAbrirConfig: () => void
+  /** "+" de uma ligação: insere entre as duas caixas. */
   onInserir: (ponto: PontoDeInsercao, tipo: TipoDePasso) => void
+  /** Paleta: cria a caixa solta em (x, y) do canvas. */
+  onCriarSolto: (tipo: TipoDePasso, x: number, y: number) => void
+  onLigar: (origem: string, saida: SaidaDoNo, destino: string) => void
+  /** Clique numa ligação: `destino` e o que vem depois viram um bloco solto em (x, y). */
+  onDesligar: (destino: string, x: number, y: number) => void
+  onMoverSolto: (bloco: string, x: number, y: number) => void
   onDuplicar: (id: string) => void
   onExcluir: (id: string) => void
-  onAbrirConfig: () => void
 }
 
 const Ctx = createContext<PropsDoCanvasStudio | null>(null)
@@ -108,20 +129,22 @@ type LigacaoRf = Edge<DadosDaLigacao>
 // ---------- cartões ----------
 
 function Saida({ id, rotulo, cor }: { id: SaidaDoNo; rotulo: string; cor?: string }) {
+  const { somenteLeitura } = useCanvas()
   return (
     <div className="cs-param out" style={cor ? ({ "--cs-porta": cor } as CSSProperties) : undefined}>
       <span className="cs-name">{rotulo}</span>
-      <Handle type="source" position={Position.Right} id={id} isConnectable={false} />
+      <Handle type="source" position={Position.Right} id={id} isConnectable={!somenteLeitura} />
     </div>
   )
 }
 
-function Entrada() {
+function Entrada({ ligada }: { ligada: boolean }) {
+  const { somenteLeitura } = useCanvas()
   return (
     <div className="cs-param in">
-      <Handle type="target" position={Position.Left} id="in" isConnectable={false} />
+      <Handle type="target" position={Position.Left} id="in" isConnectable={!somenteLeitura} />
       <span className="cs-name">Entrada</span>
-      <span className="cs-check">✓</span>
+      {ligada && <span className="cs-check">✓</span>}
     </div>
   )
 }
@@ -129,8 +152,49 @@ function Entrada() {
 function detalheDoPasso(p: Passo): string | null {
   if (p.tipo === "email" && p.corpo) return corpoEmTexto(p.corpo)
   if (p.tipo === "tarefa") return `Prazo: ${p.prazoDias} ${p.prazoDias === 1 ? "dia" : "dias"}`
-  if (p.tipo === "ramo") return "Sim segue em cima · Não segue embaixo"
+  if (p.tipo === "ramo") return "Ligue o Sim e o Não nas próximas caixas"
   return null
+}
+
+/** A primeira caixa de um bloco solto ainda não tem entrada. */
+function temEntrada(c: PropsDoCanvasStudio, no: NoDoGrafo): boolean {
+  if (!no.solto) return true
+  return c.floresta.soltos.find((b) => b.id === no.solto)?.passos[0]?.id !== no.id
+}
+
+function Ferramentas({ id, duplicar }: { id: string; duplicar: boolean }) {
+  const c = useCanvas()
+  if (c.somenteLeitura) return null
+  return (
+    <>
+      {duplicar && (
+        <button
+          type="button"
+          className="cs-tool nodrag"
+          aria-label="Duplicar passo"
+          title="Duplicar"
+          onClick={(e) => {
+            e.stopPropagation()
+            c.onDuplicar(id)
+          }}
+        >
+          <Copy />
+        </button>
+      )}
+      <button
+        type="button"
+        className="cs-tool del nodrag"
+        aria-label="Excluir passo"
+        title="Excluir"
+        onClick={(e) => {
+          e.stopPropagation()
+          c.onExcluir(id)
+        }}
+      >
+        <X />
+      </button>
+    </>
+  )
 }
 
 function NoPasso({ data }: NodeProps<NoRf>) {
@@ -142,10 +206,11 @@ function NoPasso({ data }: NodeProps<NoRf>) {
   const erro = c.erros.get(passo.id)?.[0]?.mensagem
   const detalhe = detalheDoPasso(passo)
   const destaque = c.destaques[passo.id]
+  const numero = c.numeros.get(passo.id)
 
   return (
     <div
-      className={cn("cs-node", c.selecionado === passo.id && "selected", erro && "erro")}
+      className={cn("cs-node", no.solto && "solto", c.selecionado === passo.id && "selected", erro && "erro")}
       style={{ "--cs-cor": cor, "--cs-porta": cor, height: no.altura } as CSSProperties}
     >
       {destaque && <span key={destaque} className="cs-flash" />}
@@ -154,43 +219,17 @@ function NoPasso({ data }: NodeProps<NoRf>) {
           <Icone />
         </span>
         <span className="cs-title">
-          <span className="cs-num">{c.numeros.get(passo.id)}.</span> {rotulo}
+          {numero !== undefined && <span className="cs-num">{numero}.</span>} {rotulo}
         </span>
-        {!c.somenteLeitura && (
-          <>
-            <button
-              type="button"
-              className="cs-tool nodrag"
-              aria-label="Duplicar passo"
-              title="Duplicar"
-              onClick={(e) => {
-                e.stopPropagation()
-                c.onDuplicar(passo.id)
-              }}
-            >
-              <Copy />
-            </button>
-            <button
-              type="button"
-              className="cs-tool del nodrag"
-              aria-label="Excluir passo"
-              title="Excluir"
-              onClick={(e) => {
-                e.stopPropagation()
-                c.onExcluir(passo.id)
-              }}
-            >
-              <X />
-            </button>
-          </>
-        )}
+        {no.solto && <span className="cs-solta">solta</span>}
+        <Ferramentas id={passo.id} duplicar />
       </div>
       <div className="cs-body">
         <div className="cs-desc">
           <div className="cs-line forte">{resumirPasso(passo)}</div>
           {erro ? <div className="cs-line erro">{erro}</div> : detalhe && <div className="cs-line">{detalhe}</div>}
         </div>
-        <Entrada />
+        <Entrada ligada={temEntrada(c, no)} />
         {passo.tipo === "ramo" ? (
           <>
             <Saida id="sim" rotulo="Sim" cor={COR.sim} />
@@ -204,8 +243,34 @@ function NoPasso({ data }: NodeProps<NoRf>) {
   )
 }
 
+function NoFim({ data }: NodeProps<NoRf>) {
+  const c = useCanvas()
+  const { no } = data
+  const passo = no.passo!
+  const destaque = c.destaques[passo.id]
+  const erro = c.erros.get(passo.id)?.[0]?.mensagem
+  return (
+    <div
+      className={cn("cs-node mini fim", no.solto && "solto", c.selecionado === passo.id && "selected", erro && "erro")}
+      style={{ "--cs-porta": COR.fim } as CSSProperties}
+      title={erro ?? "A cadência termina aqui para o lead"}
+    >
+      {destaque && <span key={destaque} className="cs-flash" />}
+      <Handle type="target" position={Position.Left} id="in" isConnectable={!c.somenteLeitura} />
+      <Flag className="size-3.5 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">Fim deste caminho</span>
+      {no.solto && <span className="cs-solta">solta</span>}
+      <Ferramentas id={passo.id} duplicar={false} />
+    </div>
+  )
+}
+
 function NoGatilho({ data }: NodeProps<NoRf>) {
   const c = useCanvas()
+  const p = c.configuracao.paradas
+  const paradas = [p.respondeu && "resposta", p.bounce && "bounce", p.descadastro && "descadastro", p.ganhoOuPerdido && "ganho/perdido"]
+    .filter(Boolean)
+    .join(", ")
   return (
     <div
       className="cs-node"
@@ -220,8 +285,10 @@ function NoGatilho({ data }: NodeProps<NoRf>) {
       </div>
       <div className="cs-body">
         <div className="cs-desc">
-          <div className="cs-line forte">Negócios com contato que tenha e-mail</div>
-          {c.configuracao.tagDoSegmento && <div className="cs-line">Tag: {c.configuracao.tagDoSegmento}</div>}
+          <div className="cs-line forte">
+            Negócios com contato que tenha e-mail{c.configuracao.tagDoSegmento ? ` · tag ${c.configuracao.tagDoSegmento}` : ""}
+          </div>
+          <div className="cs-line">Para em: {paradas || "—"}</div>
         </div>
         <Saida id="out" rotulo="Saída" />
       </div>
@@ -229,49 +296,7 @@ function NoGatilho({ data }: NodeProps<NoRf>) {
   )
 }
 
-function NoFim({ data }: NodeProps<NoRf>) {
-  const c = useCanvas()
-  const p = c.configuracao.paradas
-  const paradas = [
-    p.descadastro && "descadastro",
-    p.ganhoOuPerdido && "negócio ganho/perdido",
-    p.respondeu && "resposta",
-    p.bounce && "bounce",
-  ].filter(Boolean)
-  return (
-    <div
-      className="cs-node"
-      style={{ "--cs-cor": COR.fim, "--cs-porta": COR.fim, height: data.no.altura } as CSSProperties}
-      title="Abrir configurações"
-    >
-      <div className="cs-head">
-        <span className="cs-head-ico">
-          <Flag />
-        </span>
-        <span className="cs-title">Fim da cadência</span>
-      </div>
-      <div className="cs-body">
-        <div className="cs-desc">
-          <div className="cs-line forte">Para ao receber:</div>
-          <div className="cs-line">{paradas.length ? paradas.join(", ") : "—"}</div>
-        </div>
-        <Entrada />
-      </div>
-    </div>
-  )
-}
-
-function NoFimDoCaminho() {
-  return (
-    <div className="cs-node mini" style={{ "--cs-porta": COR.fim } as CSSProperties}>
-      <Handle type="target" position={Position.Left} id="in" isConnectable={false} />
-      <Flag className="size-3.5" />
-      Fim deste caminho
-    </div>
-  )
-}
-
-const TIPOS_DE_NO = { passo: NoPasso, gatilho: NoGatilho, fim: NoFim, fimDoCaminho: NoFimDoCaminho }
+const TIPOS_DE_NO = { passo: NoPasso, gatilho: NoGatilho, fim: NoFim }
 
 // ---------- ligações ----------
 
@@ -283,13 +308,14 @@ function BotaoMais({ ponto, x, y }: { ponto: PontoDeInsercao; x: number; y: numb
       <PopoverTrigger
         className="cs-plus nodrag nopan"
         data-ponto={JSON.stringify(ponto)}
+        onClick={(e) => e.stopPropagation()}
         aria-label="Inserir passo aqui"
         style={{ transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`, left: 0, top: 0 }}
       >
         <Plus />
       </PopoverTrigger>
-      <PopoverContent className="w-52 p-1">
-        {ITENS.map((t) => (
+      <PopoverContent className="w-52 p-1" onClick={(e) => e.stopPropagation()}>
+        {ITENS_DO_MAIS.map((t) => (
           <button
             key={t.tipo}
             type="button"
@@ -314,7 +340,13 @@ function LigacaoStudio({ id, sourceX, sourceY, targetX, targetY, data }: EdgePro
   const caminho = caminhoDaLigacao({ x: sourceX, y: sourceY }, { x: targetX, y: targetY })
   return (
     <>
-      <BaseEdge id={id} path={caminho} className="cs-edge-path" style={{ stroke: cor, color: cor }} interactionWidth={14} />
+      <BaseEdge
+        id={id}
+        path={caminho}
+        className={cn("cs-edge-path", !c.somenteLeitura && "desligavel")}
+        style={{ stroke: cor, color: cor }}
+        interactionWidth={14}
+      />
       <EdgeLabelRenderer>
         {ligacao.saida !== "out" && (
           <div
@@ -334,7 +366,49 @@ function LigacaoStudio({ id, sourceX, sourceY, targetX, targetY, data }: EdgePro
 
 const TIPOS_DE_LIGACAO = { studio: LigacaoStudio }
 
-// ---------- arrastar da paleta até um "+" ----------
+/**
+ * Linha enquanto se arrasta uma ligação: azul tracejada até o cursor; ao chegar
+ * perto de uma entrada que ACEITA, mini-raio do cursor até a porta; se não
+ * aceita, a linha fica vermelha e mostra o motivo.
+ */
+function LinhaDeLigacao({ fromX, fromY, toX, toY, fromHandle, fromNode, toNode, toHandle, connectionStatus, pointer }: ConnectionLineComponentProps<NoRf>) {
+  const c = useCanvas()
+  const [tx, ty, zoom] = useStore((s) => s.transform)
+  // `pointer` vem em coordenadas do contêiner; a linha é desenhada no espaço do fluxo
+  const cursor = pointer ? { x: (pointer.x - tx) / zoom, y: (pointer.y - ty) / zoom } : { x: toX, y: toY }
+  const daEntrada = fromHandle?.type === "target"
+  const de = { x: fromX, y: fromY }
+  const fio = (ate: { x: number; y: number }) => (daEntrada ? caminhoDaLigacao(ate, de) : caminhoDaLigacao(de, ate))
+
+  if (connectionStatus === "invalid" && toNode && toHandle) {
+    const [origem, saida, destino] = daEntrada
+      ? [toNode.id, toHandle.id as SaidaDoNo, fromNode.id]
+      : [fromNode.id, fromHandle.id as SaidaDoNo, toNode.id]
+    const r = podeLigar(c.floresta, origem, saida, destino)
+    return (
+      <g>
+        <path className="cs-temp-wire invalido" d={fio(cursor)} />
+        {!r.ok && (
+          <foreignObject x={cursor.x + 12} y={cursor.y + 10} width={260} height={60} style={{ overflow: "visible" }}>
+            <div className="cs-motivo">{r.motivo}</div>
+          </foreignObject>
+        )}
+      </g>
+    )
+  }
+  if (connectionStatus === "valid" && toHandle) {
+    const corDaOrigem = fromHandle.id === "sim" ? COR.sim : fromHandle.id === "nao" ? COR.nao : COR.ramo
+    return (
+      <g>
+        <path className="cs-temp-wire" d={fio(cursor)} />
+        <path className="cs-lightning" d={caminhoDoRaio(cursor, { x: toX, y: toY })} style={{ stroke: corDaOrigem, color: corDaOrigem }} />
+      </g>
+    )
+  }
+  return <path className="cs-temp-wire" d={fio(cursor)} />
+}
+
+// ---------- arrastar da paleta: até um "+" (insere) ou até o vazio (caixa solta) ----------
 
 interface Arrasto {
   tipo: TipoDePasso
@@ -346,14 +420,12 @@ interface Arrasto {
 
 const RAIO_DE_ENCAIXE = 60
 
-function usePaleta(onSoltar: (tipo: TipoDePasso, ponto: PontoDeInsercao | null) => void) {
+type Soltura = { tipo: TipoDePasso; ponto: PontoDeInsercao | null; cliente: { x: number; y: number } | null }
+
+function usePaleta(onSoltar: (s: Soltura) => void) {
   const [arrasto, setArrastoState] = useState<Arrasto | null>(null)
   // espelho síncrono do estado: os ouvintes da janela leem daqui
   const atual = useRef<Arrasto | null>(null)
-  const setArrasto = (a: Arrasto | null) => {
-    atual.current = a
-    setArrastoState(a)
-  }
   const alvoEl = useRef<HTMLElement | null>(null)
   const soltar = useRef(onSoltar)
   useEffect(() => {
@@ -388,6 +460,11 @@ function usePaleta(onSoltar: (tipo: TipoDePasso, ponto: PontoDeInsercao | null) 
           centro = { x: cx, y: cy }
         }
       })
+      // a caixa Fim não entra no meio de uma ligação
+      if (atual.current?.tipo === "fim") {
+        melhor = null
+        centro = null
+      }
       marcar(melhor)
       const a = atual.current
       if (!a) return
@@ -398,15 +475,15 @@ function usePaleta(onSoltar: (tipo: TipoDePasso, ponto: PontoDeInsercao | null) 
         moveu: a.moveu || Math.hypot(e.clientX - a.inicio.x, e.clientY - a.inicio.y) > 6,
       })
     }
-    const fim = () => {
+    const fim = (e: PointerEvent) => {
       const el = alvoEl.current
       const a = atual.current
       marcar(null)
       definir(null)
       if (!a) return
       const ponto = el?.dataset.ponto ? (JSON.parse(el.dataset.ponto) as PontoDeInsercao) : null
-      // clique sem arrastar = acrescentar no fim; arrastado e solto no vazio = nada
-      if (ponto || !a.moveu) soltar.current(a.tipo, ponto)
+      // clique = caixa solta no meio da tela; arrastado = solta onde soltou (ou insere no "+")
+      soltar.current({ tipo: a.tipo, ponto, cliente: a.moveu ? { x: e.clientX, y: e.clientY } : null })
     }
     window.addEventListener("pointermove", mover)
     window.addEventListener("pointerup", fim)
@@ -422,8 +499,9 @@ function usePaleta(onSoltar: (tipo: TipoDePasso, ponto: PontoDeInsercao | null) 
     if (e.button !== 0) return
     e.preventDefault()
     const r = e.currentTarget.getBoundingClientRect()
-    const inicio = { x: r.right, y: r.top + r.height / 2 }
-    setArrasto({ tipo, inicio, cursor: { x: e.clientX, y: e.clientY }, alvo: null, moveu: false })
+    const a = { tipo, inicio: { x: r.right, y: r.top + r.height / 2 }, cursor: { x: e.clientX, y: e.clientY }, alvo: null, moveu: false }
+    atual.current = a
+    setArrastoState(a)
   }
 
   return { arrasto, iniciar }
@@ -458,20 +536,31 @@ function corDaLigacao(l: LigacaoDoGrafo, nos: Map<string, NoDoGrafo>): string {
 }
 
 function Interno(props: PropsDoCanvasStudio) {
-  const { passos, somenteLeitura, onInserir, onSelecionar, onAbrirConfig } = props
+  const { floresta, somenteLeitura, onInserir, onSelecionar, onAbrirConfig, onCriarSolto, onLigar, onDesligar, onMoverSolto } = props
+  const rf = useReactFlow()
+  const areaRef = useRef<HTMLDivElement>(null)
+  // bloco solto sendo arrastado: desloca todas as caixas dele juntas
+  const [arrastoDoBloco, setArrastoDoBloco] = useState<{ bloco: string; dx: number; dy: number } | null>(null)
 
-  const { nodes, edges } = useMemo(() => {
-    const grafo = montarGrafo(passos)
+  const grafo = useMemo(() => montarGrafo(floresta.passos, floresta.soltos), [floresta])
+
+  const nodes = useMemo(() => {
+    return grafo.nos.map<NoRf>((n) => {
+      const d = arrastoDoBloco && n.solto === arrastoDoBloco.bloco ? arrastoDoBloco : null
+      return {
+        id: n.id,
+        type: n.tipo,
+        position: { x: n.x + (d?.dx ?? 0), y: n.y + (d?.dy ?? 0) },
+        data: { no: n },
+        draggable: !!n.solto && !somenteLeitura,
+        selectable: false,
+      }
+    })
+  }, [grafo, arrastoDoBloco, somenteLeitura])
+
+  const edges = useMemo(() => {
     const porId = new Map(grafo.nos.map((n) => [n.id, n]))
-    const nodes: NoRf[] = grafo.nos.map((n) => ({
-      id: n.id,
-      type: n.tipo,
-      position: { x: n.x, y: n.y },
-      data: { no: n },
-      draggable: false,
-      selectable: false,
-    }))
-    const edges: LigacaoRf[] = grafo.ligacoes.map((l) => ({
+    return grafo.ligacoes.map<LigacaoRf>((l) => ({
       id: l.id,
       type: "studio",
       source: l.origem,
@@ -482,32 +571,49 @@ function Interno(props: PropsDoCanvasStudio) {
       focusable: false,
       data: { ligacao: l, cor: corDaLigacao(l, porId) },
     }))
-    return { nodes, edges }
-  }, [passos])
+  }, [grafo])
 
-  // abre enquadrando o começo do fluxo (gatilho + primeiros passos) em tamanho legível,
-  // em vez de encolher a cadência inteira; o resto se vê arrastando o fundo
+  // abre enquadrando o começo do fluxo (gatilho + primeiros passos) em tamanho legível
   const [enquadrar] = useState(() => ({
-    nodes: nodes.filter((n) => n.position.x <= 3 * (LARGURA_DO_NO + ESPACO_X)).map((n) => ({ id: n.id })),
+    nodes: grafo.nos.filter((n) => !n.solto && n.x <= 3 * (LARGURA_DO_NO + ESPACO_X)).map((n) => ({ id: n.id })),
     padding: 0.12,
     minZoom: 0.6,
     maxZoom: 1,
   }))
 
-  const { arrasto, iniciar } = usePaleta((tipo, ponto) => {
+  /** Espaço livre perto de `alvo` (coordenadas do fluxo): a caixa nova não cobre as portas de outra. */
+  const livrePerto = (tipo: TipoDePasso, alvo: { x: number; y: number }) =>
+    pontoLivre(
+      grafo.nos.map((n) => ({ x: n.x, y: n.y, largura: LARGURA_DO_NO, altura: n.altura })),
+      alvo,
+      { largura: LARGURA_DO_NO, altura: alturaDoTipo(tipo) },
+    )
+
+  const { arrasto, iniciar } = usePaleta(({ tipo, ponto, cliente }) => {
     if (ponto) return onInserir(ponto, tipo)
-    // clique na paleta: acrescenta no fim do caminho principal
-    if (passos.at(-1)?.tipo === "ramo")
-      return toast.error("O caminho principal termina num ramo. Arraste o passo até um “+” do lado Sim ou Não.")
-    onInserir({ lista: "raiz", indice: passos.length }, tipo)
+    const r = areaRef.current?.getBoundingClientRect()
+    if (cliente) {
+      const dentro = r && cliente.x >= r.left && cliente.x <= r.right && cliente.y >= r.top && cliente.y <= r.bottom
+      if (!dentro) return // arrastado e solto fora do canvas: nada
+      const p = rf.screenToFlowPosition(cliente)
+      const livre = livrePerto(tipo, { x: p.x - LARGURA_DO_NO / 2, y: p.y - 30 })
+      return onCriarSolto(tipo, livre.x, livre.y)
+    }
+    // clique: perto do centro da área visível
+    const centro = r ? rf.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 }) : { x: 0, y: 0 }
+    const livre = livrePerto(tipo, { x: centro.x - LARGURA_DO_NO / 2, y: centro.y - alturaDoTipo(tipo) / 2 })
+    onCriarSolto(tipo, livre.x, livre.y)
   })
+
+  const motivoDe = (origem: string, saida: string | null | undefined, destino: string) =>
+    podeLigar(floresta, origem, (saida ?? "out") as SaidaDoNo, destino)
 
   return (
     <Ctx.Provider value={props}>
       <div className="cs-studio">
         {!somenteLeitura && (
           <aside className="cs-sidebar">
-            <p>Arraste até um “+” da ligação ou clique para acrescentar no fim.</p>
+            <p>Clique para criar a caixa no canvas (ou arraste até onde quiser). Depois ligue a saída de uma caixa na entrada da outra.</p>
             {PALETA.map((s) => (
               <div key={s.secao} className="flex flex-col gap-2">
                 <h3>{s.secao}</h3>
@@ -529,25 +635,71 @@ function Interno(props: PropsDoCanvasStudio) {
             ))}
           </aside>
         )}
-        <div className="cs-canvas">
+        <div className="cs-canvas" ref={areaRef}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
             nodeTypes={TIPOS_DE_NO}
             edgeTypes={TIPOS_DE_LIGACAO}
+            connectionLineComponent={LinhaDeLigacao}
             fitView
             fitViewOptions={enquadrar}
             minZoom={0.3}
             maxZoom={1.6}
-            nodesDraggable={false}
-            nodesConnectable={false}
+            nodesDraggable={!somenteLeitura}
+            nodesConnectable={!somenteLeitura}
             elementsSelectable={false}
+            connectionRadius={40}
             proOptions={{ hideAttribution: true }}
-            // ter onNodeClick também é o que faz o React Flow deixar os cartões clicáveis
-            // (nós não arrastáveis nem selecionáveis ficam com pointer-events: none)
+            isValidConnection={(l) => !!l.source && !!l.target && motivoDe(l.source, l.sourceHandle, l.target).ok}
+            onConnect={(l) => {
+              if (l.source && l.target) onLigar(l.source, (l.sourceHandle ?? "out") as SaidaDoNo, l.target)
+            }}
+            onConnectEnd={(_e, estado) => {
+              // soltou numa entrada que não aceita: diz por quê
+              if (estado.isValid || !estado.toNode || !estado.fromNode || !estado.fromHandle) return
+              const daEntrada = estado.fromHandle.type === "target"
+              const r = daEntrada
+                ? motivoDe(estado.toNode.id, estado.toHandle?.id, estado.fromNode.id)
+                : motivoDe(estado.fromNode.id, estado.fromHandle.id, estado.toNode.id)
+              if (!r.ok) toast.error(r.motivo)
+            }}
+            onEdgeClick={(e, aresta) => {
+              if (somenteLeitura) return
+              // o "+" e o menu dele vivem num portal, mas o clique "sobe" pela árvore do React até
+              // a ligação: só o clique na própria linha (no SVG) desfaz
+              const alvo = e.target as Element | null
+              if (!alvo?.closest?.(".react-flow__edge") || alvo.closest(".cs-plus")) return
+              const destino = grafo.nos.find((n) => n.id === aresta.target)
+              if (!destino) return
+              // o pedaço desligado aparece num espaço livre logo abaixo de onde estava
+              const livre = pontoLivre(
+                grafo.nos.filter((n) => n.id !== destino.id).map((n) => ({ x: n.x, y: n.y, largura: LARGURA_DO_NO, altura: n.altura })),
+                { x: destino.x + 30, y: destino.y + destino.altura + 40 },
+                { largura: LARGURA_DO_NO, altura: destino.altura },
+              )
+              onDesligar(aresta.target, livre.x, livre.y)
+              toast("Ligação desfeita: a caixa ficou solta para você ligar em outro lugar.")
+            }}
+            onNodeDrag={(_e, n) => {
+              const base = grafo.nos.find((x) => x.id === n.id)
+              if (!base?.solto) return
+              setArrastoDoBloco({ bloco: base.solto, dx: n.position.x - base.x, dy: n.position.y - base.y })
+            }}
+            onNodeDragStop={(_e, n) => {
+              const base = grafo.nos.find((x) => x.id === n.id)
+              setArrastoDoBloco(null)
+              if (!base?.solto) return
+              const bloco = floresta.soltos.find((b) => b.id === base.solto)
+              if (!bloco) return
+              const dx = n.position.x - base.x
+              const dy = n.position.y - base.y
+              if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
+              onMoverSolto(bloco.id, bloco.x + dx, bloco.y + dy)
+            }}
             onNodeClick={(_e, n) => {
-              if (n.type === "passo") onSelecionar(n.id)
-              else if (n.type === "gatilho" || n.type === "fim") onAbrirConfig()
+              if (n.type === "passo" || n.type === "fim") onSelecionar(n.id)
+              else if (n.type === "gatilho") onAbrirConfig()
             }}
             onPaneClick={() => onSelecionar(null)}
           >

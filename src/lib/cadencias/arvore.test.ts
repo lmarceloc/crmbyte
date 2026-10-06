@@ -32,7 +32,7 @@ describe("arvore", () => {
   });
 
   it("valida passos incompletos", () => {
-    const erros = validarPassos([{ id: "1", tipo: "email", assunto: "", corpo: "", mesmaConversa: false }]);
+    const erros = validarPassos([{ id: "1", tipo: "email", assunto: "", corpo: "", mesmaConversa: false }], { exigirFim: false });
     expect(erros.get("1")).toHaveLength(2);
   });
 });

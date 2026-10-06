@@ -388,3 +388,65 @@ html[data-mode="light"] .cs-canvas .react-flow__controls { border-color: #e3e5ea
 html[data-mode="light"] .cs-canvas .react-flow__controls-button { background: #ffffff; border-bottom-color: #e3e5ea; }
 html[data-mode="light"] .cs-canvas .react-flow__controls-button:hover { background: #f1f3f6; }
 html[data-mode="light"] .cs-ghost { background: #ffffff; border-color: #cfd3da; color: #1f2328; }
+
+/* ---------- Montagem manual ---------- */
+/* Caixa solta (fora do fluxo): borda tracejada e etiqueta */
+.cs-node.solto { border-style: dashed; }
+.cs-solta {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid rgba(245, 214, 59, 0.35);
+  border-radius: 10px;
+  background: rgba(245, 214, 59, 0.12);
+  color: var(--cs-yellow);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.cs-node.mini.fim { cursor: pointer; }
+.cs-node.mini.fim.selected { border-style: solid; }
+.cs-node.mini .cs-tool { margin-left: auto; }
+
+/* Encaixe recusado: linha vermelha + motivo perto do cursor */
+.cs-temp-wire.invalido {
+  stroke: var(--cs-red, #ef4444);
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.6));
+}
+.cs-motivo {
+  display: inline-block;
+  max-width: 250px;
+  padding: 5px 8px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 7px;
+  background: #1a1c21;
+  color: #fca5a5;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+/* Porta alvo durante a ligação: anel laranja (aceita) ou vermelho (recusa) */
+.cs-node .react-flow__handle.connectingto {
+  transform: translateY(-50%) scale(1.7);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.cs-node .react-flow__handle.connectingto.valid {
+  box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.3), 0 0 15px 4px var(--cs-orange);
+}
+.cs-node .react-flow__handle.connectingto:not(.valid) {
+  border-color: var(--cs-red, #ef4444);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3), 0 0 12px 3px rgba(239, 68, 68, 0.7);
+}
+.cs-node.mini .react-flow__handle.connectingto { transform: translateY(-50%) scale(1.7); }
+.cs-node .react-flow__handle.connectable { cursor: crosshair; }
+
+/* Ligação: passar o mouse avisa que o clique desfaz (vermelho, como no Node Flow) */
+.react-flow__edge:hover .cs-edge-path.desligavel {
+  stroke-width: 5;
+  filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 12px #ef4444);
+}
+.react-flow__edge:has(.cs-edge-path.desligavel) { cursor: pointer; }
+
+html[data-mode="light"] .cs-motivo { background: #ffffff; color: #b91c1c; }
+html[data-mode="light"] .cs-solta { color: #a16207; background: rgba(245, 214, 59, 0.2); }

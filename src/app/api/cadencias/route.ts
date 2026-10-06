@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 function contar(passos: unknown): number {
   if (!Array.isArray(passos)) return 0;
   return passos.reduce<number>(
-    (n, p) => n + 1 + (p?.tipo === "ramo" ? contar(p.sim) + contar(p.nao) : 0),
+    (n, p) => n + (p?.tipo === "fim" ? 0 : 1) + (p?.tipo === "ramo" ? contar(p.sim) + contar(p.nao) : 0),
     0,
   );
 }

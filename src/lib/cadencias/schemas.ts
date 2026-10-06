@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Passo } from "./tipos";
+import type { BlocoSolto, Passo } from "./tipos";
 import { LIMIAR_LEAD_QUENTE_MAX, LIMIAR_LEAD_QUENTE_PADRAO } from "./vocabulario";
 
 const DIAS = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"] as const;
@@ -47,6 +47,7 @@ const condicao = z.union([
 // `z.lazy` recursivo não é discriminável em compile-time — por isso `union`.
 export const passoSchema: z.ZodType<Passo> = z.lazy(() =>
   z.union([
+    z.object({ id: z.string().min(1), tipo: z.literal("fim") }),
     passoEmail,
     passoEspera,
     passoWhatsapp,
@@ -62,6 +63,17 @@ export const passoSchema: z.ZodType<Passo> = z.lazy(() =>
 ) as z.ZodType<Passo>;
 
 export const passosSchema = z.array(passoSchema).max(500);
+
+export const soltosSchema: z.ZodType<BlocoSolto[]> = z
+  .array(
+    z.object({
+      id: z.string().min(1).max(100),
+      x: z.number().finite().min(-100_000).max(100_000),
+      y: z.number().finite().min(-100_000).max(100_000),
+      passos: z.array(passoSchema).min(1).max(200),
+    }),
+  )
+  .max(100);
 
 export const configuracaoSchema = z.object({
   tagDoSegmento: z.string().trim().max(80),
@@ -101,9 +113,10 @@ export const editarCadenciaSchema = z
     name: z.string().trim().min(1).max(160).optional(),
     configuracao: configuracaoSchema.optional(),
     passos: passosSchema.optional(),
+    soltos: soltosSchema.optional(),
   })
   .strict()
-  .refine((v) => v.name !== undefined || v.configuracao !== undefined || v.passos !== undefined, {
+  .refine((v) => v.name !== undefined || v.configuracao !== undefined || v.passos !== undefined || v.soltos !== undefined, {
     message: "Nada para atualizar.",
   });
 

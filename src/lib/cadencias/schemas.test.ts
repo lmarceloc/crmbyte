@@ -24,7 +24,8 @@ describe("limite de lead quente", () => {
   it("configuração antiga (sem o campo) ganha o padrão de 2 aberturas", async () => {
     const { configuracaoSchema } = await import("./schemas");
     const { configuracaoPadrao } = await import("./tipos");
-    const { limiarLeadQuente: _ignorado, ...antiga } = configuracaoPadrao();
+    const antiga: Record<string, unknown> = { ...configuracaoPadrao() };
+    delete antiga.limiarLeadQuente;
     expect(configuracaoSchema.parse(antiga).limiarLeadQuente).toBe(2);
     expect(configuracaoPadrao().limiarLeadQuente).toBe(2);
   });
