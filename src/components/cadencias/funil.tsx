@@ -1,100 +1,192 @@
-"use client"
+'use client';
 
 // Gráfico de fluxo (estilo "Outcomes" do HubSpot): barras proporcionais por
 // etapa ligadas por faixas curvas. SVG puro, sem biblioteca.
+//
+// A largura do desenho acompanha a do contêiner (em px), para o texto manter o
+// mesmo tamanho em qualquer tela em vez de esticar junto com o gráfico.
+import { useEffect, useRef, useState } from 'react';
 
 export interface EtapaDoFunil {
-  rotulo: string
-  valor: number
-  cor: string
+  rotulo: string;
+  valor: number;
+  cor: string;
 }
 
 export interface ResultadoDoFunil {
-  rotulo: string
-  valor: number
-  cor: string
+  rotulo: string;
+  valor: number;
+  cor: string;
 }
 
-const W = 1000
-const H = 300
-const LARG_BARRA = 26
-const TOPO = 20
-const ALTURA_UTIL = 220
+const H = 300;
+const LARG_BARRA = 26;
+const TOPO = 20;
+const ALTURA_UTIL = 220;
+// folga nas laterais para os rótulos centralizados da 1ª e da última coluna
+const MARGEM = 60;
+// altura mínima de cada linha de resultado, para os rótulos não se sobreporem
+const LINHA_RES = 18;
 
 export function Funil({
   etapas,
   resultados,
 }: {
-  etapas: EtapaDoFunil[]
-  resultados: ResultadoDoFunil[]
+  etapas: EtapaDoFunil[];
+  resultados: ResultadoDoFunil[];
 }) {
-  const total = Math.max(1, etapas[0]?.valor ?? 0)
-  const colunas = etapas.length + 1 // + coluna de resultados
-  const passo = (W - LARG_BARRA) / (colunas - 1)
-  const altura = (v: number) => (v <= 0 ? 0 : Math.max(4, (v / total) * ALTURA_UTIL))
-  const x = (i: number) => i * passo
+  const ref = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(1000);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([e]) =>
+      setW(Math.max(480, Math.round(e.contentRect.width)))
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const total = Math.max(1, etapas[0]?.valor ?? 0);
+  const colunas = etapas.length + 1; // + coluna de resultados
+  const passo = (W - 2 * MARGEM - LARG_BARRA) / (colunas - 1);
+  const altura = (v: number) =>
+    v <= 0 ? 0 : Math.max(4, (v / total) * ALTURA_UTIL);
+  const x = (i: number) => MARGEM + i * passo;
 
   // posição vertical: barras centralizadas na área útil
   const barras = etapas.map((e, i) => {
-    const h = altura(e.valor)
-    return { ...e, x: x(i), y: TOPO + (ALTURA_UTIL - h) / 2, h }
-  })
+    const h = altura(e.valor);
+    return { ...e, x: x(i), y: TOPO + (ALTURA_UTIL - h) / 2, h };
+  });
 
-  // coluna final: resultados empilhados com folga
-  const somaRes = resultados.reduce((s, r) => s + altura(r.valor), 0)
-  const folga = 8
-  const alturasRes = resultados.map((r) => altura(r.valor))
-  const inicioRes = TOPO + (ALTURA_UTIL - (somaRes + folga * (resultados.length - 1))) / 2
-  const barrasRes = resultados.map((r, i) => ({
-    ...r,
-    x: x(colunas - 1),
-    y: inicioRes + alturasRes.slice(0, i).reduce((s, h) => s + h + folga, 0),
-    h: alturasRes[i],
-  }))
+  // coluna final: resultados empilhados com folga; cada um ocupa ao menos uma linha de texto
+  const folga = 8;
+  const alturasRes = resultados.map((r) => altura(r.valor));
+  const vagas = alturasRes.map((h) => Math.max(h, LINHA_RES));
+  const somaRes = vagas.reduce((s, h) => s + h, 0);
+  const inicioRes =
+    TOPO + (ALTURA_UTIL - (somaRes + folga * (resultados.length - 1))) / 2;
+  const barrasRes = resultados.map((r, i) => {
+    const h = alturasRes[i];
+    const y =
+      inicioRes +
+      vagas.slice(0, i).reduce((s, v) => s + v + folga, 0) +
+      (vagas[i] - h) / 2;
+    return { ...r, x: x(colunas - 1), y, h };
+  });
 
-  const faixa = (a: { x: number; y: number; h: number }, b: { x: number; y: number; h: number }) => {
-    const x0 = a.x + LARG_BARRA
-    const x1 = b.x
-    const mx = (x0 + x1) / 2
-    const h = Math.min(a.h, b.h)
-    const ya = a.y + (a.h - h) / 2
-    const yb = b.y + (b.h - h) / 2
-    return `M${x0},${ya} C${mx},${ya} ${mx},${yb} ${x1},${yb} L${x1},${yb + h} C${mx},${yb + h} ${mx},${ya + h} ${x0},${ya + h} Z`
-  }
+  const faixa = (
+    a: { x: number; y: number; h: number },
+    b: { x: number; y: number; h: number }
+  ) => {
+    const x0 = a.x + LARG_BARRA;
+    const x1 = b.x;
+    const mx = (x0 + x1) / 2;
+    const h = Math.min(a.h, b.h);
+    const ya = a.y + (a.h - h) / 2;
+    const yb = b.y + (b.h - h) / 2;
+    return `M${x0},${ya} C${mx},${ya} ${mx},${yb} ${x1},${yb} L${x1},${yb + h} C${mx},${yb + h} ${mx},${ya + h} ${x0},${ya + h} Z`;
+  };
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Funil da cadência">
-      {barras.slice(0, -1).map((b, i) => (
-        <path key={`f${i}`} d={faixa(b, barras[i + 1])} fill={barras[i + 1].cor} opacity={0.28} />
-      ))}
-      {barras.map((b) => (
-        <g key={b.rotulo}>
-          <rect x={b.x} y={b.y} width={LARG_BARRA} height={Math.max(b.h, 2)} rx={3} fill={b.cor} />
-          <text x={b.x + LARG_BARRA / 2} y={b.y + b.h / 2 + 4} textAnchor="middle" fontSize={12} fontWeight={600} fill="#111">
-            {b.h >= 16 ? b.valor : ""}
-          </text>
-          <text x={b.x + LARG_BARRA / 2} y={TOPO + ALTURA_UTIL + 22} textAnchor="middle" fontSize={13} className="fill-muted-foreground">
-            {b.rotulo}
-          </text>
-          <text x={b.x + LARG_BARRA / 2} y={TOPO + ALTURA_UTIL + 40} textAnchor="middle" fontSize={13} fontWeight={600} className="fill-foreground">
-            {b.valor}
-          </text>
-        </g>
-      ))}
-      {barrasRes.map((b) => (
-        <g key={b.rotulo}>
-          <rect x={b.x} y={b.y} width={LARG_BARRA} height={Math.max(b.h, 2)} rx={3} fill={b.cor} />
-          <text x={b.x - 8} y={b.y + b.h / 2 + 4} textAnchor="end" fontSize={12} className="fill-foreground">
-            {b.rotulo}: <tspan fontWeight={600}>{b.valor}</tspan>
-          </text>
-        </g>
-      ))}
-      <text x={x(colunas - 1) + LARG_BARRA / 2} y={TOPO + ALTURA_UTIL + 22} textAnchor="middle" fontSize={13} className="fill-muted-foreground">
-        Resultado
-      </text>
-      <text x={x(colunas - 1) + LARG_BARRA / 2} y={TOPO + ALTURA_UTIL + 40} textAnchor="middle" fontSize={11} className="fill-muted-foreground">
-        (marcado à mão)
-      </text>
-    </svg>
-  )
+    <div ref={ref} className="w-full overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width={W}
+        height={H}
+        role="img"
+        aria-label="Funil da cadência"
+      >
+        {barras.slice(0, -1).map((b, i) => (
+          <path
+            key={`f${i}`}
+            d={faixa(b, barras[i + 1])}
+            fill={barras[i + 1].cor}
+            opacity={0.28}
+          />
+        ))}
+        {barras.map((b) => (
+          <g key={b.rotulo}>
+            <rect
+              x={b.x}
+              y={b.y}
+              width={LARG_BARRA}
+              height={Math.max(b.h, 2)}
+              rx={3}
+              fill={b.cor}
+            />
+            <text
+              x={b.x + LARG_BARRA / 2}
+              y={b.y + b.h / 2 + 4}
+              textAnchor="middle"
+              fontSize={12}
+              fontWeight={600}
+              fill="#111"
+            >
+              {b.h >= 16 ? b.valor : ''}
+            </text>
+            <text
+              x={b.x + LARG_BARRA / 2}
+              y={TOPO + ALTURA_UTIL + 22}
+              textAnchor="middle"
+              fontSize={13}
+              className="fill-muted-foreground"
+            >
+              {b.rotulo}
+            </text>
+            <text
+              x={b.x + LARG_BARRA / 2}
+              y={TOPO + ALTURA_UTIL + 40}
+              textAnchor="middle"
+              fontSize={13}
+              fontWeight={600}
+              className="fill-foreground"
+            >
+              {b.valor}
+            </text>
+          </g>
+        ))}
+        {barrasRes.map((b) => (
+          <g key={b.rotulo}>
+            <rect
+              x={b.x}
+              y={b.y}
+              width={LARG_BARRA}
+              height={Math.max(b.h, 2)}
+              rx={3}
+              fill={b.cor}
+            />
+            <text
+              x={b.x - 8}
+              y={b.y + b.h / 2 + 4}
+              textAnchor="end"
+              fontSize={12}
+              className="fill-foreground"
+            >
+              {b.rotulo}: <tspan fontWeight={600}>{b.valor}</tspan>
+            </text>
+          </g>
+        ))}
+        <text
+          x={x(colunas - 1) + LARG_BARRA / 2}
+          y={TOPO + ALTURA_UTIL + 22}
+          textAnchor="middle"
+          fontSize={13}
+          className="fill-muted-foreground"
+        >
+          Resultado
+        </text>
+        <text
+          x={x(colunas - 1) + LARG_BARRA / 2}
+          y={TOPO + ALTURA_UTIL + 40}
+          textAnchor="middle"
+          fontSize={11}
+          className="fill-muted-foreground"
+        >
+          (marcado à mão)
+        </text>
+      </svg>
+    </div>
+  );
 }
