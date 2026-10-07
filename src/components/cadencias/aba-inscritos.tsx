@@ -154,7 +154,7 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="w-full space-y-6">
       <section className="space-y-2 rounded-lg border bg-card p-4">
         <h3 className="font-medium">Inscrever contatos de um negócio</h3>
         {!ativa ? (
@@ -242,7 +242,7 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
 
       <section className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full text-sm">
-          <thead className="border-b text-left text-xs text-muted-foreground">
+          <thead className="border-b text-left text-xs whitespace-nowrap text-muted-foreground">
             <tr>
               <th className="p-2">Negócio</th>
               <th className="p-2">Contato</th>
@@ -301,7 +301,7 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
                     <option value="agendado">Agendado</option>
                   </select>
                 </td>
-                <td className="p-2">
+                <td className="p-2 whitespace-nowrap">
                   {i.status === "ativa" ? new Date(i.proximo_em).toLocaleString("pt-BR") : "—"}
                 </td>
               </tr>
