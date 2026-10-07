@@ -229,7 +229,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'This WhatsApp phone number is already linked to another account on this instance. Each phone number can only be connected to one wacrm user.',
+            'Este número de WhatsApp já está ligado a outra conta neste CRM. Cada número só pode estar conectado a um usuário do CRM Byte.',
         },
         { status: 409 }
       )

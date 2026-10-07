@@ -473,8 +473,8 @@ export function WhatsAppConfig() {
                   }
                 >
                   {isRegistered
-                    ? 'Registered — Meta will deliver events to wacrm'
-                    : 'Not registered — Meta will not deliver events'}
+                    ? 'Registrado — a Meta vai entregar os eventos ao CRM Byte'
+                    : 'Não registrado — a Meta não vai entregar os eventos'}
                 </AlertTitle>
               </div>
               <Button
@@ -648,18 +648,19 @@ export function WhatsAppConfig() {
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground tracking-widest"
               />
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Needed only to wire <strong className="text-muted-foreground">inbound</strong> messages
-                for a <strong className="text-muted-foreground">production</strong> number. Set it in{' '}
+                Só é necessário para receber mensagens{' '}
+                <strong className="text-muted-foreground">recebidas</strong> num número de{' '}
+                <strong className="text-muted-foreground">produção</strong>. Defina em{' '}
                 <strong className="text-muted-foreground">
-                  Meta Business Manager → WhatsApp Accounts → Phone
-                  Numbers → Two-step verification
+                  Meta Business Manager → Contas do WhatsApp → Números
+                  de telefone → Verificação em duas etapas
                 </strong>
-                , then paste it here so wacrm can subscribe the number —
-                otherwise Meta routes inbound events to whichever app
-                last claimed it (the symptom that hits second numbers
-                under a shared WABA).{' '}
-                <strong className="text-muted-foreground">Meta test numbers</strong> have no
-                PIN and are pre-registered — leave this blank for them.
+                , depois cole aqui para o CRM Byte registrar o número —
+                senão a Meta entrega os eventos ao último app que
+                registrou o número (o que costuma acontecer com o segundo
+                número de uma WABA compartilhada).{' '}
+                <strong className="text-muted-foreground">Números de teste da Meta</strong> não
+                têm PIN e já vêm registrados — deixe em branco para eles.
                 Leaving it blank also keeps an existing registration
                 untouched.
               </p>

@@ -73,7 +73,7 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 pb-12">
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center text-center">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
@@ -162,6 +162,34 @@ function LoginPageInner() {
           </p>
         </CardContent>
       </Card>
+
+      <footer className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 py-4 text-xs text-muted-foreground">
+        Feito com
+        <svg
+          viewBox="0 0 7 6"
+          role="img"
+          aria-label="coração"
+          shapeRendering="crispEdges"
+          className="h-3 w-3.5 fill-red-500"
+        >
+          <rect x="1" y="0" width="2" height="1" />
+          <rect x="4" y="0" width="2" height="1" />
+          <rect x="0" y="1" width="7" height="1" />
+          <rect x="0" y="2" width="7" height="1" />
+          <rect x="1" y="3" width="5" height="1" />
+          <rect x="2" y="4" width="3" height="1" />
+          <rect x="3" y="5" width="1" height="1" />
+        </svg>
+        por
+        <a
+          href="https://agenciabyte.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-foreground hover:text-primary"
+        >
+          Agência Byte
+        </a>
+      </footer>
     </div>
   );
 }
