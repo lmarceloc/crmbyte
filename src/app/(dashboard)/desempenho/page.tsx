@@ -121,7 +121,7 @@ function Pagina() {
   const sel = "h-8 rounded-md border bg-background px-2 text-sm"
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5 p-4 lg:p-6">
+    <div className="w-full space-y-5 p-4 lg:p-6">
       <div className="flex items-start gap-3">
         <BarChart3 className="mt-1 h-6 w-6 text-primary" />
         <div>

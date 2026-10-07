@@ -148,7 +148,7 @@ export default function CompaniesPage() {
   }, [lista, busca])
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4 p-4 lg:p-6">
+    <div className="w-full space-y-4 p-4 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-start gap-3">
           <Building2 className="mt-1 h-6 w-6 text-primary" />
@@ -207,7 +207,7 @@ export default function CompaniesPage() {
                       {aberta === c.id ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                     </button>
                   </td>
-                  <td className="p-2 font-medium">
+                  <td className="p-2 font-medium whitespace-nowrap">
                     <button type="button" className="text-left hover:text-primary hover:underline" onClick={() => abrirPainel({ type: "company", id: c.id })}>
                       {c.name}
                     </button>
