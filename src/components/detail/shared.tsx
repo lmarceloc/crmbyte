@@ -22,6 +22,7 @@ import {
   Reply,
   MousePointerClick,
   OctagonX,
+  Paperclip,
   Send,
   UserPlus,
   X,
@@ -288,6 +289,7 @@ const ICONE_EVENTO: Record<string, LucideIcon> = {
   resultado_marcado: Flag,
   respondido: Reply,
   bounce: MailWarning,
+  anexo_aberto: Paperclip,
 }
 
 export function textoDoEvento(e: Pick<EventoDaLinha, "tipo" | "metadata">): string {
@@ -333,13 +335,15 @@ export function textoDoEvento(e: Pick<EventoDaLinha, "tipo" | "metadata">): stri
       const r = typeof m.resultado === "string" ? (ROTULO_RESULTADO[m.resultado] ?? m.resultado) : "removido"
       return `Resultado marcado: ${r}`
     }
+    case "anexo_aberto":
+      return typeof m.arquivo === "string" ? `Cliente abriu o anexo ${m.arquivo}` : "Cliente abriu um anexo"
     default:
       return e.tipo
   }
 }
 
 export function LinhaDoTempo({ eventos }: { eventos: EventoDaLinha[] }) {
-  if (eventos.length === 0) return <Vazio>Nenhuma atividade de cadência ainda.</Vazio>
+  if (eventos.length === 0) return <Vazio>Nenhuma atividade ainda.</Vazio>
   return (
     <ol className="space-y-3">
       {eventos.map((e) => {

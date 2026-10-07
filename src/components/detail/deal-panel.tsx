@@ -19,6 +19,7 @@ import { NotaForm } from "./nota-form"
 import { TextoComMencoes } from "./texto-com-mencoes"
 import { useMembros } from "@/hooks/use-membros"
 import { TarefasDoVinculo } from "@/components/tarefas/tarefas-do-vinculo"
+import { AnexosDoNegocio } from "./anexos-do-negocio"
 import {
   Avatar,
   BarraSuperior,
@@ -47,6 +48,7 @@ interface EmpresaDoNegocio {
 }
 interface Negocio {
   id: string
+  account_id: string
   title: string
   value: number
   currency: string | null
@@ -99,6 +101,7 @@ interface Dados {
   contatos: ContatoDoNegocio[]
   inscricoes: Inscricao[]
   eventos: EventoDaLinha[]
+  qtdAnexos: number
 }
 
 export function DealPanel({ id }: { id: string }) {
@@ -107,14 +110,16 @@ export function DealPanel({ id }: { id: string }) {
   const membros = useMembros()
   const [nota, setNota] = useState(false)
   const [temperatura, setTemperatura] = useState<DealTemperature | null>(null)
+  // atualizado pela aba Anexos ao enviar/excluir; antes disso vale a contagem do carregamento
+  const [qtdAnexos, setQtdAnexos] = useState<number | null>(null)
 
   const buscar = useCallback(async (): Promise<Dados> => {
     const db = createClient()
-    const [d, c, i, ev, pr] = await Promise.all([
+    const [d, c, i, ev, pr, ab, an] = await Promise.all([
       db
         .from("deals")
         .select(
-          "id,title,value,currency,status,notes,expected_close_date,linkedin_url,temperature,source,assigned_to,company:companies(id,name,website,linkedin_url),stage:pipeline_stages(name,color),pipeline:pipelines(name)",
+          "id,account_id,title,value,currency,status,notes,expected_close_date,linkedin_url,temperature,source,assigned_to,company:companies(id,name,website,linkedin_url),stage:pipeline_stages(name,color),pipeline:pipelines(name)",
         )
         .eq("id", id)
         .maybeSingle(),
@@ -131,10 +136,18 @@ export function DealPanel({ id }: { id: string }) {
         .order("created_at", { ascending: false })
         .limit(100),
       db.from("deal_products").select("id,name,unit_price,quantity").eq("deal_id", id).order("created_at"),
+      // aberturas do link dos anexos pelo cliente (viram eventos em Atividades)
+      db
+        .from("deal_attachment_opens")
+        .select("id,created_at,deal_attachments(file_name)")
+        .eq("deal_id", id)
+        .order("created_at", { ascending: false })
+        .limit(100),
+      db.from("deal_attachments").select("id", { count: "exact", head: true }).eq("deal_id", id),
     ])
     if (d.error) throw new Error(d.error.message)
     if (!d.data) throw new Error("Negócio não encontrado ou sem acesso.")
-    for (const r of [c, i, ev, pr]) if (r.error) throw new Error(r.error.message)
+    for (const r of [c, i, ev, pr, ab, an]) if (r.error) throw new Error(r.error.message)
 
     // notas de TODOS os contatos do negócio (a nota nova vai para o principal)
     const idsContatos = ((c.data ?? []) as unknown as ContatoDoNegocio[])
@@ -170,7 +183,13 @@ export function DealPanel({ id }: { id: string }) {
         contexto: um(en?.contacts ?? null)?.name ?? null,
       }
     })
+    for (const a of ab.data ?? []) {
+      const anexo = um(a.deal_attachments as { file_name: string } | { file_name: string }[] | null)
+      eventos.push({ id: a.id, tipo: "anexo_aberto", created_at: a.created_at, metadata: { arquivo: anexo?.file_name ?? null } })
+    }
+    eventos.sort((x, y) => y.created_at.localeCompare(x.created_at))
     return {
+      qtdAnexos: an.count ?? 0,
       notas: (notasRes.data ?? []) as unknown as NotaDoNegocio[],
       produtos: ((pr.data ?? []) as ItemDoNegocio[]).map((x) => ({
         ...x,
@@ -296,6 +315,7 @@ export function DealPanel({ id }: { id: string }) {
             <TabsTrigger value="notas">Notas ({notas.length})</TabsTrigger>
             <TabsTrigger value="cadencias">Cadências ({inscricoes.length})</TabsTrigger>
             <TabsTrigger value="atividades">Atividades</TabsTrigger>
+            <TabsTrigger value="anexos">Anexos ({qtdAnexos ?? dados.qtdAnexos})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="detalhes" className="space-y-6 p-5">
@@ -471,6 +491,10 @@ export function DealPanel({ id }: { id: string }) {
 
           <TabsContent value="atividades" className="p-5">
             <LinhaDoTempo eventos={eventos} />
+          </TabsContent>
+
+          <TabsContent value="anexos" className="p-5">
+            <AnexosDoNegocio dealId={negocio.id} accountId={negocio.account_id} onQuantidade={setQtdAnexos} />
           </TabsContent>
         </Tabs>
       </div>
