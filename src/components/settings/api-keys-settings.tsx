@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SettingsPanelHead } from "./settings-panel-head"
 import { useConfirmarExclusao } from "@/components/ui/confirmar-exclusao"
+import { ApiAccessKeys } from "./api-access-keys"
 
 interface StatusChave {
   provider: "apify" | "treg" | "openrouter" | "firecrawl" | "analisar_deals"
@@ -82,6 +83,7 @@ export function ApiKeysSettings() {
           <CartaoChave key={c.provider} status={c} editavel={canEditSettings} onChange={setChaves} />
         ))}
       </div>
+      <ApiAccessKeys editavel={canEditSettings} />
     </section>
   )
 }

@@ -4,7 +4,7 @@
 // WhatsApp nascem sem um dos dois, por isso a regra vale para a criação manual,
 // não para quem edita um contato que veio de fora.
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL =/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Mensagem (em português) do que falta para criar o contato, ou null se está tudo certo. */
 export function erroDoContatoNovo(c: { nome?: string | null; email?: string | null }): string | null {
