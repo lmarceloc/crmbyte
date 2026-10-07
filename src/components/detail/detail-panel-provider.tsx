@@ -61,7 +61,7 @@ export function DetailPanelProvider({ children }: { children: ReactNode }) {
       <Sheet open={!!atual} onOpenChange={(aberto) => !aberto && close()}>
         <SheetContent
           showCloseButton={false}
-          className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[640px]"
+          className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[800px]"
         >
           <SheetTitle className="sr-only">Detalhes</SheetTitle>
           {/* key: ao trocar de registro o painel remonta e recarrega do zero */}

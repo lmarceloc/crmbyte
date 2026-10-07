@@ -288,7 +288,7 @@ export function DealPanel({ id }: { id: string }) {
         </div>
 
         <Tabs value={aba} onValueChange={(v) => setAba(String(v))} className="gap-0">
-          <TabsList variant="line" className="h-10 w-full justify-start overflow-x-auto border-b px-3">
+          <TabsList variant="line" className="h-auto w-full flex-wrap justify-start gap-x-1 gap-y-1 border-b px-3 py-1.5 group-data-horizontal/tabs:h-auto [&>[data-slot=tabs-trigger]]:h-8 [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:px-3">
             <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
             <TabsTrigger value="contatos">Contatos ({contatos.length})</TabsTrigger>
             <TabsTrigger value="produtos">Produtos ({produtos.length})</TabsTrigger>
