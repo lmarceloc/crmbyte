@@ -29,6 +29,9 @@ const MIN_CADENCIA_INATIVA = 60;
 const MIN_FORA_DA_JANELA = 30;
 const MAX_TENTATIVAS = 3;
 const DIA_MS = 24 * 60 * 60_000;
+// Intervalo mínimo entre dois e-mails da mesma caixa (rajadas caem no spam), + até 60 s aleatórios.
+const INTERVALO_ENTRE_ENVIOS_MS = 3 * 60_000;
+const JITTER_ENTRE_ENVIOS_MS = 60_000;
 
 export interface ResultadoDoTick {
   processadas: number;
@@ -271,6 +274,19 @@ async function contarEnvios(
   return count ?? 0;
 }
 
+/** Quando foi o último e-mail desta caixa (ou do SMTP da instalação), em qualquer cadência da conta. */
+async function ultimoEnvio(ctx: Ctx, i: Inscricao, filtro: { caixaId: string } | { instalacao: true }): Promise<Date | null> {
+  let q = ctx.admin
+    .from("email_cadence_events")
+    .select("created_at")
+    .eq("account_id", i.account_id)
+    .eq("tipo", "email_enviado")
+    .gte("created_at", new Date(ctx.agora.getTime() - INTERVALO_ENTRE_ENVIOS_MS).toISOString());
+  q = "caixaId" in filtro ? q.eq("metadata->>caixa_id", filtro.caixaId) : q.eq("metadata->>via", "instalacao");
+  const { data } = await q.order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data?.created_at ? new Date(data.created_at as string) : null;
+}
+
 function limiteDaInstalacao(): number {
   const n = Number(process.env.CADENCIA_LIMITE_EMAILS_POR_DIA);
   return Number.isFinite(n) && n > 0 ? n : 60;
@@ -330,6 +346,13 @@ async function executarEmail(
     const fatia = cfg.limiteDiarioPorCaixa;
     if (await bateu(fatia, await contarEnvios(ctx, i, { caixaId: caixa.id }, i.cadence_id), { caixa_id: caixa.id })) return;
   } else if (await bateu(limiteDaInstalacao(), await contarEnvios(ctx, i, { instalacao: true }), {})) return;
+
+  // espaçamento: a mesma caixa não dispara dois e-mails com menos de 3 min de distância
+  const ultimo = await ultimoEnvio(ctx, i, caixa ? { caixaId: caixa.id } : { instalacao: true });
+  if (ultimo) {
+    const quando = ultimo.getTime() + INTERVALO_ENTRE_ENVIOS_MS + Math.floor(Math.random() * JITTER_ENTRE_ENVIOS_MS);
+    return atualizar(ctx, i, { proximo_em: new Date(Math.max(quando, ctx.agora.getTime() + 60_000)).toISOString() });
+  }
 
   // montagem
   const dados: DadosDoLead = {
