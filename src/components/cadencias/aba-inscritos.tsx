@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
+import { Info, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { encontrarPasso, numerarPassos, todosOsPassos } from "@/lib/cadencias/arvore"
+import type { Passo } from "@/lib/cadencias/tipos"
 import { createClient } from "@/lib/supabase/client"
 import { useCan } from "@/hooks/use-can"
 import { useDetailPanel } from "@/components/detail/detail-panel-provider"
@@ -24,6 +27,7 @@ interface Inscricao {
   contact_id: string
   status: string
   motivo_parada: string | null
+  passo_atual_id: string | null
   emails_enviados: number
   aberturas: number
   cliques: number
@@ -48,9 +52,47 @@ interface Negocio {
   deal_contacts: ContatoDoNegocio[]
 }
 
+const ROTULO_DO_PASSO: Record<Passo["tipo"], string> = {
+  email: "E-mail",
+  espera: "Espera",
+  ramo: "Condição",
+  whatsapp: "WhatsApp",
+  tarefa: "Tarefa",
+  fim: "Fim",
+}
+
+function descreverPasso(p: Passo, numero?: number): string {
+  const n = numero ? `Passo ${numero} · ` : ""
+  switch (p.tipo) {
+    case "email":
+      return `${n}E-mail: ${p.assunto || "(sem assunto)"}`
+    case "espera":
+      return `${n}Espera de ${p.diasUteis} dia(s) útil(eis)`
+    case "tarefa":
+      return `${n}Tarefa: ${p.titulo || "(sem título)"}`
+    case "fim":
+      return "Fim da cadência"
+    default:
+      return `${n}${ROTULO_DO_PASSO[p.tipo]}`
+  }
+}
+
+/** Em que etapa o lead está: passo_atual_id é o PRÓXIMO passo a executar (null = ainda não começou). */
+function etapaDoInscrito(i: Inscricao, passos: Passo[], numeros: Map<string, number>, total: number): string {
+  if (i.status === "concluida") return "Cadência concluída"
+  if (!i.passo_atual_id) return i.status === "ativa" ? "Aguardando o primeiro passo" : "Não chegou a começar"
+  const passo = encontrarPasso(passos, i.passo_atual_id)
+  if (!passo) return "Passo removido da cadência"
+  const prefixo = i.status === "ativa" ? "Próximo" : "Parou em"
+  const de = numeros.get(passo.id) ? ` de ${total}` : ""
+  return `${prefixo}: ${descreverPasso(passo, numeros.get(passo.id))}${de}`
+}
+
 const um = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v)
 
-export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa: boolean }) {
+export function AbaInscritos({ cadenciaId, ativa, passos }: { cadenciaId: string; ativa: boolean; passos: Passo[] }) {
+  const numeros = numerarPassos(passos)
+  const totalDePassos = todosOsPassos(passos).filter((p) => p.tipo !== "fim").length
   const podeInscrever = useCan("send-messages")
   const { open: abrirPainel } = useDetailPanel()
   const [lista, setLista] = useState<Inscricao[] | null>(null)
@@ -240,6 +282,7 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
         )}
       </section>
 
+      <TooltipProvider>
       <section className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full text-sm">
           <thead className="border-b text-left text-xs whitespace-nowrap text-muted-foreground">
@@ -282,8 +325,19 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
                   </button>
                 </td>
                 <td className="p-2">
-                  {i.status}
-                  {i.motivo_parada ? ` (${i.motivo_parada})` : ""}
+                  <span className="inline-flex items-center gap-1">
+                    {i.status}
+                    {i.motivo_parada ? ` (${i.motivo_parada})` : ""}
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={<button type="button" aria-label="Etapa na cadência" />}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <Info className="size-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent>{etapaDoInscrito(i, passos, numeros, totalDePassos)}</TooltipContent>
+                    </Tooltip>
+                  </span>
                 </td>
                 <td className="p-2">{i.emails_enviados}</td>
                 <td className="p-2">{i.aberturas}</td>
@@ -309,6 +363,7 @@ export function AbaInscritos({ cadenciaId, ativa }: { cadenciaId: string; ativa:
           </tbody>
         </table>
       </section>
+      </TooltipProvider>
     </div>
   )
 }
