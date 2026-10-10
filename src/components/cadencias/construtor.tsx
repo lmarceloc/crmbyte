@@ -210,7 +210,7 @@ export function Construtor({ id }: { id: string }) {
         </TabsContent>
 
         <TabsContent value="inscritos" className="overflow-auto">
-          <AbaInscritos cadenciaId={cadencia.id} ativa={ativa} />
+          <AbaInscritos cadenciaId={cadencia.id} ativa={ativa} passos={cadencia.passos} />
         </TabsContent>
       </Tabs>
     </div>
