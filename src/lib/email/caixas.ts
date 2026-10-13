@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { decrypt, encrypt } from "@/lib/whatsapp/encryption";
 import { sanitizarAssinatura } from "./assinatura";
+import { imapIndisponivel, mensagemDeFalhaSmtp } from "./diagnostico-smtp";
 import { verificarImap, type ConfigImap, type SegurancaImap } from "./imap";
 import { verificarSmtp, type ConfigSmtp } from "./smtp";
 import { assertDestinoResolvidoSeguro, DestinoInseguroError } from "./ssrf";
@@ -178,16 +179,12 @@ export async function salvarCaixa(
     throw e;
   }
   const teste = await verificarSmtp(cfg);
-  if (!teste.ok) {
-    throw new CaixaError(
-      teste.tipo === "authentication_failed"
-        ? "Usuário ou senha recusados pelo servidor. No Gmail/Outlook use uma senha de app."
-        : `Não foi possível conectar ao servidor SMTP (587 = STARTTLS, 465 = TLS): ${teste.detalhe}`,
-    );
-  }
+  if (!teste.ok) throw new CaixaError(mensagemDeFalhaSmtp(cfg.host, teste.tipo, teste.detalhe));
 
   // 4b. IMAP (opcional): login + pasta de enviados, também ANTES de gravar
   if (input.imap_host) {
+    const semImap = imapIndisponivel(input.imap_host);
+    if (semImap) throw new CaixaError(semImap);
     const imap = montarConfigImap({
       imapHost: input.imap_host,
       imapPort: input.imap_port,
