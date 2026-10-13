@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { Responsive, useContainerWidth, type Layout, type LayoutItem, type ResponsiveLayouts } from "react-grid-layout"
 import "react-grid-layout/css/styles.css"
+import "./painel-grade.css"
 import { GripVertical, LayoutGrid, RotateCcw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -85,20 +86,19 @@ export function PainelGrade({ blocos }: { blocos: Bloco[] }) {
             margin={[16, 16]}
             containerPadding={[0, 0]}
             dragConfig={{ enabled: editando, handle: ".painel-alca" }}
-            resizeConfig={{ enabled: editando, handles: ["se"] }}
+            resizeConfig={{ enabled: editando, handles: ["se", "e", "s"] }}
             onLayoutChange={aoMudar}
           >
             {blocos.map((b) => (
-              <div
-                key={b.id}
-                className={`relative h-full overflow-auto rounded-xl [&>*]:min-h-full ${editando ? "ring-2 ring-primary/40 ring-dashed" : ""}`}
-              >
+              // a alça de redimensionar é filha deste div: ele não pode rolar nem esticar os filhos,
+              // senão a alça some junto com o conteúdo
+              <div key={b.id} className={`rounded-xl ${editando ? "painel-editando ring-2 ring-primary/40" : ""}`}>
+                <div className="h-full overflow-auto rounded-xl [&>*]:min-h-full">{b.conteudo}</div>
                 {editando && (
                   <div className="painel-alca absolute top-2 left-1/2 z-10 flex -translate-x-1/2 cursor-move items-center rounded-md border bg-background/90 px-2 py-0.5 text-xs text-muted-foreground shadow-sm">
                     <GripVertical className="size-3.5" /> arrastar
                   </div>
                 )}
-                {b.conteudo}
               </div>
             ))}
           </Responsive>

@@ -1,0 +1,48 @@
+/* Alças de redimensionar sempre visíveis (e maiores) no modo Organizar painel. */
+.react-grid-item.painel-editando > .react-resizable-handle {
+  opacity: 1;
+  z-index: 20;
+}
+.react-grid-item.painel-editando > .react-resizable-handle-se {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px 0 12px 0;
+  background: var(--primary);
+}
+.react-grid-item.painel-editando > .react-resizable-handle-se::after {
+  border-color: var(--primary-foreground);
+  width: 8px;
+  height: 8px;
+  right: 5px;
+  bottom: 5px;
+}
+.react-grid-item.painel-editando > .react-resizable-handle-e,
+.react-grid-item.painel-editando > .react-resizable-handle-s {
+  background: color-mix(in oklab, var(--primary) 35%, transparent);
+  border-radius: 9999px;
+}
+.react-grid-item.painel-editando > .react-resizable-handle-e {
+  width: 6px;
+  height: 40px;
+  right: -3px;
+  top: 50%;
+  margin-top: -20px;
+  transform: none;
+}
+.react-grid-item.painel-editando > .react-resizable-handle-s {
+  height: 6px;
+  width: 40px;
+  bottom: -3px;
+  left: 50%;
+  margin-left: -20px;
+  transform: none;
+}
+.react-grid-item.painel-editando > .react-resizable-handle-e::after,
+.react-grid-item.painel-editando > .react-resizable-handle-s::after {
+  display: none;
+}
+.react-grid-item > .react-grid-placeholder,
+.react-grid-placeholder {
+  background: var(--primary);
+  border-radius: 0.75rem;
+}
