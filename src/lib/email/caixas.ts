@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { decrypt, encrypt } from "@/lib/whatsapp/encryption";
 import { sanitizarAssinatura } from "./assinatura";
-import { imapIndisponivel, mensagemDeFalhaSmtp } from "./diagnostico-smtp";
+import { exigeLogin, imapIndisponivel, mensagemDeFalhaSmtp } from "./diagnostico-smtp";
 import { verificarImap, type ConfigImap, type SegurancaImap } from "./imap";
 import { verificarSmtp, type ConfigSmtp } from "./smtp";
 import { assertDestinoResolvidoSeguro, DestinoInseguroError } from "./ssrf";
@@ -151,6 +151,8 @@ export async function salvarCaixa(
       throw new CaixaError("Não foi possível abrir a senha gravada. Informe a senha novamente.");
     }
   }
+  const semLogin = exigeLogin(input.smtp_host, input.smtp_username);
+  if (semLogin) throw new CaixaError(semLogin);
   if (input.smtp_username && !senhaPura) throw new CaixaError("Informe a senha da caixa.");
 
   // 2. dono precisa ser membro da conta
