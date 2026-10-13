@@ -34,6 +34,8 @@ import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { DisparosDoDia } from '@/components/dashboard/disparos-do-dia'
+import { PainelGrade, type Bloco } from '@/components/dashboard/painel-grade'
 
 type RangeDays = 7 | 30 | 90
 
@@ -119,6 +121,92 @@ export default function DashboardPage() {
     [series],
   )
 
+  const comCaixa = RECURSOS.caixaDeEntrada
+  const carregandoMetricas = metricsLoading || !metrics
+  const blocos: Bloco[] = [
+    ...(comCaixa
+      ? [{
+          id: 'm-conversas',
+          padrao: { x: 0, y: 0, w: 3, h: 3 },
+          conteudo: carregandoMetricas ? <SkeletonCard /> : (
+            <MetricCard
+              title="Conversas ativas"
+              value={metrics.activeConversations.current.toLocaleString()}
+              icon={MessageSquare}
+              delta={{
+                sign: metrics.activeConversations.previous,
+                label: deltaLabel(metrics.activeConversations.previous, 'novas hoje vs. ontem'),
+              }}
+            />
+          ),
+        }]
+      : []),
+    {
+      id: 'm-contatos',
+      padrao: { x: comCaixa ? 3 : 0, y: 0, w: comCaixa ? 3 : 6, h: 3 },
+      conteudo: carregandoMetricas ? <SkeletonCard /> : (
+        <MetricCard
+          title="Novos contatos hoje"
+          value={metrics.newContactsToday.current.toLocaleString()}
+          icon={UserPlus}
+          delta={{
+            sign: metrics.newContactsToday.current - metrics.newContactsToday.previous,
+            label: deltaLabel(metrics.newContactsToday.current - metrics.newContactsToday.previous, 'vs. ontem'),
+          }}
+        />
+      ),
+    },
+    {
+      id: 'm-valor',
+      padrao: { x: 6, y: 0, w: comCaixa ? 3 : 6, h: 3 },
+      conteudo: carregandoMetricas ? <SkeletonCard /> : (
+        <MetricCard
+          title="Valor de negócios abertos"
+          value={formatCurrency(metrics.openDealsValue, defaultCurrency)}
+          icon={DollarSign}
+          subtitle={`${metrics.openDealsCount} negócio${metrics.openDealsCount === 1 ? '' : 's'} aberto${metrics.openDealsCount === 1 ? '' : 's'}`}
+        />
+      ),
+    },
+    ...(comCaixa
+      ? [{
+          id: 'm-mensagens',
+          padrao: { x: 9, y: 0, w: 3, h: 3 },
+          conteudo: carregandoMetricas ? <SkeletonCard /> : (
+            <MetricCard
+              title="Mensagens enviadas hoje"
+              value={metrics.messagesSentToday.current.toLocaleString()}
+              icon={Send}
+              delta={{
+                sign: metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
+                label: deltaLabel(metrics.messagesSentToday.current - metrics.messagesSentToday.previous, 'vs. ontem'),
+              }}
+            />
+          ),
+        }]
+      : []),
+    { id: 'disparos', padrao: { x: 0, y: 3, w: 6, h: 6 }, conteudo: <DisparosDoDia /> },
+    { id: 'atalhos', padrao: { x: 6, y: 3, w: 6, h: 3 }, conteudo: <QuickActions /> },
+    ...(comCaixa
+      ? [{
+          id: 'conversas',
+          padrao: { x: 0, y: 9, w: 7, h: 9 },
+          conteudo: (
+            <ConversationsChart series={series} loading={seriesLoading} range={range} onRangeChange={handleRangeChange} />
+          ),
+        }]
+      : []),
+    {
+      id: 'pipeline',
+      padrao: { x: comCaixa ? 7 : 0, y: 9, w: comCaixa ? 5 : 12, h: 9 },
+      conteudo: <PipelineDonut data={pipeline} loading={pipelineLoading} currency={defaultCurrency} />,
+    },
+    ...(comCaixa
+      ? [{ id: 'tempo-resposta', padrao: { x: 0, y: 18, w: 12, h: 9 }, conteudo: <ResponseTimeChart data={responseTime} loading={responseTimeLoading} /> }]
+      : []),
+    { id: 'atividade', padrao: { x: 0, y: 27, w: 12, h: 12 }, conteudo: <ActivityFeed items={activity} loading={activityLoading} /> },
+  ]
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -129,96 +217,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Metric cards */}
-      <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${RECURSOS.caixaDeEntrada ? 'lg:grid-cols-4' : 'lg:grid-cols-2'}`}>
-        {metricsLoading || !metrics ? (
-          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-        ) : (
-          <>
-            {RECURSOS.caixaDeEntrada && (
-            <MetricCard
-              title="Conversas ativas"
-              value={metrics.activeConversations.current.toLocaleString()}
-              icon={MessageSquare}
-              delta={{
-                sign: metrics.activeConversations.previous,
-                label: deltaLabel(metrics.activeConversations.previous, 'novas hoje vs. ontem'),
-              }}
-            />
-            )}
-            <MetricCard
-              title="Novos contatos hoje"
-              value={metrics.newContactsToday.current.toLocaleString()}
-              icon={UserPlus}
-              delta={{
-                sign:
-                  metrics.newContactsToday.current - metrics.newContactsToday.previous,
-                label: deltaLabel(
-                  metrics.newContactsToday.current - metrics.newContactsToday.previous,
-                  'vs. ontem',
-                ),
-              }}
-            />
-            <MetricCard
-              title="Valor de negócios abertos"
-              value={formatCurrency(metrics.openDealsValue, defaultCurrency)}
-              icon={DollarSign}
-              subtitle={`${metrics.openDealsCount} negócio${metrics.openDealsCount === 1 ? '' : 's'} aberto${metrics.openDealsCount === 1 ? '' : 's'}`}
-            />
-            {RECURSOS.caixaDeEntrada && (
-            <MetricCard
-              title="Mensagens enviadas hoje"
-              value={metrics.messagesSentToday.current.toLocaleString()}
-              icon={Send}
-              delta={{
-                sign:
-                  metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
-                label: deltaLabel(
-                  metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
-                  'vs. ontem',
-                ),
-              }}
-            />
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Quick actions */}
-      <QuickActions />
-
-      {/* Charts row */}
-      {/* items-stretch (the grid default) stretches the two columns to
-          match the tallest sibling; adding h-full on each wrapper and
-          on the inner panels makes both cards actually fill that
-          stretched height so their rounded borders line up. Without
-          this, the pipeline card rendered at its natural (shorter)
-          height while the line chart drove the row height. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        {RECURSOS.caixaDeEntrada && (
-          <div className="h-full lg:col-span-3">
-            <ConversationsChart
-              series={series}
-              loading={seriesLoading}
-              range={range}
-              onRangeChange={handleRangeChange}
-            />
-          </div>
-        )}
-        <div className={`h-full ${RECURSOS.caixaDeEntrada ? 'lg:col-span-2' : 'lg:col-span-5'}`}>
-          <PipelineDonut
-            data={pipeline}
-            loading={pipelineLoading}
-            currency={defaultCurrency}
-          />
-        </div>
-      </div>
-
-      {/* Response time */}
-      {RECURSOS.caixaDeEntrada && <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />}
-
-      {/* Activity feed */}
-      <ActivityFeed items={activity} loading={activityLoading} />
+      <PainelGrade blocos={blocos} />
     </div>
   )
 }
