@@ -14,13 +14,18 @@ Implementado a partir das specs `spec-cadencias-fluxo-email` e
 
 - `044_cadence_loose_steps.sql` — `email_cadences.soltos`: caixas soltas do canvas (ainda não ligadas ao fluxo). **Rode antes de subir o código**: o editor grava as caixas soltas nessa coluna.
 
-Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 044).
+- `048_resumo_semanal.sql` — `tarefas.adiada_em/adiamentos` (prazo empurrado) e `resumos_semanais` (controle de envio). **Rode antes de subir o código**: o worker passa a enviar o resumo semanal.
+
+Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 048).
 
 ## Cron (1×/min, com `Authorization: Bearer $CRON_SECRET`)
 - `GET /api/cadencias/worker` — envia e-mails, espera, ramifica, para.
 - `GET /api/prospecting/worker` — acompanha buscas Apify e revela e-mails B2B.
 
 Exemplo de crontab: `* * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://SEU_DOMINIO/api/cadencias/worker`
+
+## Resumo semanal
+O mesmo cron do `GET /api/cadencias/worker` envia, toda segunda a partir das 8h (Brasília), o resumo da semana anterior para os perfis **owner** e **admin** de cada conta (uma vez por conta/semana). Remetente: SMTP da instalação; sem ele, a caixa compartilhada da conta ou a do dono. Em Configurações → Membros há o botão *Enviar prévia para mim*.
 
 ## Cópia em "Enviados" (IMAP)
 O SMTP só entrega o e-mail; guardar a cópia na caixa do remetente é trabalho do cliente

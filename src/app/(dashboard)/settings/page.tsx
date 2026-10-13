@@ -20,6 +20,7 @@ import { IaSettings } from '@/components/settings/ia-settings';
 import { AnalisarDealsSettings } from '@/components/settings/analisar-deals-settings';
 import { LossReasonsSettings } from '@/components/settings/loss-reasons-settings';
 import { MembersTab } from '@/components/settings/members-tab';
+import { ResumoSemanalCard } from '@/components/settings/resumo-semanal-card';
 import {
   resolveSection,
   type SettingsSection,
@@ -72,7 +73,12 @@ export default function SettingsPage() {
       </>
     ),
     motivos: <LossReasonsSettings />,
-    members: <MembersTab />,
+    members: (
+      <>
+        <MembersTab />
+        <ResumoSemanalCard />
+      </>
+    ),
   };
 
   return (
