@@ -16,13 +16,24 @@ Implementado a partir das specs `spec-cadencias-fluxo-email` e
 
 - `048_resumo_semanal.sql` — `tarefas.adiada_em/adiamentos` (prazo empurrado) e `resumos_semanais` (controle de envio). **Rode antes de subir o código**: o worker passa a enviar o resumo semanal.
 
-Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 048).
+- `049_mailbox_microsoft_oauth.sql` — caixa conectada pelo login da Microsoft (`provedor`, tokens OAuth cifrados). **Rode antes de subir o código**: a listagem de caixas passa a ler essas colunas.
+
+Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 049).
 
 ## Cron (1×/min, com `Authorization: Bearer $CRON_SECRET`)
 - `GET /api/cadencias/worker` — envia e-mails, espera, ramifica, para.
 - `GET /api/prospecting/worker` — acompanha buscas Apify e revela e-mails B2B.
 
 Exemplo de crontab: `* * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://SEU_DOMINIO/api/cadencias/worker`
+
+## Microsoft 365 pelo login da Microsoft (OAuth + Graph)
+Em **Caixas de envio → Conectar com Microsoft**, o vendedor entra com a conta Microsoft (com o MFA dele) e a caixa passa a enviar pelo Microsoft Graph (`/me/sendMail`): sem senha de app, sem SMTP AUTH, cópia automática em "Itens Enviados".
+
+- App multiempresa registrado **uma vez pela Byte** no Entra (agenciabyte.com), "Vários locatários". URI de retorno (Web): `https://crm.agenciabyte.com/api/microsoft/callback`. Permissões **delegadas** do Graph: `User.Read`, `Mail.Send`, `Mail.Read`, `offline_access`, `openid`, `email`, `profile`.
+- Variáveis na Vercel: `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` (o segredo vence em até 24 meses — renovar antes). Opcional: `MICROSOFT_REDIRECT_URI`.
+- Empresa cliente: o administrador do Microsoft 365 dela pode precisar autorizar o app na primeira conexão; pode revogar a qualquer momento em Entra → Aplicativos empresariais.
+- Segurança: permissões delegadas (o token só alcança a caixa de quem conectou); `state` cifrado com conta+usuário+validade e nonce/PKCE em cookie httpOnly; tokens cifrados no banco (tabela só service_role).
+- Conectar um e-mail que já existe como caixa SMTP converte essa caixa para Microsoft. Leitura de respostas/bounces pelo Graph: ainda não (próxima etapa).
 
 ## Resumo semanal
 O mesmo cron do `GET /api/cadencias/worker` envia, toda segunda a partir das 8h (Brasília), o resumo da semana anterior para os perfis **owner** e **admin** de cada conta (uma vez por conta/semana). Remetente: SMTP da instalação; sem ele, a caixa compartilhada da conta ou a do dono. Em Configurações → Membros há o botão *Enviar prévia para mim*.

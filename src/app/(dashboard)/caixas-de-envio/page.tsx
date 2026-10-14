@@ -18,6 +18,8 @@ import { useConfirmarExclusao } from "@/components/ui/confirmar-exclusao"
 
 interface Caixa {
   id: string
+  provedor: "smtp" | "microsoft"
+  oauth_conta: string | null
   email: string
   from_name: string
   owner_user_id: string | null
@@ -61,6 +63,7 @@ const PROVEDORES: {
 
 const VAZIO = {
   id: undefined as string | undefined,
+  provedor: "smtp" as Caixa["provedor"],
   email: "",
   from_name: "",
   owner_user_id: "",
@@ -98,6 +101,17 @@ function Caixas() {
      
     load()
   }, [load])
+
+  // volta do login da Microsoft (/api/microsoft/callback)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    const ok = q.get("microsoft_ok")
+    const falha = q.get("microsoft_erro")
+    if (!ok && !falha) return
+    if (ok) toast.success(`Caixa ${ok} conectada pela Microsoft.`)
+    else toast.error(falha, { duration: 15000 })
+    window.history.replaceState(null, "", window.location.pathname)
+  }, [])
 
   useEffect(() => {
     if (!account?.id) return
@@ -137,7 +151,7 @@ function Caixas() {
       })
       const d = await r.json()
       if (!r.ok) return toast.error(d.error ?? "Falha ao salvar a caixa.")
-      toast.success("Caixa testada e salva.")
+      toast.success(ehMicrosoft ? "Caixa salva." : "Caixa testada e salva.")
       setF(VAZIO)
       load()
     } finally {
@@ -157,6 +171,7 @@ function Caixas() {
   function editar(c: Caixa) {
     setF({
       id: c.id,
+      provedor: c.provedor,
       email: c.email,
       from_name: c.from_name,
       owner_user_id: c.owner_user_id ?? "",
@@ -176,6 +191,12 @@ function Caixas() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
+  const [donoMicrosoft, setDonoMicrosoft] = useState("")
+  function conectarMicrosoft(dono: string | null) {
+    window.location.href = `/api/microsoft/conectar${dono ? `?dono=${encodeURIComponent(dono)}` : ""}`
+  }
+  const ehMicrosoft = f.provedor === "microsoft"
+
   const nomeDono = (id: string | null) => membros.find((m) => m.user_id === id)?.full_name ?? "Compartilhada"
 
   return (
@@ -190,10 +211,34 @@ function Caixas() {
         </div>
       </div>
 
+      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1 space-y-1">
+          <h2 className="text-sm font-semibold">Microsoft 365 / Outlook</h2>
+          <p className="text-xs text-muted-foreground">
+            Conecte com o login da Microsoft: sem senha de app, sem SMTP. Envia pelo Microsoft Graph e a cópia fica em
+            “Itens Enviados”. Na primeira vez, o administrador do Microsoft 365 da empresa pode precisar autorizar o app.
+          </p>
+          <select
+            className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm sm:max-w-xs"
+            value={donoMicrosoft}
+            onChange={(e) => setDonoMicrosoft(e.target.value)}
+            aria-label="Vendedor dono da caixa"
+          >
+            <option value="">Compartilhada</option>
+            {membros.map((m) => <option key={m.user_id} value={m.user_id}>{m.full_name}</option>)}
+          </select>
+        </div>
+        <Button type="button" onClick={() => conectarMicrosoft(donoMicrosoft || null)} className="shrink-0">
+          <Mail className="mr-1 h-4 w-4" /> Conectar com Microsoft
+        </Button>
+      </div>
+
       <form onSubmit={salvar} className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
         <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
-          <h2 className="text-sm font-semibold">{f.id ? "Editar caixa" : "Nova caixa"}</h2>
-          {PROVEDORES.map((p) => (
+          <h2 className="text-sm font-semibold">
+            {f.id ? (ehMicrosoft ? "Editar caixa (Microsoft)" : "Editar caixa") : "Nova caixa SMTP"}
+          </h2>
+          {!ehMicrosoft && PROVEDORES.map((p) => (
             <Button key={p.nome} type="button" size="sm" variant="outline"
               onClick={() =>
                 setF((x) => ({
@@ -211,7 +256,7 @@ function Caixas() {
             </Button>
           ))}
         </div>
-        <Campo label="E-mail"><Input type="email" required value={f.email} onChange={(e) => set("email", e.target.value)} /></Campo>
+        <Campo label="E-mail"><Input type="email" required readOnly={ehMicrosoft} value={f.email} onChange={(e) => set("email", e.target.value)} /></Campo>
         <Campo label="Nome de exibição"><Input value={f.from_name} onChange={(e) => set("from_name", e.target.value)} /></Campo>
         <Campo label="Vendedor dono da caixa">
           <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={f.owner_user_id} onChange={(e) => set("owner_user_id", e.target.value)}>
@@ -220,6 +265,7 @@ function Caixas() {
           </select>
         </Campo>
         <Campo label="Limite diário (1–2000)"><Input type="number" min={1} max={2000} value={f.daily_limit} onChange={(e) => set("daily_limit", Number(e.target.value))} /></Campo>
+        {!ehMicrosoft && (<>
         <Campo label="Servidor SMTP"><Input required value={f.smtp_host} onChange={(e) => set("smtp_host", e.target.value)} /></Campo>
         <div className="grid grid-cols-2 gap-3">
           <Campo label="Porta"><Input type="number" min={1} max={65535} value={f.smtp_port} onChange={(e) => set("smtp_port", Number(e.target.value))} /></Campo>
@@ -277,6 +323,7 @@ function Caixas() {
             </div>
           )}
         </div>
+        </>)}
         <div className="sm:col-span-2">
           <Campo label="Assinatura (HTML)">
             <Textarea rows={5} value={f.signature_html} onChange={(e) => set("signature_html", e.target.value)} />
@@ -287,7 +334,7 @@ function Caixas() {
         </div>
         <div className="flex gap-2 sm:col-span-2">
           <Button type="submit" disabled={busy}>
-            {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Testar e salvar
+            {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{ehMicrosoft ? "Salvar" : "Testar e salvar"}
           </Button>
           {f.id && <Button type="button" variant="ghost" onClick={() => setF(VAZIO)}>Cancelar edição</Button>}
         </div>
@@ -306,7 +353,11 @@ function Caixas() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{c.email}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {nomeDono(c.owner_user_id)} · {c.smtp_host}:{c.smtp_port} · {c.daily_limit}/dia
+                  {nomeDono(c.owner_user_id)} ·{" "}
+                  {c.provedor === "microsoft"
+                    ? `Microsoft 365 (conectada como ${c.oauth_conta ?? c.email})`
+                    : `${c.smtp_host}:${c.smtp_port}`}{" "}
+                  · {c.daily_limit}/dia
                 </p>
                 {c.imap_host && (
                   <p className="truncate text-xs text-muted-foreground">
@@ -325,6 +376,9 @@ function Caixas() {
                 )}
               </div>
               <Badge variant={c.verified_at ? "outline" : "destructive"}>{c.verified_at ? "Verificada" : "Não verificada"}</Badge>
+              {c.provedor === "microsoft" && (
+                <Button size="sm" variant="ghost" onClick={() => conectarMicrosoft(c.owner_user_id)}>Reconectar</Button>
+              )}
               <Button size="sm" variant="outline" onClick={() => editar(c)}>Editar</Button>
               <Button size="icon" variant="ghost" aria-label="Remover" onClick={() => remover(c)}>
                 <Trash2 className="h-4 w-4" />
