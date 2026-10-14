@@ -89,30 +89,40 @@ function montarMime(opcoes: ConstructorParameters<typeof MailComposer>[0]): Prom
   });
 }
 
+/** MIME pronto (o mesmo que vai pelo SMTP ou pelo Graph e que é gravado em "Enviados"). */
+export async function montarMensagem(msg: MensagemDeEmail): Promise<{ raw: Buffer; messageId: string }> {
+  const nome = limpaNome(msg.fromName);
+  const messageId = `<${randomUUID()}@${msg.fromEmail.split("@").pop()}>`;
+  const raw = await montarMime({
+    from: nome ? `${nome} <${msg.fromEmail}>` : msg.fromEmail,
+    to: msg.to,
+    subject: msg.subject,
+    html: msg.html,
+    text: msg.text,
+    replyTo: msg.replyTo,
+    headers: msg.headers,
+    messageId,
+    date: new Date(),
+  });
+  return { raw, messageId };
+}
+
+export function enderecosSeguros(msg: MensagemDeEmail): boolean {
+  return emailSeguro(msg.fromEmail) && emailSeguro(msg.to);
+}
+
 export async function enviarPorSmtp(
   cfg: ConfigSmtp,
   msg: MensagemDeEmail,
 ): Promise<ResultadoDoEnvio> {
-  if (!emailSeguro(msg.fromEmail) || !emailSeguro(msg.to)) {
+  if (!enderecosSeguros(msg)) {
     return { ok: false, erro: "sender_rejected", detalhe: "Endereço inválido." };
   }
   try {
     await assertDestinoResolvidoSeguro(cfg.host);
-    const nome = limpaNome(msg.fromName);
     // Monta o MIME uma vez só: o mesmo conteúdo (e Message-ID) que segue pelo SMTP
     // é o que o chamador grava em "Enviados".
-    const messageId = `<${randomUUID()}@${msg.fromEmail.split("@").pop()}>`;
-    const raw = await montarMime({
-      from: nome ? `${nome} <${msg.fromEmail}>` : msg.fromEmail,
-      to: msg.to,
-      subject: msg.subject,
-      html: msg.html,
-      text: msg.text,
-      replyTo: msg.replyTo,
-      headers: msg.headers,
-      messageId,
-      date: new Date(),
-    });
+    const { raw, messageId } = await montarMensagem(msg);
     await transporte(cfg).sendMail({ envelope: { from: msg.fromEmail, to: [msg.to] }, raw });
     return { ok: true, raw, messageId };
   } catch (e) {

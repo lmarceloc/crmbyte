@@ -2,7 +2,7 @@
 // O Microsoft 365 explica o motivo no próprio erro (5.7.139, 5.7.30 ...) — antes
 // isso era trocado por uma frase genérica e o usuário ficava sem saber o que fazer.
 
-const ehMicrosoft = (host: string) => /(^|\.)(office365\.com|outlook\.com|office\.com|hotmail\.com)$/i.test(host.trim());
+export const ehMicrosoft = (host: string) => /(^|\.)(office365\.com|outlook\.com|office\.com|hotmail\.com)$/i.test(host.trim());
 
 export function mensagemDeFalhaSmtp(
   host: string,
@@ -51,5 +51,12 @@ export function mensagemDeFalhaSmtp(
 export function imapIndisponivel(imapHost: string | null): string | null {
   if (imapHost && ehMicrosoft(imapHost))
     return "O Microsoft 365 não aceita IMAP com senha (só OAuth). Deixe o servidor IMAP em branco: o envio funciona, mas respostas e bounces não serão detectados.";
+  return null;
+}
+
+/** Sem usuário o teste só abre a conexão e "passa"; o 365 recusa depois, no envio (5.7.57). */
+export function exigeLogin(smtpHost: string, usuario: string): string | null {
+  if (!usuario.trim() && ehMicrosoft(smtpHost))
+    return "O Microsoft 365 exige usuário e senha: sem login a caixa salva, mas todo envio é recusado (530 5.7.57). Informe o usuário (nome de login da conta, o UPN) e a senha de app.";
   return null;
 }

@@ -3,9 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { decrypt, encrypt } from "@/lib/whatsapp/encryption";
 import { sanitizarAssinatura } from "./assinatura";
-import { imapIndisponivel, mensagemDeFalhaSmtp } from "./diagnostico-smtp";
+import { exigeLogin, imapIndisponivel, mensagemDeFalhaSmtp } from "./diagnostico-smtp";
 import { verificarImap, type ConfigImap, type SegurancaImap } from "./imap";
-import { verificarSmtp, type ConfigSmtp } from "./smtp";
+import { enviarPeloGraph, type ContaConectada } from "./microsoft";
+import { enviarPorSmtp, verificarSmtp, type ConfigSmtp, type MensagemDeEmail, type ResultadoDoEnvio } from "./smtp";
 import { assertDestinoResolvidoSeguro, DestinoInseguroError } from "./ssrf";
 
 export class CaixaError extends Error {
@@ -51,8 +52,16 @@ export const caixaInputSchema = z
   .strict();
 export type CaixaInput = z.infer<typeof caixaInputSchema>;
 
+export type ProvedorDaCaixa = "smtp" | "microsoft";
+
+/** Numa caixa conectada pela Microsoft, smtp_host guarda isto (só informativo). */
+export const HOST_DO_GRAPH = "graph.microsoft.com";
+
 export interface CaixaPublica {
   id: string;
+  provedor: ProvedorDaCaixa;
+  /** Conta Microsoft que autorizou (UPN). */
+  oauth_conta: string | null;
   email: string;
   from_name: string;
   owner_user_id: string | null;
@@ -77,7 +86,7 @@ export interface CaixaPublica {
 }
 
 const COLUNAS_PUBLICAS =
-  "id,email,from_name,owner_user_id,smtp_host,smtp_port,smtp_security,smtp_username,smtp_password_encrypted,daily_limit,verified_at,last_error,signature_html,imap_host,imap_port,imap_security,imap_sent_folder,imap_last_error,imap_copy_sent,imap_inbox_checked_at,imap_inbox_error";
+  "id,provedor,oauth_conta,email,from_name,owner_user_id,smtp_host,smtp_port,smtp_security,smtp_username,smtp_password_encrypted,daily_limit,verified_at,last_error,signature_html,imap_host,imap_port,imap_security,imap_sent_folder,imap_last_error,imap_copy_sent,imap_inbox_checked_at,imap_inbox_error";
 
 /**
  * Config do IMAP da caixa, ou null se a cópia em "Enviados" está desligada.
@@ -132,11 +141,12 @@ export async function salvarCaixa(
   if (input.id) {
     const { data } = await admin
       .from("email_mailboxes")
-      .select("smtp_password_encrypted,imap_host,smtp_username,email")
+      .select("smtp_password_encrypted,imap_host,smtp_username,email,provedor")
       .eq("id", input.id)
       .eq("account_id", accountId)
       .maybeSingle();
     if (!data) throw new CaixaError("Caixa não encontrada.", 404);
+    if (data.provedor === "microsoft") return editarCaixaMicrosoft(admin, accountId, input);
     senhaCifradaAtual = data.smtp_password_encrypted;
     // mesma caixa de entrada: continua a leitura de onde parou
     mesmaEntrada =
@@ -151,6 +161,8 @@ export async function salvarCaixa(
       throw new CaixaError("Não foi possível abrir a senha gravada. Informe a senha novamente.");
     }
   }
+  const semLogin = exigeLogin(input.smtp_host, input.smtp_username);
+  if (semLogin) throw new CaixaError(semLogin);
   if (input.smtp_username && !senhaPura) throw new CaixaError("Informe a senha da caixa.");
 
   // 2. dono precisa ser membro da conta
@@ -248,6 +260,97 @@ export async function salvarCaixa(
   };
 }
 
+/** Caixa conectada pela Microsoft: o endereço e o login vêm da Microsoft; aqui só nome, dono, limite e assinatura. */
+async function editarCaixaMicrosoft(
+  admin: SupabaseClient,
+  accountId: string,
+  input: CaixaInput,
+): Promise<{ caixa: CaixaPublica; criada: boolean; senhaTrocada: boolean }> {
+  await validarDono(admin, accountId, input.owner_user_id);
+  const { data, error } = await admin
+    .from("email_mailboxes")
+    .update({
+      from_name: input.from_name,
+      owner_user_id: input.owner_user_id,
+      daily_limit: input.daily_limit,
+      signature_html: sanitizarAssinatura(input.signature_html),
+    })
+    .eq("id", input.id!)
+    .eq("account_id", accountId)
+    .select(COLUNAS_PUBLICAS)
+    .single();
+  if (error) {
+    if (error.code === "23505") throw new CaixaError("Este vendedor já tem caixa.", 409);
+    throw new CaixaError(error.message, 500);
+  }
+  return { caixa: paraPublica(data as LinhaCaixa), criada: false, senhaTrocada: false };
+}
+
+async function validarDono(admin: SupabaseClient, accountId: string, ownerUserId: string | null) {
+  if (!ownerUserId) return;
+  const { data: membro } = await admin
+    .from("profiles")
+    .select("user_id")
+    .eq("user_id", ownerUserId)
+    .eq("account_id", accountId)
+    .maybeSingle();
+  if (!membro) throw new CaixaError("O vendedor escolhido não é membro desta conta.");
+}
+
+/**
+ * Grava a caixa conectada pela Microsoft. Mesma conta + mesmo e-mail = reconexão (atualiza,
+ * inclusive uma caixa SMTP antiga desse endereço, que passa a enviar pela Microsoft).
+ */
+export async function salvarCaixaMicrosoft(
+  admin: SupabaseClient,
+  accountId: string,
+  userId: string,
+  ownerUserId: string | null,
+  conta: ContaConectada,
+): Promise<{ criada: boolean }> {
+  await validarDono(admin, accountId, ownerUserId);
+  const { data: existente } = await admin
+    .from("email_mailboxes")
+    .select("id,owner_user_id")
+    .eq("account_id", accountId)
+    .ilike("email", conta.email.replace(/[\\%_]/g, (c) => `\\${c}`))
+    .maybeSingle();
+  const linha = {
+    provedor: "microsoft",
+    email: conta.email,
+    smtp_host: HOST_DO_GRAPH,
+    smtp_port: 443,
+    smtp_security: "tls",
+    smtp_username: conta.upn,
+    smtp_password_encrypted: null,
+    imap_host: null,
+    oauth_conta: conta.upn,
+    oauth_tenant_id: conta.tenantId,
+    oauth_refresh_token_encrypted: encrypt(conta.refreshToken),
+    oauth_access_token_encrypted: encrypt(conta.accessToken),
+    oauth_access_expira_em: conta.expiraEm.toISOString(),
+    verified_at: new Date().toISOString(),
+    last_error: null,
+    imap_last_error: null,
+  };
+  const consulta = existente
+    ? admin
+        .from("email_mailboxes")
+        .update({ ...linha, owner_user_id: ownerUserId ?? existente.owner_user_id })
+        .eq("id", existente.id)
+        .eq("account_id", accountId)
+    : admin
+        .from("email_mailboxes")
+        .insert({ ...linha, account_id: accountId, owner_user_id: ownerUserId, from_name: conta.nome, created_by: userId });
+  const { error } = await consulta;
+  if (error) {
+    if (error.code === "23505")
+      throw new CaixaError("Este vendedor já tem outra caixa. Remova a caixa antiga dele antes de conectar esta.", 409);
+    throw new CaixaError(error.message, 500);
+  }
+  return { criada: !existente };
+}
+
 export async function removerCaixa(admin: SupabaseClient, accountId: string, id: string): Promise<void> {
   const { data, error } = await admin
     .from("email_mailboxes")
@@ -262,6 +365,8 @@ export async function removerCaixa(admin: SupabaseClient, accountId: string, id:
 /** Caixa com credenciais — SÓ para o worker. */
 export interface CaixaDeEnvio {
   id: string;
+  accountId: string;
+  provedor: ProvedorDaCaixa;
   email: string;
   fromName: string;
   dailyLimit: number;
@@ -287,7 +392,7 @@ export async function carregarCaixaDeEnvio(
   const { data } = await q.limit(1).maybeSingle();
   if (!data) return null;
   let password = "";
-  if (data.smtp_password_encrypted) {
+  if (data.provedor !== "microsoft" && data.smtp_password_encrypted) {
     try {
       password = decrypt(data.smtp_password_encrypted);
     } catch {
@@ -296,6 +401,8 @@ export async function carregarCaixaDeEnvio(
   }
   return {
     id: data.id,
+    accountId,
+    provedor: data.provedor === "microsoft" ? "microsoft" : "smtp",
     email: data.email,
     fromName: data.from_name,
     dailyLimit: data.daily_limit,
@@ -319,6 +426,13 @@ export async function carregarCaixaDeEnvio(
     copiarEnviados: data.imap_copy_sent !== false,
     imapTinhaErro: !!data.imap_last_error,
   };
+}
+
+/** Envia pela caixa: SMTP ou, se conectada pela Microsoft, Microsoft Graph. */
+export function enviarPelaCaixa(admin: SupabaseClient, caixa: CaixaDeEnvio, msg: MensagemDeEmail): Promise<ResultadoDoEnvio> {
+  return caixa.provedor === "microsoft"
+    ? enviarPeloGraph(admin, caixa.accountId, caixa.id, msg)
+    : enviarPorSmtp(caixa.smtp, msg);
 }
 
 async function gravarUltimoErro(

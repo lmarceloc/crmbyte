@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { imapIndisponivel, mensagemDeFalhaSmtp } from "./diagnostico-smtp";
+import { exigeLogin, imapIndisponivel, mensagemDeFalhaSmtp } from "./diagnostico-smtp";
 
 const O365 = "smtp.office365.com";
 
@@ -42,4 +42,10 @@ it("imapIndisponivel só para Microsoft", () => {
   expect(imapIndisponivel("outlook.office365.com")).toContain("OAuth");
   expect(imapIndisponivel("imap.gmail.com")).toBeNull();
   expect(imapIndisponivel(null)).toBeNull();
+});
+
+it("exigeLogin: Microsoft sem usuário é recusado", () => {
+  expect(exigeLogin("smtp.office365.com", "")).toContain("5.7.57");
+  expect(exigeLogin("smtp.office365.com", "eu@empresa.com")).toBeNull();
+  expect(exigeLogin("smtp.relay.local", "")).toBeNull();
 });

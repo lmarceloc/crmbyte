@@ -1,8 +1,8 @@
 // Envio do resumo semanal: toda segunda a partir das 8h (Brasília), uma vez por conta,
 // para os perfis owner/admin. Chamado a cada tick do worker de cadência.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { carregarCaixaDeEnvio } from "@/lib/email/caixas";
-import { enviarPorSmtp, smtpDaInstalacao, type ConfigSmtp } from "@/lib/email/smtp";
+import { carregarCaixaDeEnvio, enviarPelaCaixa, type CaixaDeEnvio } from "@/lib/email/caixas";
+import { enviarPorSmtp, smtpDaInstalacao, type MensagemDeEmail } from "@/lib/email/smtp";
 import { montarResumo } from "./dados";
 import { assuntoDoResumo, htmlDoResumo, textoDoResumo } from "./email";
 import { horaDeEnviar, semanaAnterior, type Semana } from "./periodo";
@@ -11,18 +11,21 @@ import { horaDeEnviar, semanaAnterior, type Semana } from "./periodo";
 const CONTAS_POR_TICK = 5;
 
 interface Remetente {
-  cfg: ConfigSmtp;
   fromEmail: string;
   fromName: string;
+  enviar: (msg: MensagemDeEmail) => ReturnType<typeof enviarPorSmtp>;
 }
 
 async function remetente(admin: SupabaseClient, accountId: string, ownerUserId: string | null): Promise<Remetente | null> {
   const inst = smtpDaInstalacao();
-  if (inst) return { cfg: inst.cfg, fromEmail: inst.fromEmail, fromName: inst.fromName || "CRM" };
+  if (inst)
+    return { fromEmail: inst.fromEmail, fromName: inst.fromName || "CRM", enviar: (m) => enviarPorSmtp(inst.cfg, m) };
   const caixa =
     (await carregarCaixaDeEnvio(admin, accountId, { compartilhada: true })) ??
     (ownerUserId ? await carregarCaixaDeEnvio(admin, accountId, { ownerUserId }) : null);
-  return caixa ? { cfg: caixa.smtp, fromEmail: caixa.email, fromName: caixa.fromName || "CRM" } : null;
+  if (!caixa) return null;
+  const c: CaixaDeEnvio = caixa;
+  return { fromEmail: c.email, fromName: c.fromName || "CRM", enviar: (m) => enviarPelaCaixa(admin, c, m) };
 }
 
 export interface ResultadoDoResumo {
@@ -75,7 +78,7 @@ export async function enviarResumoDaConta(
 
   const resultado: ResultadoDoResumo = { enviados: 0, falhas: [], tentou: true };
   for (const to of destinatarios) {
-    const r = await enviarPorSmtp(de.cfg, { fromEmail: de.fromEmail, fromName: de.fromName, to, subject, html, text });
+    const r = await de.enviar({ fromEmail: de.fromEmail, fromName: de.fromName, to, subject, html, text });
     if (r.ok) resultado.enviados++;
     else resultado.falhas.push(`${to}: ${r.detalhe}`);
   }

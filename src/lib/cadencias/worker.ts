@@ -4,13 +4,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   carregarCaixaDeEnvio,
+  enviarPelaCaixa,
   registrarResultadoDaCaixa,
   registrarResultadoDoImapDaCaixa,
   type CaixaDeEnvio,
 } from "@/lib/email/caixas";
 import { assinaturaEmTexto } from "@/lib/email/assinatura";
 import { copiarParaEnviados } from "@/lib/email/imap";
-import { enviarPorSmtp, smtpDaInstalacao, type ConfigSmtp } from "@/lib/email/smtp";
+import { enviarPorSmtp, smtpDaInstalacao } from "@/lib/email/smtp";
 import { processarCaixasDeEntrada } from "./caixa-de-entrada";
 import { avancarDiasUteis } from "./dias-uteis";
 import { corpoEmHtml, corpoEmTexto, escaparMarkdown } from "./corpo-rico";
@@ -390,9 +391,8 @@ async function executarEmail(
     (assinatura ? `\n\n${assinaturaEmTexto(assinatura)}` : "") +
     `\n\n---\nNão quer mais receber estes e-mails? ${urlDescadastro}`;
 
-  const smtp: ConfigSmtp = caixa ? caixa.smtp : instalacao!.cfg;
   const fromEmail = caixa ? caixa.email : instalacao!.fromEmail;
-  const resposta = await enviarPorSmtp(smtp, {
+  const mensagem = {
     fromEmail,
     fromName: caixa ? caixa.fromName || dono.nome || "" : dono.nome || instalacao!.fromName,
     to: contato.email.trim(),
@@ -404,7 +404,9 @@ async function executarEmail(
       "List-Unsubscribe": `<${urlDescadastro}>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     },
-  });
+  };
+  // caixa SMTP ou conectada pela Microsoft (Graph); sem caixa, o SMTP da instalação
+  const resposta = caixa ? await enviarPelaCaixa(ctx.admin, caixa, mensagem) : await enviarPorSmtp(instalacao!.cfg, mensagem);
 
   if (caixa) {
     await registrarResultadoDaCaixa(ctx.admin, i.account_id, caixa.id, resposta.ok ? null : resposta.detalhe, false);
