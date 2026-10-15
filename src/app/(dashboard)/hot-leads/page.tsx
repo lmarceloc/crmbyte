@@ -7,11 +7,15 @@ import { RequireRole } from "@/components/auth/require-role"
 import { Badge } from "@/components/ui/badge"
 import { useDetailPanel } from "@/components/detail/detail-panel-provider"
 import { EVENTO_HOT_LEADS_VISTOS } from "@/lib/cadencias/hot-leads"
+import { CriarNegocioDaInscricao } from "@/components/cadencias/inscrever-em-cadencia"
 
 interface HotLead {
   enrollment_id: string
+  cadence_id: string
   cadence_name: string | null
-  deal_id: string
+  contact_id: string
+  /** null = inscrito sem negócio: o vendedor decide se cria */
+  deal_id: string | null
   deal_title: string | null
   deal_status: string | null
   contact_name: string | null
@@ -86,15 +90,26 @@ function HotLeads() {
               className={`flex items-center gap-3 p-3 ${l.novo ? "bg-orange-500/5" : ""}`}
             >
               <div className="min-w-0 flex-1">
-                <button
-                  type="button"
-                  onClick={() => abrirPainel({ type: "deal", id: l.deal_id })}
-                  className="block max-w-full truncate text-left text-sm font-medium hover:underline"
-                >
-                  {l.deal_title ?? "Negócio sem título"}
-                </button>
+                {l.deal_id ? (
+                  <button
+                    type="button"
+                    onClick={() => abrirPainel({ type: "deal", id: l.deal_id! })}
+                    className="block max-w-full truncate text-left text-sm font-medium hover:underline"
+                  >
+                    {l.deal_title ?? "Negócio sem título"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => abrirPainel({ type: "contact", id: l.contact_id })}
+                    className="block max-w-full truncate text-left text-sm font-medium hover:underline"
+                  >
+                    {l.contact_name ?? "Sem contato"}
+                  </button>
+                )}
                 <p className="truncate text-xs text-muted-foreground">
-                  {l.contact_name ?? "Sem contato"} · {l.cadence_name ?? "Cadência"}
+                  {l.deal_id ? `${l.contact_name ?? "Sem contato"} · ` : "Sem negócio · "}
+                  {l.cadence_name ?? "Cadência"}
                 </p>
                 <p className="text-xs text-muted-foreground">Última abertura {fmt(l.ultima_abertura_em)}</p>
               </div>
@@ -103,7 +118,22 @@ function HotLeads() {
                   Novo
                 </span>
               )}
-              <Badge variant="outline">{STATUS[l.deal_status ?? ""] ?? "—"}</Badge>
+              {l.deal_id ? (
+                <Badge variant="outline">{STATUS[l.deal_status ?? ""] ?? "—"}</Badge>
+              ) : (
+                <CriarNegocioDaInscricao
+                  cadenciaId={l.cadence_id}
+                  inscricaoId={l.enrollment_id}
+                  onCriado={(n) => {
+                    setLeads((atual) =>
+                      (atual ?? []).map((x) =>
+                        x.enrollment_id === l.enrollment_id ? { ...x, deal_id: n.id, deal_title: n.title, deal_status: "open" } : x,
+                      ),
+                    )
+                    abrirPainel({ type: "deal", id: n.id })
+                  }}
+                />
+              )}
               <Badge>{l.aberturas}× aberturas</Badge>
             </li>
           ))}

@@ -11,6 +11,7 @@ import { ContatosDoNegocio } from "@/components/companies/contatos-do-negocio"
 import { NovoContatoForm } from "@/components/companies/novo-contato-form"
 import { NovoNegocioForm } from "@/components/companies/novo-negocio-form"
 import { useCan } from "@/hooks/use-can"
+import { InscreverEmCadencia } from "@/components/cadencias/inscrever-em-cadencia"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/currency"
 import { TemperatureBadge } from "@/components/pipelines/temperature-badge"
@@ -65,7 +66,7 @@ interface Dados {
   contatos: ContatoLinha[]
   negocios: NegocioLinha[]
   eventos: EventoDaLinha[]
-  totais: { enviados: number; aberturas: number }
+  totais: { inscricoes: number; enviados: number; aberturas: number }
 }
 
 export function CompanyPanel({ id }: { id: string }) {
@@ -96,18 +97,26 @@ export function CompanyPanel({ id }: { id: string }) {
 
     const negocios = (neg.data ?? []) as unknown as NegocioLinha[]
     const ids = negocios.map((n) => n.id)
+    const idsContatos = ((cont.data ?? []) as ContatoLinha[]).map((c) => c.id)
     let eventos: EventoDaLinha[] = []
-    const totais = { enviados: 0, aberturas: 0 }
-    if (ids.length > 0) {
-      const [ev, ins] = await Promise.all([
-        db
-          .from("email_cadence_events")
-          .select("id,tipo,created_at,metadata,deals(title),email_cadence_enrollments(contacts(name))")
-          .in("deal_id", ids)
-          .order("created_at", { ascending: false })
-          .limit(50),
-        db.from("email_cadence_enrollments").select("emails_enviados,aberturas").in("deal_id", ids),
-      ])
+    const totais = { inscricoes: 0, enviados: 0, aberturas: 0 }
+    // Inscrições dos negócios da empresa E dos contatos dela inscritos sem negócio.
+    const filtros = [
+      ids.length ? `deal_id.in.(${ids.join(",")})` : null,
+      idsContatos.length ? `contact_id.in.(${idsContatos.join(",")})` : null,
+    ].filter(Boolean)
+    const ins = filtros.length
+      ? await db.from("email_cadence_enrollments").select("id,emails_enviados,aberturas").or(filtros.join(","))
+      : { data: [], error: null }
+    if (ins.error) throw new Error(ins.error.message)
+    const idsInscricoes = (ins.data ?? []).map((i) => i.id as string)
+    if (idsInscricoes.length > 0) {
+      const ev = await db
+        .from("email_cadence_events")
+        .select("id,tipo,created_at,metadata,deals(title),email_cadence_enrollments(contacts(name))")
+        .in("enrollment_id", idsInscricoes)
+        .order("created_at", { ascending: false })
+        .limit(50)
       if (ev.error) throw new Error(ev.error.message)
       eventos = (ev.data ?? []).map((e) => {
         const d = um(e.deals as { title: string } | { title: string }[] | null)
@@ -126,6 +135,7 @@ export function CompanyPanel({ id }: { id: string }) {
           contexto: [c?.name, d?.title].filter(Boolean).join(" · ") || null,
         }
       })
+      totais.inscricoes = idsInscricoes.length
       for (const i of ins.data ?? []) {
         totais.enviados += i.emails_enviados ?? 0
         totais.aberturas += i.aberturas ?? 0
@@ -143,6 +153,7 @@ export function CompanyPanel({ id }: { id: string }) {
   const site = linkSeguro(empresa.website)
   const linkedin = linkSeguro(empresa.linkedin_url)
   const comEmail = contatos.find((c) => c.email?.trim())
+  const idsComEmail = contatos.filter((c) => c.email?.trim()).map((c) => c.id)
 
   return (
     <>
@@ -160,9 +171,17 @@ export function CompanyPanel({ id }: { id: string }) {
           }
           acoes={
             comEmail && (
-              <Button variant="outline" size="sm" nativeButton={false} render={<a href={`mailto:${comEmail.email}`} />}>
-                <Mail /> E-mail
-              </Button>
+              <>
+                <Button variant="outline" size="sm" nativeButton={false} render={<a href={`mailto:${comEmail.email}`} />}>
+                  <Mail /> E-mail
+                </Button>
+                <InscreverEmCadencia
+                  contactIds={idsComEmail}
+                  rotulo="Inscrever contatos em cadência"
+                  descricao={`Os ${idsComEmail.length} contato(s) com e-mail entram na cadência sem criar negócio. Quando um deles evoluir, use “Criar negócio” para levá-lo ao pipeline.`}
+                  onInscrito={recarregar}
+                />
+              </>
             )
           }
         />
@@ -192,8 +211,8 @@ export function CompanyPanel({ id }: { id: string }) {
               <div className="grid grid-cols-2 gap-3">
                 <Metrica titulo="Contatos" valor={contatos.length} />
                 <Metrica titulo="Negócios" valor={negocios.length} detalhe={`${negocios.filter((n) => n.status === "open").length} em aberto`} />
-                <Metrica titulo="E-mails enviados" valor={negocios.length ? totais.enviados : "—"} />
-                <Metrica titulo="Aberturas" valor={negocios.length ? totais.aberturas : "—"} />
+                <Metrica titulo="E-mails enviados" valor={totais.inscricoes ? totais.enviados : "—"} />
+                <Metrica titulo="Aberturas" valor={totais.inscricoes ? totais.aberturas : "—"} />
               </div>
             </Secao>
           </TabsContent>

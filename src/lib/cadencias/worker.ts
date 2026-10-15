@@ -49,7 +49,8 @@ interface Inscricao {
   id: string;
   account_id: string;
   cadence_id: string;
-  deal_id: string;
+  /** null = contato inscrito sem negócio (o vendedor cria o negócio quando o lead evoluir) */
+  deal_id: string | null;
   contact_id: string;
   passo_atual_id: string | null;
   ultimo_email_em: string | null;
@@ -245,11 +246,18 @@ interface Dono {
   email: string | null;
 }
 
-async function resolverDono(ctx: Ctx, deal: { assigned_to: string | null; user_id: string }): Promise<Dono> {
+/** Dono do lead: o responsável do negócio; sem negócio, quem inscreveu. */
+interface Responsavel {
+  assigned_to: string | null;
+  user_id: string | null;
+}
+
+async function resolverDono(ctx: Ctx, deal: Responsavel): Promise<Dono> {
+  if (!deal.assigned_to && !deal.user_id) return { userId: null, nome: null, email: null };
   const q = ctx.admin.from("profiles").select("user_id, full_name, email");
   const { data } = deal.assigned_to
     ? await q.eq("id", deal.assigned_to).maybeSingle()
-    : await q.eq("user_id", deal.user_id).maybeSingle();
+    : await q.eq("user_id", deal.user_id!).maybeSingle();
   return {
     userId: data?.user_id ?? deal.user_id,
     nome: data?.full_name ?? null,
@@ -304,7 +312,7 @@ async function executarEmail(
   i: Inscricao,
   passo: PassoEmail,
   cadencia: { passos: Passo[]; configuracao: ConfiguracaoDaCadencia },
-  deal: { assigned_to: string | null; user_id: string },
+  deal: Responsavel,
   contato: {
     name: string | null;
     email: string | null;
@@ -446,14 +454,19 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
   const passos = cadencia.passos as Passo[];
   const cfg: ConfiguracaoDaCadencia = { ...configuracaoPadrao(), ...(cadencia.configuracao as object) };
 
-  const { data: deal } = await ctx.admin
-    .from("deals")
-    .select("status,assigned_to,user_id,companies(name)")
-    .eq("id", i.deal_id)
-    .eq("account_id", i.account_id)
-    .maybeSingle();
-  if (!deal) return parar(ctx, i, "ganho_ou_perdido");
-  if (cfg.paradas.ganhoOuPerdido && deal.status !== "open") return parar(ctx, i, "ganho_ou_perdido");
+  // Sem negócio: o dono é quem inscreveu e a empresa vem do contato.
+  let deal: Responsavel & { companies?: unknown } = { assigned_to: null, user_id: i.inscrito_por, companies: null };
+  if (i.deal_id) {
+    const { data } = await ctx.admin
+      .from("deals")
+      .select("status,assigned_to,user_id,companies(name)")
+      .eq("id", i.deal_id)
+      .eq("account_id", i.account_id)
+      .maybeSingle();
+    if (!data) return parar(ctx, i, "ganho_ou_perdido");
+    if (cfg.paradas.ganhoOuPerdido && data.status !== "open") return parar(ctx, i, "ganho_ou_perdido");
+    deal = data;
+  }
 
   const passo = passoParaExecutar(passos, i.passo_atual_id);
   if (!passo) return concluir(ctx, i);

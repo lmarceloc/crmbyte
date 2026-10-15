@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 
+import { createClient } from "@/lib/supabase/client"
+
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -35,6 +37,12 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   )
 }
 
+interface Funil {
+  id: string
+  name: string
+  pipeline_stages: { id: string; name: string; position: number }[]
+}
+
 interface Caixa {
   id: string
   email: string
@@ -58,6 +66,19 @@ export function AbaConfiguracoes({ config, somenteLeitura, onChange, podeMudarLi
       .catch(() => setCaixas([]))
   }, [])
 
+  const [funis, setFunis] = useState<Funil[]>([])
+  useEffect(() => {
+    createClient()
+      .from("pipelines")
+      .select("id,name,pipeline_stages(id,name,position)")
+      .order("created_at")
+      .then(({ data }) => setFunis((data ?? []) as Funil[]))
+  }, [])
+  const negocio = config.negocio ?? { pipelineId: null, stageId: null }
+  const etapas = [...(funis.find((f) => f.id === negocio.pipelineId)?.pipeline_stages ?? [])].sort(
+    (a, b) => a.position - b.position,
+  )
+
   const set = (parcial: Partial<ConfiguracaoDaCadencia>) => onChange({ ...config, ...parcial })
   const paradas: { k: keyof ConfiguracaoDaCadencia["paradas"]; r: string; trava?: boolean }[] = [
     { k: "descadastro", r: "Quando o contato se descadastrar (obrigatório)", trava: true },
@@ -79,7 +100,7 @@ export function AbaConfiguracoes({ config, somenteLeitura, onChange, podeMudarLi
             onChange={(e) => set({ tagDoSegmento: normalizarTag(e.target.value) })}
           />
           <p className="text-xs text-muted-foreground">
-            Informativa e usada na variável {"{{segmento}}"}. Os negócios entram manualmente, na aba Inscritos.
+            Informativa e usada na variável {"{{segmento}}"}. Contatos e negócios entram manualmente, na aba Inscritos (ou pelo painel do contato/empresa).
           </p>
         </div>
         <div className="flex items-center justify-between">
@@ -89,6 +110,48 @@ export function AbaConfiguracoes({ config, somenteLeitura, onChange, podeMudarLi
             disabled={somenteLeitura}
             onCheckedChange={(v) => set({ somenteEmailValidado: v })}
           />
+        </div>
+      </Secao>
+
+      <Secao titulo="Negócio">
+        <p className="text-xs text-muted-foreground">
+          Contatos entram na cadência sem ir para o pipeline. Quando um lead evoluir (respondeu, clicou, virou lead
+          quente…), clique em “Criar negócio” nos Inscritos ou em Leads quentes: ele nasce aqui. A cadência continua
+          rodando — para parar quando ele responder, use “Quando para”.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Funil</Label>
+            <select
+              className={campoSel}
+              disabled={somenteLeitura}
+              value={negocio.pipelineId ?? ""}
+              onChange={(e) => set({ negocio: { pipelineId: e.target.value || null, stageId: null } })}
+            >
+              <option value="">Primeiro funil da conta</option>
+              {funis.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Etapa</Label>
+            <select
+              className={campoSel}
+              disabled={somenteLeitura || !negocio.pipelineId}
+              value={negocio.stageId ?? ""}
+              onChange={(e) => set({ negocio: { ...negocio, stageId: e.target.value || null } })}
+            >
+              <option value="">Primeira etapa</option>
+              {etapas.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </Secao>
 

@@ -10,6 +10,7 @@ import { ptBR } from "date-fns/locale"
 import {
   ArrowLeft,
   Ban,
+  Briefcase,
   CircleCheck,
   Eye,
   Flag,
@@ -290,6 +291,7 @@ const ICONE_EVENTO: Record<string, LucideIcon> = {
   respondido: Reply,
   bounce: MailWarning,
   anexo_aberto: Paperclip,
+  negocio_criado: Briefcase,
 }
 
 export function textoDoEvento(e: Pick<EventoDaLinha, "tipo" | "metadata">): string {
@@ -297,6 +299,8 @@ export function textoDoEvento(e: Pick<EventoDaLinha, "tipo" | "metadata">): stri
   switch (e.tipo) {
     case "inscrito":
       return "Inscrito na cadência"
+    case "negocio_criado":
+      return "Negócio criado a partir da cadência"
     case "reinscrito":
       return "Reinscrito na cadência"
     case "email_enviado":

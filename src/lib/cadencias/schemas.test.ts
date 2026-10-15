@@ -43,3 +43,21 @@ describe("limite de lead quente", () => {
     expect(mudarLimiarSchema.safeParse({ limiarLeadQuente: 2, passos: [] }).success).toBe(false);
   });
 });
+
+describe("inscrição por contato e negócio da inscrição", () => {
+  it("aceita negócio OU lista de contatos, não os dois", async () => {
+    const { inscreverNegocioSchema } = await import("./schemas");
+    const u = "00000000-0000-4000-8000-000000000001";
+    expect(inscreverNegocioSchema.safeParse({ deal_id: u }).success).toBe(true);
+    expect(inscreverNegocioSchema.safeParse({ contact_ids: [u] }).success).toBe(true);
+    expect(inscreverNegocioSchema.safeParse({ contact_ids: [] }).success).toBe(false);
+    expect(inscreverNegocioSchema.safeParse({ deal_id: u, contact_ids: [u] }).success).toBe(false);
+  });
+
+  it("configuração antiga sem `negocio` ganha o padrão", async () => {
+    const { configuracaoSchema } = await import("./schemas");
+    const { configuracaoPadrao } = await import("./tipos");
+    const { negocio: _, ...antiga } = configuracaoPadrao();
+    expect(configuracaoSchema.parse(antiga).negocio).toEqual({ pipelineId: null, stageId: null });
+  });
+});

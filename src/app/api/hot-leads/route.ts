@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const { data, error } = await ctx.supabase
       .from("email_cadence_enrollments")
       .select(
-        "id,cadence_id,deal_id,status,aberturas,primeira_abertura_em,ultima_abertura_em, email_cadences(name), deals(title,status,assigned_to,pipeline_id), contacts(name)",
+        "id,cadence_id,deal_id,contact_id,status,aberturas,primeira_abertura_em,ultima_abertura_em, email_cadences(name), deals(title,status,assigned_to,pipeline_id), contacts(name)",
       )
       .not("quente_em", "is", null) // limite de cada cadência (migração 043)
       .order("aberturas", { ascending: false })
@@ -46,6 +46,7 @@ export async function GET(request: Request) {
       return {
         enrollment_id: r.id,
         cadence_id: r.cadence_id,
+        contact_id: r.contact_id,
         cadence_name: cad?.name ?? null,
         deal_id: r.deal_id,
         deal_title: deal?.title ?? null,

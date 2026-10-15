@@ -20,10 +20,12 @@ import {
   type InscricaoEmOutraCadencia,
 } from "@/lib/cadencias/inscricao-do-negocio"
 import { inscricoesAtivasEmOutras } from "@/lib/cadencias/ocupacao"
+import { CriarNegocioDaInscricao } from "./inscrever-em-cadencia"
 
 interface Inscricao {
   id: string
-  deal_id: string
+  /** null = contato inscrito sem negócio */
+  deal_id: string | null
   contact_id: string
   status: string
   motivo_parada: string | null
@@ -44,6 +46,14 @@ interface ContatoInfo {
   name: string | null
   email: string | null
   email_unsubscribed_at: string | null
+}
+interface ContatoBusca {
+  id: string
+  name: string | null
+  email: string | null
+  email_unsubscribed_at: string | null
+  company_id: string | null
+  companies: { name: string } | { name: string }[] | null
 }
 interface Negocio {
   id: string
@@ -98,6 +108,11 @@ export function AbaInscritos({ cadenciaId, ativa, passos }: { cadenciaId: string
   const [lista, setLista] = useState<Inscricao[] | null>(null)
   const [busca, setBusca] = useState("")
   const [negocios, setNegocios] = useState<Negocio[]>([])
+  // Por padrão inscreve CONTATOS (sem negócio): o pipeline só recebe quem evoluir.
+  const [modo, setModo] = useState<"contatos" | "negocios">("contatos")
+  const [contatosAchados, setContatosAchados] = useState<ContatoBusca[]>([])
+  // status da inscrição SEM negócio nesta cadência, por contato
+  const [inscritosSoltos, setInscritosSoltos] = useState<Record<string, string>>({})
   const [inscrevendo, setInscrevendo] = useState<string | null>(null)
   // status da inscrição nesta cadência, por "negócio:contato" (qualquer status impede inscrever de novo)
   const [inscritos, setInscritos] = useState<Record<string, string>>({})
@@ -145,8 +160,56 @@ export function AbaInscritos({ cadenciaId, ativa, passos }: { cadenciaId: string
     return () => clearTimeout(t)
   }, [carregar])
 
+  const carregarContatos = useCallback(
+    async (lista: ContatoBusca[]) => {
+      if (lista.length === 0) {
+        setInscritosSoltos({})
+        setEmOutras([])
+        return
+      }
+      const db = createClient()
+      const ids = lista.map((c) => c.id)
+      const [{ data }, outras] = await Promise.all([
+        db
+          .from("email_cadence_enrollments")
+          .select("contact_id,status")
+          .eq("cadence_id", cadenciaId)
+          .is("deal_id", null)
+          .in("contact_id", ids),
+        inscricoesAtivasEmOutras(db, cadenciaId, {
+          dealIds: [],
+          contactIds: ids,
+          companyIds: [...new Set(lista.map((c) => c.company_id).filter((c): c is string => !!c))],
+        }).catch(() => [] as InscricaoEmOutraCadencia[]),
+      ])
+      setInscritosSoltos(Object.fromEntries((data ?? []).map((r) => [r.contact_id as string, r.status as string])))
+      setEmOutras(outras)
+    },
+    [cadenciaId],
+  )
+
   useEffect(() => {
-    if (!ativa || !podeInscrever) return
+    if (!ativa || !podeInscrever || modo !== "contatos") return
+    const t = setTimeout(async () => {
+      let q = createClient()
+        .from("contacts")
+        .select("id,name,email,email_unsubscribed_at,company_id,companies(name)")
+        .not("email", "is", null)
+        .neq("email", "")
+        .order("created_at", { ascending: false })
+        .limit(20)
+      const termo = busca.trim().replace(/[,()%]/g, " ")
+      if (termo) q = q.or(`name.ilike.%${termo}%,email.ilike.%${termo}%`)
+      const { data } = await q
+      const achados = (data ?? []) as unknown as ContatoBusca[]
+      setContatosAchados(achados)
+      await carregarContatos(achados)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [busca, ativa, podeInscrever, modo, carregarContatos])
+
+  useEffect(() => {
+    if (!ativa || !podeInscrever || modo !== "negocios") return
     const t = setTimeout(async () => {
       let q = createClient()
         .from("deals")
@@ -161,7 +224,7 @@ export function AbaInscritos({ cadenciaId, ativa, passos }: { cadenciaId: string
       await carregarInscritos(achados)
     }, 300)
     return () => clearTimeout(t)
-  }, [busca, ativa, podeInscrever, carregarInscritos])
+  }, [busca, ativa, podeInscrever, modo, carregarInscritos])
 
   async function marcarResultado(inscricaoId: string, valor: string) {
     const resultado = valor === "" ? null : valor
@@ -175,6 +238,21 @@ export function AbaInscritos({ cadenciaId, ativa, passos }: { cadenciaId: string
     if (resultado === "sem_interesse" || resultado === "agendado")
       toast.success("Resultado marcado — a sequência deste lead foi encerrada.")
     else toast.success("Resultado atualizado")
+    carregar()
+  }
+
+  async function inscreverContato(contactId: string) {
+    setInscrevendo(contactId)
+    const res = await fetch(`/api/cadencias/${cadenciaId}/inscricoes`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ contact_ids: [contactId] }),
+    })
+    const body = await res.json().catch(() => ({}))
+    setInscrevendo(null)
+    void carregarContatos(contatosAchados)
+    if (!res.ok) return toast.error(body?.error ?? "Falha ao inscrever.")
+    toast.success("Contato inscrito — sem negócio no pipeline")
     carregar()
   }
 
@@ -198,11 +276,77 @@ export function AbaInscritos({ cadenciaId, ativa, passos }: { cadenciaId: string
   return (
     <div className="w-full space-y-6">
       <section className="space-y-2 rounded-lg border bg-card p-4">
-        <h3 className="font-medium">Inscrever contatos de um negócio</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-medium">Inscrever</h3>
+          <div className="inline-flex rounded-md border p-0.5 text-xs">
+            {(["contatos", "negocios"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={`rounded px-2.5 py-1 ${modo === m ? "bg-muted font-medium" : "text-muted-foreground"}`}
+                onClick={() => setModo(m)}
+              >
+                {m === "contatos" ? "Contatos" : "Negócios"}
+              </button>
+            ))}
+          </div>
+        </div>
         {!ativa ? (
-          <p className="text-sm text-muted-foreground">Ative a cadência para inscrever negócios.</p>
+          <p className="text-sm text-muted-foreground">Ative a cadência para inscrever.</p>
         ) : !podeInscrever ? (
-          <p className="text-sm text-muted-foreground">Seu papel não permite inscrever negócios.</p>
+          <p className="text-sm text-muted-foreground">Seu papel não permite inscrever.</p>
+        ) : modo === "contatos" ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              O contato entra sem criar negócio. Quando ele evoluir, use “Criar negócio” na lista abaixo.
+            </p>
+            <Input placeholder="Buscar contato por nome ou e-mail…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+            <ul className="divide-y rounded-md border">
+              {contatosAchados.length === 0 && (
+                <li className="p-3 text-sm text-muted-foreground">Nenhum contato com e-mail encontrado.</li>
+              )}
+              {contatosAchados.map((c) => {
+                const status = inscritosSoltos[c.id]
+                const ocupacao = status
+                  ? null
+                  : ocupacaoEmOutraCadencia({ id: null, company_id: c.company_id, contatos: [c.id] }, emOutras)
+                const empresa = um(c.companies)?.name
+                return (
+                  <li key={c.id} className="space-y-1 p-2 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate">
+                        <span className="font-medium">{c.name ?? "—"}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {" "}
+                          · {c.email}
+                          {empresa ? ` · ${empresa}` : ""}
+                          {c.email_unsubscribed_at ? " · descadastrado" : ""}
+                        </span>
+                      </span>
+                      {status ? (
+                        <Button size="sm" variant="secondary" disabled>
+                          {status === "ativa" ? "Em cadência" : "Já inscrito"}
+                        </Button>
+                      ) : ocupacao ? (
+                        <Button size="sm" variant="secondary" disabled title={textoDaOcupacao(ocupacao)}>
+                          Em outra cadência
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          disabled={!!c.email_unsubscribed_at || inscrevendo === c.id}
+                          onClick={() => inscreverContato(c.id)}
+                        >
+                          {inscrevendo === c.id && <Loader2 className="size-3.5 animate-spin" />} Inscrever
+                        </Button>
+                      )}
+                    </div>
+                    {ocupacao && <p className="text-xs text-amber-600 dark:text-amber-400">{textoDaOcupacao(ocupacao)}</p>}
+                  </li>
+                )
+              })}
+            </ul>
+          </>
         ) : (
           <>
             <Input placeholder="Buscar negócio aberto pelo título…" value={busca} onChange={(e) => setBusca(e.target.value)} />
@@ -315,9 +459,20 @@ export function AbaInscritos({ cadenciaId, ativa, passos }: { cadenciaId: string
             {lista?.map((i) => (
               <tr key={i.id} className="border-b last:border-0">
                 <td className="p-2">
-                  <button type="button" className="text-left hover:text-primary hover:underline" onClick={() => abrirPainel({ type: "deal", id: i.deal_id })}>
-                    {um(i.deals)?.title ?? "—"}
-                  </button>
+                  {i.deal_id ? (
+                    <button type="button" className="text-left hover:text-primary hover:underline" onClick={() => abrirPainel({ type: "deal", id: i.deal_id! })}>
+                      {um(i.deals)?.title ?? "—"}
+                    </button>
+                  ) : (
+                    <CriarNegocioDaInscricao
+                      cadenciaId={cadenciaId}
+                      inscricaoId={i.id}
+                      onCriado={(n) => {
+                        carregar()
+                        abrirPainel({ type: "deal", id: n.id })
+                      }}
+                    />
+                  )}
                 </td>
                 <td className="p-2">
                   <button type="button" className="text-left hover:text-primary hover:underline" onClick={() => abrirPainel({ type: "contact", id: i.contact_id })}>
