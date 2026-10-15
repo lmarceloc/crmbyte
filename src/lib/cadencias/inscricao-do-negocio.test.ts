@@ -80,3 +80,19 @@ describe("ocupacaoEmOutraCadencia — um lead numa cadência por vez", () => {
     ).toBeNull();
   });
 });
+
+describe("contato inscrito sem negócio", () => {
+  it("sem negócio não casa com inscrição sem negócio de outro contato; empresa e contato ainda bloqueiam", async () => {
+    const { ocupacaoEmOutraCadencia } = await import("./inscricao-do-negocio");
+    const soltas = [{ deal_id: null, contact_id: "c-1", company_id: "emp-1", cadencia: "Fria" }];
+    expect(ocupacaoEmOutraCadencia({ id: null, company_id: null, contatos: ["c-2"] }, soltas)).toBeNull();
+    expect(ocupacaoEmOutraCadencia({ id: null, company_id: "emp-1", contatos: ["c-2"] }, soltas)).toEqual({
+      cadencia: "Fria",
+      motivo: "empresa",
+    });
+    expect(ocupacaoEmOutraCadencia({ id: null, company_id: null, contatos: ["c-1"] }, soltas)).toEqual({
+      cadencia: "Fria",
+      motivo: "contato",
+    });
+  });
+});

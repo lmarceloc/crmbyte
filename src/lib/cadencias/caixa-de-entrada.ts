@@ -38,7 +38,7 @@ interface InscricaoAlvo {
   id: string;
   account_id: string;
   cadence_id: string;
-  deal_id: string;
+  deal_id: string | null;
   contact_id: string;
   status: string;
   configuracao: ConfiguracaoDaCadencia;

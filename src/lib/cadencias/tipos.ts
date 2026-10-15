@@ -87,6 +87,11 @@ export interface ConfiguracaoDaCadencia {
     descadastro: boolean;
     ganhoOuPerdido: boolean;
   };
+  /**
+   * Onde nasce o negócio quando o vendedor clica "Criar negócio" num inscrito
+   * sem negócio. null = primeiro funil da conta / primeira etapa dele.
+   */
+  negocio: { pipelineId: string | null; stageId: string | null };
 }
 
 export interface Cadencia {
@@ -122,5 +127,6 @@ export function configuracaoPadrao(): ConfiguracaoDaCadencia {
       descadastro: true,
       ganhoOuPerdido: true,
     },
+    negocio: { pipelineId: null, stageId: null },
   };
 }

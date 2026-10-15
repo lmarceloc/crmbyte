@@ -16,6 +16,7 @@ import { NotaForm } from "./nota-form"
 import { TextoComMencoes } from "./texto-com-mencoes"
 import { useMembros } from "@/hooks/use-membros"
 import { TarefasDoVinculo } from "@/components/tarefas/tarefas-do-vinculo"
+import { CriarNegocioDaInscricao, InscreverEmCadencia } from "@/components/cadencias/inscrever-em-cadencia"
 import {
   Avatar,
   BarraSuperior,
@@ -64,6 +65,8 @@ interface Nota {
 }
 interface Inscricao {
   id: string
+  cadence_id: string
+  deal_id: string | null
   status: string
   motivo_parada: string | null
   emails_enviados: number
@@ -105,7 +108,7 @@ export function ContactPanel({ id }: { id: string }) {
       db.from("contact_notes").select("id,note_text,created_at").eq("contact_id", id).order("created_at", { ascending: false }),
       db
         .from("email_cadence_enrollments")
-        .select("id,status,motivo_parada,emails_enviados,aberturas,cliques,resultado,created_at,email_cadences(name),deals(title)")
+        .select("id,cadence_id,deal_id,status,motivo_parada,emails_enviados,aberturas,cliques,resultado,created_at,email_cadences(name),deals(title)")
         .eq("contact_id", id)
         .order("created_at", { ascending: false }),
     ])
@@ -185,6 +188,9 @@ export function ContactPanel({ id }: { id: string }) {
                   <Mail /> E-mail
                 </Button>
               )}
+              {contato.email && !contato.email_unsubscribed_at && (
+                <InscreverEmCadencia contactIds={[contato.id]} onInscrito={recarregar} />
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -256,9 +262,21 @@ export function ContactPanel({ id }: { id: string }) {
                 <ul className="divide-y rounded-lg border text-sm">
                   {inscricoes.map((x) => (
                     <li key={x.id} className="p-3">
-                      <p className="font-medium">{um(x.email_cadences)?.name ?? "Cadência"}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium">{um(x.email_cadences)?.name ?? "Cadência"}</p>
+                        {!x.deal_id && (
+                          <CriarNegocioDaInscricao
+                            cadenciaId={x.cadence_id}
+                            inscricaoId={x.id}
+                            onCriado={(n) => {
+                              recarregar()
+                              push({ type: "deal", id: n.id })
+                            }}
+                          />
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        {um(x.deals)?.title} · {situacaoInscricao(x.status, x.motivo_parada)} · {x.emails_enviados} e-mails · {x.aberturas} aberturas · {x.cliques} cliques
+                        {um(x.deals)?.title ?? "Sem negócio"} · {situacaoInscricao(x.status, x.motivo_parada)} · {x.emails_enviados} e-mails · {x.aberturas} aberturas · {x.cliques} cliques
                       </p>
                     </li>
                   ))}

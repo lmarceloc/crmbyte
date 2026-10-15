@@ -33,7 +33,8 @@ export function rotuloDoInscrito(status: string): string {
 
 /** Inscrição ATIVA em outra cadência, com o que identifica o lead. */
 export interface InscricaoEmOutraCadencia {
-  deal_id: string
+  /** null = contato inscrito sem negócio */
+  deal_id: string | null
   contact_id: string
   company_id: string | null
   cadencia: string
@@ -51,10 +52,10 @@ export interface Ocupacao {
  * ATIVA em outra cadência. Inscrição concluída ou parada libera.
  */
 export function ocupacaoEmOutraCadencia(
-  negocio: { id: string; company_id: string | null; contatos: string[] },
+  negocio: { id: string | null; company_id: string | null; contatos: string[] },
   ativasEmOutras: InscricaoEmOutraCadencia[],
 ): Ocupacao | null {
-  const doNegocio = ativasEmOutras.find((a) => a.deal_id === negocio.id)
+  const doNegocio = negocio.id ? ativasEmOutras.find((a) => a.deal_id === negocio.id) : undefined
   if (doNegocio) return { cadencia: doNegocio.cadencia, motivo: "negocio" }
   const daEmpresa = negocio.company_id ? ativasEmOutras.find((a) => a.company_id === negocio.company_id) : undefined
   if (daEmpresa) return { cadencia: daEmpresa.cadencia, motivo: "empresa" }
@@ -66,7 +67,7 @@ export function ocupacaoEmOutraCadencia(
 
 export function textoDaOcupacao(o: Ocupacao): string {
   const onde = `“${o.cadencia}”`
-  if (o.motivo === "empresa") return `A empresa já está na cadência ${onde} (por outro negócio).`
-  if (o.motivo === "contato") return `Um contato deste negócio já está na cadência ${onde}.`
+  if (o.motivo === "empresa") return `A empresa já está na cadência ${onde} (por outro contato ou negócio).`
+  if (o.motivo === "contato") return `Um destes contatos já está na cadência ${onde}.`
   return `Já está na cadência ${onde}.`
 }

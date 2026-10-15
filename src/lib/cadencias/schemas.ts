@@ -94,6 +94,10 @@ export const configuracaoSchema = z.object({
     descadastro: z.boolean(),
     ganhoOuPerdido: z.boolean(),
   }),
+  // cadências salvas antes do campo existir chegam sem ele
+  negocio: z
+    .object({ pipelineId: z.string().uuid().nullable(), stageId: z.string().uuid().nullable() })
+    .default({ pipelineId: null, stageId: null }),
 });
 
 export const criarCadenciaSchema = z
@@ -124,8 +128,19 @@ export const mudarStatusSchema = z
   .object({ status: z.enum(["ativa", "pausada", "rascunho"]) })
   .strict();
 
-export const inscreverNegocioSchema = z
-  .object({ deal_id: z.string().uuid(), contact_id: z.string().uuid().optional() })
+/** Inscreve os contatos de um negócio OU contatos soltos (sem negócio; ex.: os de uma empresa). */
+export const inscreverNegocioSchema = z.union([
+  z.object({ deal_id: z.string().uuid(), contact_id: z.string().uuid().optional() }).strict(),
+  z.object({ contact_ids: z.array(z.string().uuid()).min(1).max(200) }).strict(),
+]);
+
+/** Cria o negócio de uma inscrição sem negócio. Tudo opcional: o padrão vem da cadência. */
+export const criarNegocioDaInscricaoSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    pipeline_id: z.string().uuid().optional(),
+    stage_id: z.string().uuid().optional(),
+  })
   .strict();
 
 export const listarCadenciasSchema = z.object({
