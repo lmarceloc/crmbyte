@@ -9,7 +9,8 @@ const PUBLIC_EXACT = new Set([
   '/forgot-password',
   '/icon', // app/icon.tsx
 ])
-const PUBLIC_PREFIXES = ['/api/', '/auth/', '/join/']
+// /p/: link rastreável de anexo aberto pelo cliente, sem login (app/p/[token]).
+const PUBLIC_PREFIXES = ['/api/', '/auth/', '/join/', '/p/']
 
 function isPublicPath(pathname: string): boolean {
   return (
