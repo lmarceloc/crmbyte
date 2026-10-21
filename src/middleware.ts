@@ -95,8 +95,11 @@ export async function middleware(request: NextRequest) {
   return supabaseResponse
 }
 
+// Rotas de máquina (crons, webhook, rastreio de e-mail) têm auth própria e não
+// usam sessão: ficam fora do middleware para não pagar um getUser() no Supabase
+// a cada chamada — o cron bate nelas o dia inteiro.
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/cadencias/worker|api/prospecting/worker|api/automations/cron|api/flows/cron|api/whatsapp/webhook|api/cadencias/pixel/|api/cadencias/click/|api/cadencias/descadastro/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

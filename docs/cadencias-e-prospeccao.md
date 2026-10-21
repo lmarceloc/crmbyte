@@ -20,7 +20,7 @@ Implementado a partir das specs `spec-cadencias-fluxo-email` e
 
 Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 049).
 
-## Cron (1×/min, com `Authorization: Bearer $CRON_SECRET`)
+## Cron (a cada 10 min na Vercel Hobby; 1×/min onde CPU não é limitada — `Authorization: Bearer $CRON_SECRET`)
 - `GET /api/cadencias/worker` — envia e-mails, espera, ramifica, para.
 - `GET /api/prospecting/worker` — acompanha buscas Apify e revela e-mails B2B.
 
