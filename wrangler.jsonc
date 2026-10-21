@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "crmbyte",
+  // worker.ts = Worker gerado pelo OpenNext + handler dos Cron Triggers
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "crmbyte" }],
+  // Rotas como /api/prospecting/b2b e os workers fazem trabalho pesado:
+  // sobe o teto de CPU por requisição (exige Workers Paid).
+  "limits": { "cpu_ms": 300000 },
+  // Substitui o crontab externo que chamava as rotas de worker.
+  "triggers": {
+    "crons": ["* * * * *", "*/5 * * * *"],
+  },
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "crm.agenciabyte.com", "custom_domain": true }],
+}

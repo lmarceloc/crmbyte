@@ -24,13 +24,13 @@ Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 049).
 - `GET /api/cadencias/worker` — envia e-mails, espera, ramifica, para.
 - `GET /api/prospecting/worker` — acompanha buscas Apify e revela e-mails B2B.
 
-Exemplo de crontab: `* * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://SEU_DOMINIO/api/cadencias/worker`
+Na Cloudflare isso é feito pelos Cron Triggers do Worker (ver `docs/cloudflare.md`). Em outro host, exemplo de crontab: `* * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://SEU_DOMINIO/api/cadencias/worker`
 
 ## Microsoft 365 pelo login da Microsoft (OAuth + Graph)
 Em **Caixas de envio → Conectar com Microsoft**, o vendedor entra com a conta Microsoft (com o MFA dele) e a caixa passa a enviar pelo Microsoft Graph (`/me/sendMail`): sem senha de app, sem SMTP AUTH, cópia automática em "Itens Enviados".
 
 - App multiempresa registrado **uma vez pela Byte** no Entra (agenciabyte.com), "Vários locatários". URI de retorno (Web): `https://crm.agenciabyte.com/api/microsoft/callback`. Permissões **delegadas** do Graph: `User.Read`, `Mail.Send`, `Mail.Read`, `offline_access`, `openid`, `email`, `profile`.
-- Variáveis na Vercel: `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` (o segredo vence em até 24 meses — renovar antes). Opcional: `MICROSOFT_REDIRECT_URI`.
+- Variáveis no host (Cloudflare): `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` (o segredo vence em até 24 meses — renovar antes). Opcional: `MICROSOFT_REDIRECT_URI`.
 - Empresa cliente: o administrador do Microsoft 365 dela pode precisar autorizar o app na primeira conexão; pode revogar a qualquer momento em Entra → Aplicativos empresariais.
 - Segurança: permissões delegadas (o token só alcança a caixa de quem conectou); `state` cifrado com conta+usuário+validade e nonce/PKCE em cookie httpOnly; tokens cifrados no banco (tabela só service_role).
 - Conectar um e-mail que já existe como caixa SMTP converte essa caixa para Microsoft. Leitura de respostas/bounces pelo Graph: ainda não (próxima etapa).
