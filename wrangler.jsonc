@@ -18,5 +18,7 @@
     "crons": ["* * * * *", "*/5 * * * *"],
   },
   "observability": { "enabled": true },
+  // Variáveis ficam no painel da Cloudflare; o deploy não pode apagá-las.
+  "keep_vars": true,
   "routes": [{ "pattern": "crm.agenciabyte.com", "custom_domain": true }],
 }
