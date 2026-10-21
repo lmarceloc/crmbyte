@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Saída do build OpenNext/Cloudflare.
+    ".open-next/**",
+    ".wrangler/**",
     // Vendored minified opus-recorder encoder worker (served statically).
     "public/opus/**",
   ]),
