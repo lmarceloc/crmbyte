@@ -7,11 +7,11 @@
  */
 export const RECURSOS = {
   /** /inbox — caixa de entrada de conversas do WhatsApp */
-  caixaDeEntrada: false,
+  caixaDeEntrada: true,
   /** /broadcasts — transmissões por template do WhatsApp */
   transmissoes: false,
   /** /automations — automações (acoplagem forte com mensagens do WhatsApp) */
   automacoes: false,
   /** Configurações → WhatsApp e Templates, e métricas de conversa no painel */
-  configWhatsapp: false,
+  configWhatsapp: true,
 } as const;
