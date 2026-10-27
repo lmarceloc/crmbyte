@@ -547,3 +547,25 @@ describe("reachableFromEntry", () => {
     expect(set).toEqual(new Set(["a", "b"]));
   });
 });
+
+describe("validateFlowForActivation — collect_input save_to_contact", () => {
+  const comColeta = (save_to_contact?: string) => [
+    { node_key: "start", node_type: "start", config: { next_node_key: "ask" } },
+    {
+      node_key: "ask",
+      node_type: "collect_input",
+      config: { prompt_text: "E-mail?", var_key: "email", save_to_contact, next_node_key: "ho" },
+    },
+    { node_key: "ho", node_type: "handoff", config: {} },
+  ];
+
+  it("aceita campo de contato conhecido ou ausente", () => {
+    expect(validateFlowForActivation(validFlow, comColeta("email"))).toEqual([]);
+    expect(validateFlowForActivation(validFlow, comColeta())).toEqual([]);
+  });
+
+  it("recusa campo de contato desconhecido", () => {
+    const issues = validateFlowForActivation(validFlow, comColeta("phone"));
+    expect(issues.some((i) => i.field === "save_to_contact" && i.severity === "error")).toBe(true);
+  });
+});

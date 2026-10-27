@@ -263,6 +263,7 @@ const LEAD_CAPTURE: FlowTemplate = {
       config: {
         prompt_text: "Thanks {{vars.name}}! What's your work email?",
         var_key: "email",
+        save_to_contact: "email",
         next_node_key: "ask_company",
       } as CollectInputNodeConfig,
     },
@@ -272,6 +273,7 @@ const LEAD_CAPTURE: FlowTemplate = {
       config: {
         prompt_text: "Almost done — what's your company name?",
         var_key: "company",
+        save_to_contact: "company",
         next_node_key: "handoff",
       } as CollectInputNodeConfig,
     },
