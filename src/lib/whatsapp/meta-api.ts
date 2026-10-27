@@ -24,14 +24,34 @@ export interface MetaPhoneInfo {
 }
 
 interface MetaErrorResponse {
-  error?: { message?: string; code?: number; type?: string }
+  error?: {
+    message?: string
+    code?: number
+    error_subcode?: number
+    type?: string
+    error_user_msg?: string
+    error_data?: { details?: string }
+    fbtrace_id?: string
+  }
 }
 
 async function throwMetaError(response: Response, fallback: string): Promise<never> {
   let message = fallback
   try {
     const data = (await response.json()) as MetaErrorResponse
-    if (data.error?.message) message = data.error.message
+    const e = data.error
+    if (e?.message) message = e.message
+    // Meta's message alone is often generic ("Authorization Error");
+    // the code/subcode and details are what tell the causes apart.
+    const extra = [e?.error_user_msg, e?.error_data?.details].filter(Boolean)
+    if (extra.length) message += ` — ${extra.join(' — ')}`
+    const ids = [
+      e?.code !== undefined && `code=${e.code}`,
+      e?.error_subcode !== undefined && `subcode=${e.error_subcode}`,
+      e?.type && `type=${e.type}`,
+      e?.fbtrace_id && `fbtrace_id=${e.fbtrace_id}`,
+    ].filter(Boolean)
+    if (ids.length) message += ` [${ids.join(', ')}]`
   } catch {
     // response body wasn't JSON — keep the fallback
   }
