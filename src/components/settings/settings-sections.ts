@@ -1,5 +1,6 @@
 import {
   Coins,
+  CreditCard,
   FileText,
   KeyRound,
   ThumbsDown,
@@ -37,6 +38,7 @@ export const SETTINGS_SECTIONS = [
   'ia',
   'motivos',
   'members',
+  'plano',
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
@@ -71,6 +73,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   apikeys: { id: 'apikeys', label: 'Chaves de API', icon: KeyRound, group: 'workspace' },
   ia: { id: 'ia', label: 'IA', icon: Sparkles, group: 'workspace' },
   members: { id: 'members', label: 'Membros da equipe', icon: UsersRound, group: 'workspace' },
+  plano: { id: 'plano', label: 'Plano', icon: CreditCard, group: 'workspace' },
 };
 
 export const RAIL_GROUPS: { label: string | null; group: SectionMeta['group'] }[] = [

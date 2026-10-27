@@ -21,6 +21,7 @@ import { AnalisarDealsSettings } from '@/components/settings/analisar-deals-sett
 import { LossReasonsSettings } from '@/components/settings/loss-reasons-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ResumoSemanalCard } from '@/components/settings/resumo-semanal-card';
+import { PlanoSettings } from '@/components/settings/plano-settings';
 import {
   resolveSection,
   type SettingsSection,
@@ -79,6 +80,7 @@ export default function SettingsPage() {
         <ResumoSemanalCard />
       </>
     ),
+    plano: <PlanoSettings />,
   };
 
   return (
