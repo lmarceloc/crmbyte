@@ -36,6 +36,8 @@ const ROTULO: Record<Status, { texto: string; classe: string }> = {
   cancelada: { texto: "Cancelada", classe: "bg-muted text-muted-foreground" },
 }
 
+const LIBERADA = { texto: "Liberada", classe: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" }
+
 const reais = (centavos: number) =>
   (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 const data = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-BR") : "—")
@@ -91,7 +93,8 @@ export function PlanoSettings() {
   }
 
   const { assinatura: a } = dados
-  const rotulo = ROTULO[a.status]
+  // conta isenta (ex.: a própria Byte) não paga: sem botão de assinar
+  const rotulo = a.isenta && a.status !== "ativa" ? LIBERADA : ROTULO[a.status]
   const ativa = a.status === "ativa"
 
   return (
@@ -159,7 +162,7 @@ export function PlanoSettings() {
           <p className="text-sm text-muted-foreground">O pagamento ainda não foi configurado nesta instalação.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {!ativa && (
+            {!ativa && !a.isenta && (
               <Button onClick={() => abrir("assinar")} disabled={ocupado !== null}>
                 {ocupado === "assinar" ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
                 {a.status === "cancelada" ? "Assinar de novo" : `Assinar por ${reais(dados.preco_centavos)}/mês`}
