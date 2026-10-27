@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
@@ -182,10 +182,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  // Process asynchronously so we can ack Meta within their timeout.
-  processWebhook(body).catch((error) => {
-    console.error('Error processing webhook:', error)
-  })
+  // Process after the response so we can ack Meta within their timeout.
+  // Must go through `after()` (waitUntil on Cloudflare Workers): a bare
+  // floating promise is cancelled once the response is sent, so inbound
+  // messages were acked to Meta but never saved.
+  after(() =>
+    processWebhook(body).catch((error) => {
+      console.error('Error processing webhook:', error)
+    }),
+  )
 
   return NextResponse.json({ status: 'received' }, { status: 200 })
 }
@@ -703,15 +708,17 @@ async function processMessage(
   if (contactOutcome.wasCreated) automationTriggers.unshift('new_contact_created')
   if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
   for (const triggerType of automationTriggers) {
-    runAutomationsForTrigger({
-      accountId,
-      triggerType,
-      contactId: contactRecord.id,
-      context: {
-        message_text: inboundText,
-        conversation_id: conversation.id,
-      },
-    }).catch((err) => console.error('[automations] dispatch failed:', err))
+    after(() =>
+      runAutomationsForTrigger({
+        accountId,
+        triggerType,
+        contactId: contactRecord.id,
+        context: {
+          message_text: inboundText,
+          conversation_id: conversation.id,
+        },
+      }).catch((err) => console.error('[automations] dispatch failed:', err)),
+    )
   }
 }
 
