@@ -9,6 +9,7 @@ const PUBLIC_EXACT = new Set([
   '/forgot-password',
   '/icon', // app/icon.tsx
   '/privacidade', // política exigida pela Meta para publicar o app do WhatsApp
+  '/conheca', // página de venda do CRM
 ])
 // /p/: link rastreável de anexo aberto pelo cliente, sem login (app/p/[token]).
 const PUBLIC_PREFIXES = ['/api/', '/auth/', '/join/', '/p/']
