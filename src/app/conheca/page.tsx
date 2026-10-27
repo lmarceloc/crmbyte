@@ -22,7 +22,7 @@ import {
   Waypoints,
 } from 'lucide-react';
 
-// Página pública de venda do CRM Byte (sem login).
+// Página pública de venda do CRM Byte (sem login), sempre no tema claro (.modo-claro).
 // Liberada em PUBLIC_EXACT no src/middleware.ts.
 //
 // Preços da RD Station conferidos em rdstation.com/planos/crm em 27/10/2026.
@@ -211,7 +211,7 @@ function BotaoPrincipal({ children }: { children: ReactNode }) {
 
 export default function ConhecaPage() {
   return (
-    <div className="bg-background text-foreground min-h-screen">
+    <div className="modo-claro bg-background text-foreground min-h-screen">
       <header className="border-border bg-background/85 sticky top-0 z-20 border-b backdrop-blur">
         <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
           <a href="#inicio" className="flex shrink-0 items-center gap-2">

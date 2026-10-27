@@ -116,7 +116,9 @@ html[data-mode="dark"] {
   --sidebar-border: oklch(0.28 0.01 260);
 }
 
-html[data-mode="light"] {
+/* .modo-claro: página pública que é sempre clara (/conheca), qualquer que seja o modo salvo. */
+html[data-mode="light"],
+.modo-claro {
   --background: oklch(0.99 0.002 260);
   --foreground: oklch(0.21 0.01 260);
   --card: oklch(1 0 0);
