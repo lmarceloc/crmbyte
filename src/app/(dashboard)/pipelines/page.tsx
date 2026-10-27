@@ -36,6 +36,7 @@ import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { GatedButton } from "@/components/ui/gated-button";
+import { comemorar } from "@/lib/comemorar";
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -48,7 +49,7 @@ const SPEC_DEFAULT_STAGES = [
   { name: "Qualified", color: "#eab308", position: 1 }, // yellow
   { name: "Proposal Sent", color: "#f97316", position: 2 }, // orange
   { name: "Negotiation", color: "#8b5cf6", position: 3 }, // purple
-  { name: "Won", color: "#22c55e", position: 4 }, // green
+  { name: "Won", color: "#22c55e", position: 4, is_won: true }, // green
 ];
 
 export default function PipelinesPage() {
@@ -169,6 +170,7 @@ export default function PipelinesPage() {
       name: s.name,
       color: s.color,
       position: s.position,
+      is_won: !!s.is_won,
     }));
     await supabase.from("pipeline_stages").insert(stagesPayload);
 
@@ -251,6 +253,9 @@ export default function PipelinesPage() {
 
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
+      const destino = stages.find((s) => s.id === newStageId);
+      const origem = deals.find((d) => d.id === dealId)?.stage_id;
+      if (destino?.is_won && origem !== newStageId) void comemorar();
       // Optimistic update — board already animated; just persist.
       setDeals((prev) =>
         prev.map((d) =>
@@ -268,7 +273,7 @@ export default function PipelinesPage() {
         refreshDeals();
       }
     },
-    [supabase, refreshDeals],
+    [supabase, refreshDeals, stages, deals],
   );
 
   const handleAddDeal = useCallback(
@@ -334,6 +339,7 @@ export default function PipelinesPage() {
       name: s.name,
       color: s.color,
       position: s.position,
+      is_won: !!s.is_won,
     }));
     await supabase.from("pipeline_stages").insert(stagesPayload);
 

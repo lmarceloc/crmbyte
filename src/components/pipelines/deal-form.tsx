@@ -52,6 +52,7 @@ import {
   Link2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { comemorar } from "@/lib/comemorar";
 
 interface DealFormProps {
   open: boolean;
@@ -634,6 +635,7 @@ export function DealForm({
       toast.error("Failed to update deal status");
       return;
     }
+    if (status === "won") void comemorar();
     toast.success(
       status === "won" ? "Marked as won" : status === "lost" ? "Marked as lost" : "Deal reopened",
     );

@@ -318,6 +318,8 @@ export interface PipelineStage {
   name: string;
   position: number;
   color: string;
+  /** Etapa de ganho (troféu): mover um negócio para ela solta confete. Migration 053. */
+  is_won?: boolean;
   created_at: string;
 }
 

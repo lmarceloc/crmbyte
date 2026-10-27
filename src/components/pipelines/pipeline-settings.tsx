@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Trash2,
+  Trophy,
   Plus,
   GripVertical,
   AlertTriangle,
@@ -113,6 +114,7 @@ export function PipelineSettings({
       pipeline_id: s.pipeline_id,
       name: s.name,
       color: s.color,
+      is_won: !!s.is_won,
       position: i,
     }));
 
@@ -273,6 +275,15 @@ export function PipelineSettings({
                             updated[index] = { ...updated[index], color: v };
                             setLocalStages(updated);
                           }}
+                          onToggleWon={() =>
+                            // uma etapa de ganho por funil: marcar esta desmarca as outras
+                            setLocalStages(
+                              localStages.map((s) => ({
+                                ...s,
+                                is_won: s.id === stage.id ? !stage.is_won : false,
+                              })),
+                            )
+                          }
                           onRemove={() => handleRemoveStage(stage.id)}
                           colors={STAGE_COLORS}
                         />
@@ -337,7 +348,7 @@ export function PipelineSettings({
               <Button
                 variant="destructive"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="mr-auto bg-red-600 hover:bg-red-700"
+                className="mr-auto bg-red-600 text-white hover:bg-red-700 hover:text-white"
               >
                 Delete Pipeline
               </Button>
@@ -367,12 +378,14 @@ function SortableStageRow({
   stage,
   onNameChange,
   onColorChange,
+  onToggleWon,
   onRemove,
   colors,
 }: {
   stage: PipelineStage;
   onNameChange: (v: string) => void;
   onColorChange: (v: string) => void;
+  onToggleWon: () => void;
   onRemove: () => void;
   colors: string[];
 }) {
@@ -406,6 +419,17 @@ function SortableStageRow({
         onChange={(e) => onNameChange(e.target.value)}
         className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground focus:border-border"
       />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        onClick={onToggleWon}
+        aria-pressed={!!stage.is_won}
+        title={stage.is_won ? "Etapa de ganho (confete ao mover para cá)" : "Marcar como etapa de ganho"}
+        className={stage.is_won ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground/60 hover:text-amber-500"}
+      >
+        <Trophy className="h-3 w-3" />
+      </Button>
       <Button
         variant="ghost"
         size="icon-xs"
