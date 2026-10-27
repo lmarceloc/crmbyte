@@ -9,6 +9,7 @@ import type { Contact, Tag, ContactTag } from '@/types';
 import {
   findExistingContact,
   isExactMatch,
+  isEmailUniqueViolation,
   isUniqueViolation,
   type ExistingContact,
 } from '@/lib/contacts/dedupe';
@@ -228,6 +229,10 @@ export function ContactForm({
       // slipped past the on-blur check (race, or a format that
       // normalizes equal). Surface it as the friendly duplicate notice
       // and, for new contacts, point the user at the existing record.
+      if (isEmailUniqueViolation(err)) {
+        toast.error('A contact with this email already exists');
+        return;
+      }
       if (isUniqueViolation(err)) {
         toast.error('A contact with this phone number already exists');
         if (!isEdit && accountId) {

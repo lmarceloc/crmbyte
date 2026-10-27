@@ -75,16 +75,17 @@ export async function revogarChaveApi(admin: Admin, accountId: string, id: strin
 export async function autenticarChaveApi(
   admin: Admin,
   headers: Headers,
-): Promise<{ keyId: string; accountId: string; userId: string } | null> {
+): Promise<{ keyId: string; accountId: string; accountName: string; userId: string } | null> {
   const chave = chaveDoPedido(headers);
   if (!chave) return null;
   const { data } = await admin
     .from("api_keys")
-    .select("id,account_id,user_id")
+    .select("id,account_id,user_id,account:accounts(name)")
     .eq("key_hash", hashDaChave(chave))
     .is("revoked_at", null)
     .maybeSingle();
   if (!data) return null;
   await admin.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", data.id);
-  return { keyId: data.id, accountId: data.account_id, userId: data.user_id };
+  const conta = (Array.isArray(data.account) ? data.account[0] : data.account) as { name: string } | null;
+  return { keyId: data.id, accountId: data.account_id, accountName: conta?.name ?? "", userId: data.user_id };
 }

@@ -12,7 +12,7 @@ const corpo = z.object({ name: z.string().trim().min(1).max(80) }).strict();
 export async function GET() {
   try {
     const ctx = await requireRole("admin");
-    return json({ chaves: await listarChavesApi(supabaseAdmin(), ctx.accountId) });
+    return json({ conta: ctx.account.name, chaves: await listarChavesApi(supabaseAdmin(), ctx.accountId) });
   } catch (e) {
     return toErrorResponse(e);
   }

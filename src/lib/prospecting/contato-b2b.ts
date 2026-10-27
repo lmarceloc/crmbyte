@@ -4,6 +4,7 @@
 //    vendedor decidiu trabalhá-lo mesmo assim (nome, cargo, empresa, LinkedIn).
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { obterOuCriarEmpresa } from "@/lib/companies";
+import { isEmailUniqueViolation } from "@/lib/contacts/dedupe";
 import type { Lead } from "./treg";
 
 type Admin = SupabaseClient;
@@ -30,15 +31,19 @@ export async function criarContatoB2b(
   lead: Lead,
   email: string | null,
 ): Promise<string | null> {
-  const procura = admin
-    .from("contacts")
-    .select("id,email_unsubscribed_at")
-    .eq("account_id", origem.accountId);
-  const { data: existente } = email
-    ? await procura.ilike("email", email).limit(1).maybeSingle()
-    : lead.linkedin
-      ? await procura.eq("linkedin_url", lead.linkedin).limit(1).maybeSingle()
-      : { data: null };
+  const procurar = async () => {
+    const procura = admin
+      .from("contacts")
+      .select("id,email_unsubscribed_at")
+      .eq("account_id", origem.accountId);
+    const { data } = email
+      ? await procura.ilike("email", email).limit(1).maybeSingle()
+      : lead.linkedin
+        ? await procura.eq("linkedin_url", lead.linkedin).limit(1).maybeSingle()
+        : { data: null };
+    return data;
+  };
+  const existente = await procurar();
   if (existente) return existente.email_unsubscribed_at ? null : existente.id;
 
   const userId = await origem.quemCria();
@@ -71,6 +76,11 @@ export async function criarContatoB2b(
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    // corrida: outro processo acabou de criar o contato com esse e-mail
+    const agora = isEmailUniqueViolation(error) ? await procurar() : null;
+    if (agora) return agora.email_unsubscribed_at ? null : agora.id;
+    throw new Error(error.message);
+  }
   return data.id;
 }

@@ -6,7 +6,8 @@ import { importarContatos, pedidoSchema, resumir } from "@/lib/integracoes/impor
 export const dynamic = "force-dynamic";
 
 // Entrada de contatos + empresa por sistemas externos (n8n, Apollo...).
-// Autentica por `Authorization: Bearer wacrm_…` (ou `X-Api-Key`); a chave define a conta.
+// Autentica por `Authorization: Bearer wacrm_…` (ou `X-Api-Key`); a chave define a conta,
+// e a resposta diz qual é — para quem integra conferir que está gravando no lugar certo.
 export async function POST(request: Request) {
   try {
     const admin = supabaseAdmin();
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
     if (!p.success) return validationFailed(p.error);
 
     const resultados = await importarContatos(admin, conta, p.data.source, p.data.contatos);
-    return json({ resumo: resumir(resultados), resultados });
+    return json({ conta: { id: conta.accountId, nome: conta.accountName }, resumo: resumir(resultados), resultados });
   } catch (e) {
     return toErrorResponse(e);
   }

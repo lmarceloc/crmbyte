@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/hooks/use-auth"
 import { montarContatoDaEmpresa, vinculoDoContato } from "@/lib/contato-da-empresa"
+import { mensagemContatoRepetido } from "@/lib/contacts/dedupe"
 import { createClient } from "@/lib/supabase/client"
 
 interface ContatoSemEmpresa {
@@ -87,7 +88,7 @@ export function NovoContatoForm({
     if (error) {
       toast.error(
         error.code === "23505"
-          ? "Já existe um contato com esse telefone. Use «Vincular existente»."
+          ? `${mensagemContatoRepetido(error)} Use «Vincular existente».`
           : "Não foi possível criar o contato.",
       )
       return

@@ -1,7 +1,7 @@
 // "Importar para o funil": candidato → Contato + Negócio, sem disparar abordagem.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { obterOuCriarEmpresa } from "@/lib/companies";
-import { findExistingContact, isUniqueViolation } from "@/lib/contacts/dedupe";
+import { findExistingContact, isEmailUniqueViolation, isUniqueViolation } from "@/lib/contacts/dedupe";
 import type { Prospect } from "./apify";
 import { MSG_PEDIU_PARA_SAIR, ProspectingError } from "./errors";
 import { criarContatoB2b } from "./contato-b2b";
@@ -157,8 +157,19 @@ export async function importarCandidatos(
                 .single();
               if (error) {
                 if (!isUniqueViolation(error)) throw error;
-                // corrida: outro processo criou o mesmo telefone
+                // corrida: outro processo criou o mesmo telefone; ou o e-mail já é
+                // de um contato da conta (o e-mail também é único por conta)
                 contactId = (await findExistingContact(admin, p.accountId, c.phone))?.id ?? null;
+                if (!contactId && isEmailUniqueViolation(error) && prospect.emails[0]) {
+                  const { data: doEmail } = await admin
+                    .from("contacts")
+                    .select("id")
+                    .eq("account_id", p.accountId)
+                    .ilike("email", prospect.emails[0].replace(/[%_\\]/g, "\\$&"))
+                    .limit(1)
+                    .maybeSingle();
+                  contactId = doEmail?.id ?? null;
+                }
               } else contactId = novo.id;
             }
           }

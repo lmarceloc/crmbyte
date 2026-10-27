@@ -36,6 +36,7 @@ const data = (iso: string) => new Date(iso).toLocaleDateString("pt-BR")
 /** Chaves para sistemas de fora (n8n, Apollo…) mandarem contatos ao CRM. A chave define a conta. */
 export function ApiAccessKeys({ editavel }: { editavel: boolean }) {
   const [chaves, setChaves] = useState<ChaveApi[] | null>(null)
+  const [conta, setConta] = useState<string | null>(null)
   const [nome, setNome] = useState("")
   const [nova, setNova] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -51,6 +52,7 @@ export function ApiAccessKeys({ editavel }: { editavel: boolean }) {
       return null
     }
     setChaves(d.chaves)
+    if (d.conta) setConta(d.conta)
     return d
   }, [])
 
@@ -92,6 +94,12 @@ export function ApiAccessKeys({ editavel }: { editavel: boolean }) {
           Para outros sistemas mandarem contatos e empresas para esta conta, por exemplo o n8n importando uma lista do Apollo.
           Contatos repetidos (mesmo e-mail, telefone ou LinkedIn) não são duplicados: só os campos vazios são completados.
         </p>
+        {conta && (
+          <p className="mt-2 text-xs">
+            Estas chaves gravam na conta <span className="font-semibold">{conta}</span>. Para mandar contatos a outra
+            conta, gere a chave logado nela, e no n8n use uma credencial separada para cada chave.
+          </p>
+        )}
       </div>
 
       {nova && (

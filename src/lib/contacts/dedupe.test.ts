@@ -3,8 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   dedupeByPhone,
   findExistingContact,
+  isEmailUniqueViolation,
   isExactMatch,
   isUniqueViolation,
+  mensagemContatoRepetido,
   normalizeKey,
 } from "./dedupe";
 
@@ -42,6 +44,28 @@ describe("isUniqueViolation", () => {
     expect(isUniqueViolation({ code: "23502" })).toBe(false);
     expect(isUniqueViolation(null)).toBe(false);
     expect(isUniqueViolation("boom")).toBe(false);
+  });
+});
+
+describe("isEmailUniqueViolation", () => {
+  const doEmail = {
+    code: "23505",
+    message: 'duplicate key value violates unique constraint "idx_contacts_account_email_unico"',
+  };
+  const doTelefone = {
+    code: "23505",
+    message: 'duplicate key value violates unique constraint "idx_contacts_account_phone_normalized"',
+  };
+
+  it("separa o índice de e-mail do de telefone", () => {
+    expect(isEmailUniqueViolation(doEmail)).toBe(true);
+    expect(isEmailUniqueViolation(doTelefone)).toBe(false);
+    expect(isEmailUniqueViolation({ code: "23502", message: doEmail.message })).toBe(false);
+  });
+
+  it("mensagem diz qual dado já existe", () => {
+    expect(mensagemContatoRepetido(doEmail)).toBe("Já existe um contato com esse e-mail.");
+    expect(mensagemContatoRepetido(doTelefone)).toBe("Já existe um contato com esse telefone.");
   });
 });
 
