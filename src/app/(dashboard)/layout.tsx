@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentAccount } from "@/lib/auth/account";
-import { acessoDaConta } from "@/lib/assinatura/acesso";
+import { acessoDaConta, type Acesso } from "@/lib/assinatura/acesso";
 import { DashboardShell } from "./dashboard-shell";
 
 // Server layout whose only job is to declare "do not index" metadata
@@ -22,13 +22,13 @@ export const metadata: Metadata = {
   },
 };
 
-/** Conta sem assinatura e com o teste grátis vencido? (Sem sessão/perfil: o shell cuida.) */
-async function contaBloqueada(): Promise<boolean> {
+/** Acesso da conta (teste, assinatura, isenção). Sem sessão/perfil: null, o shell cuida. */
+async function acessoAtual(): Promise<Acesso | null> {
   try {
     const ctx = await getCurrentAccount();
-    return !(await acessoDaConta(ctx.supabase, ctx.accountId)).liberado;
+    return await acessoDaConta(ctx.supabase, ctx.accountId);
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -37,7 +37,10 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const acesso = await acessoAtual();
   // redirect() fora do try: ele funciona lançando uma exceção
-  if (await contaBloqueada()) redirect("/assinatura");
-  return <DashboardShell>{children}</DashboardShell>;
+  if (acesso && !acesso.liberado) redirect("/assinatura");
+  return (
+    <DashboardShell testeAte={acesso?.motivo === "teste" ? acesso.testeAte : null}>{children}</DashboardShell>
+  );
 }
