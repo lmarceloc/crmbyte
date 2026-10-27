@@ -58,6 +58,13 @@ export function iniciarLogin(
 ): { url: string; cookie: string } {
   const app = credenciaisDoApp();
   if (!app) throw new MicrosoftError("Login com a Microsoft não configurado (MICROSOFT_CLIENT_ID/SECRET).");
+  // O ID do app é um GUID; o *valor* do segredo (ex.: "abc8Q~...") colado aqui faz a Microsoft
+  // responder AADSTS700016 ("Application ... was not found").
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(app.clientId)) {
+    throw new MicrosoftError(
+      "MICROSOFT_CLIENT_ID inválido: use o \"ID do aplicativo (cliente)\" do Entra (formato GUID), não o valor do segredo.",
+    );
+  }
   const nonce = b64url(randomBytes(16));
   const verificador = b64url(randomBytes(32));
   const desafio = b64url(createHash("sha256").update(verificador).digest());

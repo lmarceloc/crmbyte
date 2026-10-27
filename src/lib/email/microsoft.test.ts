@@ -46,6 +46,11 @@ describe("login com a Microsoft", () => {
     expect(() => iniciarLogin({ ...SESSAO, ownerUserId: null }, ORIGEM)).toThrow(/não configurado/);
   });
 
+  it("recusa o valor do segredo colado no lugar do ID do app", () => {
+    vi.stubEnv("MICROSOFT_CLIENT_ID", "abc8Q~valorFicticioDoSegredo_naoReal123");
+    expect(() => iniciarLogin({ ...SESSAO, ownerUserId: null }, ORIGEM)).toThrow(/GUID/);
+  });
+
   it("MICROSOFT_REDIRECT_URI sobrepõe a origem", () => {
     vi.stubEnv("MICROSOFT_REDIRECT_URI", "https://x.test/cb");
     expect(urlDeRetorno(ORIGEM)).toBe("https://x.test/cb");
