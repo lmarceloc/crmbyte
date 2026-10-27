@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 };
 
 const PRECO = 29;
-const CONTATO = 'helloagenciabyte@gmail.com';
+const CONTATO = 'hello@agenciabyte.com';
 const CONFERIDO_EM = 'outubro de 2026';
 /** Preço mensal por usuário (plano mensal). Pro exige no mínimo 4 usuários. */
 const RD = { basic: 73, pro: 131, proMinimo: 4, basicAnual: 65.7, proAnual: 117.9, implementacao: 849 };
