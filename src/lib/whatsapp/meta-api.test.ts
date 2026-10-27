@@ -3,6 +3,7 @@ import {
   INTERACTIVE_LIMITS,
   sendInteractiveButtons,
   sendInteractiveList,
+  sendTextMessage,
 } from "./meta-api";
 
 // All assertions in this file run BEFORE the network call. We stub fetch
@@ -265,5 +266,49 @@ describe("sendInteractiveList — validation", () => {
         },
       },
     });
+  });
+});
+
+describe("erros da Meta", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("inclui código, subcódigo, detalhes e fbtrace_id na mensagem", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              message: "Authorization Error",
+              type: "OAuthException",
+              code: 0,
+              error_subcode: 2494133,
+              error_data: { details: "Token sem acesso ao número" },
+              fbtrace_id: "Abc123",
+            },
+          }),
+          { status: 401 },
+        ),
+      ),
+    );
+    await expect(
+      sendTextMessage({ phoneNumberId: "p", accessToken: "t", to: "5511999999999", text: "oi" }),
+    ).rejects.toThrow(
+      "Authorization Error — Token sem acesso ao número [code=0, subcode=2494133, type=OAuthException, fbtrace_id=Abc123]",
+    );
+  });
+
+  it("mantém só a mensagem quando a Meta não manda mais nada", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: "Falhou" } }), { status: 400 }),
+      ),
+    );
+    await expect(
+      sendTextMessage({ phoneNumberId: "p", accessToken: "t", to: "5511999999999", text: "oi" }),
+    ).rejects.toThrow(/^Falhou$/);
   });
 });
