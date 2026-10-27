@@ -121,8 +121,9 @@ export async function criarCheckoutDeAssinatura(p: {
       items: [{ id: produto.id, quantity: 1 }],
       // um checkout novo a cada clique (um externalId repetido devolveria o antigo)
       externalId: `${p.accountId}:${Date.now()}`,
-      returnUrl: `${base}/settings?tab=plano`,
-      completionUrl: `${base}/settings?tab=plano&assinatura=ok`,
+      // /assinatura devolve a conta liberada para Configurações → Plano
+      returnUrl: `${base}/assinatura`,
+      completionUrl: `${base}/assinatura?assinatura=ok`,
       metadata: { account_id: p.accountId, user_id: p.userId },
     },
   });

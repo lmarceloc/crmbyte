@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { fail, json, toErrorResponse } from "@/lib/api-utils";
 import { requireRole } from "@/lib/auth/account";
+import { avaliarAcesso } from "@/lib/assinatura/acesso";
 import { AbacatePayError, chaveConfigurada, criarCheckoutDeAssinatura, PRECO_CENTAVOS } from "@/lib/assinatura/abacatepay";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,9 @@ export async function GET() {
     const ctx = await requireRole("viewer");
     const { data, error } = await ctx.supabase
       .from("conta_assinatura")
-      .select("status,metodo,valor_centavos,ativa_desde,ultimo_pagamento_em,cancelada_em,abacate_customer_id,abacate_checkout_id")
+      .select(
+        "status,metodo,valor_centavos,ativa_desde,ultimo_pagamento_em,cancelada_em,abacate_customer_id,abacate_checkout_id,teste_ate,isenta",
+      )
       .eq("account_id", ctx.accountId)
       .maybeSingle();
     if (error) return fail("db_error", error.message, 500);
@@ -25,7 +28,10 @@ export async function GET() {
         ultimo_pagamento_em: data?.ultimo_pagamento_em ?? null,
         cancelada_em: data?.cancelada_em ?? null,
         tem_portal: !!(data?.abacate_customer_id && data?.abacate_checkout_id),
+        teste_ate: data?.teste_ate ?? null,
+        isenta: data?.isenta ?? false,
       },
+      acesso: avaliarAcesso(data ?? null),
       preco_centavos: PRECO_CENTAVOS,
       pagamento_configurado: !!chaveConfigurada(),
     });

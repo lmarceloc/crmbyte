@@ -8,6 +8,7 @@ import { criarContatoB2b } from "./contato-b2b";
 import { comLock } from "./locks";
 import { acharEmail, verificarEmail, type Lead } from "./treg";
 import { obterChave } from "@/lib/integracoes/chaves";
+import { contasBloqueadas } from "@/lib/assinatura/acesso";
 
 type Admin = SupabaseClient;
 
@@ -213,6 +214,10 @@ export async function processarProspeccao(admin: Admin): Promise<ResultadoDoTick
 
   const porConta = new Map<string, Campanha[]>();
   for (const c of ativas ?? []) porConta.set(c.account_id, [...(porConta.get(c.account_id) ?? []), c]);
+
+  // conta sem assinatura e com o teste vencido: fica parada até assinar (revelar e-mail tem custo)
+  const bloqueadas = await contasBloqueadas(admin, [...porConta.keys()]);
+  for (const id of bloqueadas) porConta.delete(id);
 
   for (const [accountId, campanhas] of [...porConta].slice(0, MAX_CONTAS)) {
     if (Date.now() - inicio > PRAZO_MS) break;

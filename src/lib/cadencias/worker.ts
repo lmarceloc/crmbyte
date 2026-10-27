@@ -11,6 +11,7 @@ import {
 } from "@/lib/email/caixas";
 import { assinaturaEmTexto } from "@/lib/email/assinatura";
 import { copiarParaEnviados } from "@/lib/email/imap";
+import { contasBloqueadas } from "@/lib/assinatura/acesso";
 import { enviarPorSmtp, smtpDaInstalacao } from "@/lib/email/smtp";
 import { processarCaixasDeEntrada } from "./caixa-de-entrada";
 import { avancarDiasUteis } from "./dias-uteis";
@@ -28,6 +29,7 @@ const MIN_ESPERA_POR_TETO = 60;
 const MIN_RAMO_SEM_DECISAO = 15;
 const MIN_CADENCIA_INATIVA = 60;
 const MIN_FORA_DA_JANELA = 30;
+const MIN_CONTA_BLOQUEADA = 60;
 const MAX_TENTATIVAS = 3;
 const DIA_MS = 24 * 60 * 60_000;
 // Intervalo mínimo entre dois e-mails da mesma caixa (rajadas caem no spam), + até 60 s aleatórios.
@@ -571,7 +573,19 @@ export async function processarCadencias(admin: SupabaseClient, agora = new Date
     .order("proximo_em")
     .limit(LOTE);
 
-  for (const linha of (candidatas ?? []) as Inscricao[]) {
+  // conta sem assinatura e com o teste vencido: a cadência espera (nada é perdido nem enviado)
+  const lista = (candidatas ?? []) as Inscricao[];
+  const bloqueadas = await contasBloqueadas(admin, lista.map((l) => l.account_id), agora);
+
+  for (const linha of lista) {
+    if (bloqueadas.has(linha.account_id)) {
+      await admin
+        .from("email_cadence_enrollments")
+        .update({ proximo_em: mais(agora, MIN_CONTA_BLOQUEADA) })
+        .eq("id", linha.id)
+        .eq("status", "ativa");
+      continue;
+    }
     // claim otimista: só processa se ninguém é dono agora
     const { data: claim } = await admin
       .from("email_cadence_enrollments")

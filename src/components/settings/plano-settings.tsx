@@ -20,7 +20,10 @@ interface Resposta {
     ultimo_pagamento_em: string | null
     cancelada_em: string | null
     tem_portal: boolean
+    teste_ate: string | null
+    isenta: boolean
   }
+  acesso: { liberado: boolean; motivo: string; testeAte: string | null }
   preco_centavos: number
   pagamento_configurado: boolean
 }
@@ -116,6 +119,15 @@ export function PlanoSettings() {
           </div>
           <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${rotulo.classe}`}>{rotulo.texto}</span>
         </div>
+
+        {a.isenta && (
+          <p className="text-sm text-muted-foreground">Esta conta está liberada sem assinatura.</p>
+        )}
+        {dados.acesso.motivo === "teste" && a.teste_ate && (
+          <p className="rounded-lg bg-primary-soft p-3 text-sm">
+            Teste grátis até <strong>{data(a.teste_ate)}</strong>. Assine antes disso para o time não perder o acesso.
+          </p>
+        )}
 
         {(ativa || a.status === "pagamento_falhou" || a.status === "cancelada") && (
           <dl className="grid gap-3 text-sm sm:grid-cols-3">

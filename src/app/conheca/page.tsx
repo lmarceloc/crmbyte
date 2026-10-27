@@ -31,7 +31,7 @@ import {
 export const metadata: Metadata = {
   title: 'CRM Byte: o CRM completo por R$ 29 para o time inteiro',
   description:
-    'Funil de vendas, cadências de e-mail, leads quentes, prospecção, IA e WhatsApp num só lugar. R$ 29 por mês, sem cobrança por usuário.',
+    'Funil de vendas, cadências de e-mail, leads quentes, prospecção, IA e WhatsApp num só lugar. R$ 29 por mês, sem cobrança por usuário. Teste grátis por 7 dias.',
 };
 
 const PRECO = 29;
@@ -233,7 +233,7 @@ export default function ConhecaPage() {
         <section id="inicio" className="scroll-mt-20 px-4 pt-16 pb-12 sm:pt-24">
           <div className="mx-auto max-w-3xl space-y-6 text-center">
             <p className="bg-primary-soft text-primary inline-block rounded-full px-3 py-1 text-xs font-semibold">
-              {brl(PRECO)}/mês · sem cobrança por usuário
+              {brl(PRECO)}/mês · sem cobrança por usuário · 7 dias grátis
             </p>
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
               O CRM que acha o cliente, faz o follow-up e mostra onde está a venda
@@ -243,7 +243,7 @@ export default function ConhecaPage() {
               para o time inteiro.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <BotaoPrincipal>Começar agora</BotaoPrincipal>
+              <BotaoPrincipal>Testar 7 dias grátis</BotaoPrincipal>
               <a href="#plano" className="text-foreground rounded-lg px-5 py-3 text-sm font-semibold hover:underline">
                 Comparar preços
               </a>
@@ -294,6 +294,7 @@ export default function ConhecaPage() {
               </div>
               <ul className="space-y-2 text-sm">
                 {[
+                  '7 dias grátis para testar com o time',
                   'Todas as funções desta página',
                   'Time inteiro no mesmo preço',
                   'Papéis de acesso: dono, admin, atendente e visualizador',
@@ -306,7 +307,7 @@ export default function ConhecaPage() {
                   </li>
                 ))}
               </ul>
-              <BotaoPrincipal>Começar agora</BotaoPrincipal>
+              <BotaoPrincipal>Testar 7 dias grátis</BotaoPrincipal>
               <p className="text-muted-foreground text-xs">
                 Serviços de terceiros, como as conversas do WhatsApp cobradas pela Meta e créditos de prospecção, são
                 pagos direto ao fornecedor.
@@ -386,13 +387,13 @@ export default function ConhecaPage() {
             </div>
             <h3 className="text-xl font-bold sm:text-2xl">Coloque o time inteiro para vender por {brl(PRECO)}/mês</h3>
             <p className="text-muted-foreground">
-              Crie a conta, convide o time por link e importe seus contatos. Ficou com dúvida? Fale com a gente em{' '}
+              Crie a conta, convide o time por link e importe seus contatos. Os primeiros 7 dias são por nossa conta. Ficou com dúvida? Fale com a gente em{' '}
               <a href={`mailto:${CONTATO}`} className="text-primary font-medium hover:underline">
                 {CONTATO}
               </a>
               .
             </p>
-            <BotaoPrincipal>Criar minha conta</BotaoPrincipal>
+            <BotaoPrincipal>Começar o teste grátis</BotaoPrincipal>
           </div>
         </Secao>
       </main>
