@@ -6,6 +6,7 @@ import {
   isSuspending,
   isTerminal,
   evaluateConditionPredicate,
+  contactUpdateFromAnswer,
 } from "./engine";
 
 describe("matchReplyId", () => {
@@ -295,5 +296,26 @@ describe("evaluateConditionPredicate", () => {
         configValue: "anything",
       }),
     ).toBe(false);
+  });
+});
+
+describe("contactUpdateFromAnswer", () => {
+  it("grava o texto no campo escolhido, sem espaços nas pontas", () => {
+    expect(contactUpdateFromAnswer("name", "  Marcelo ")).toEqual({ name: "Marcelo" });
+    expect(contactUpdateFromAnswer("company", "Cargon")).toEqual({ company: "Cargon" });
+    expect(contactUpdateFromAnswer("job_title", "Diretor")).toEqual({ job_title: "Diretor" });
+  });
+
+  it("e-mail: só aceita endereço válido e grava em minúsculas", () => {
+    expect(contactUpdateFromAnswer("email", "Marcelo@Cargon.com.br")).toEqual({
+      email: "marcelo@cargon.com.br",
+    });
+    expect(contactUpdateFromAnswer("email", "sim")).toBeNull();
+    expect(contactUpdateFromAnswer("email", "marcelo @ cargon")).toBeNull();
+  });
+
+  it("recusa campo desconhecido e resposta vazia", () => {
+    expect(contactUpdateFromAnswer("phone", "5511999999999")).toBeNull();
+    expect(contactUpdateFromAnswer("name", "   ")).toBeNull();
   });
 });

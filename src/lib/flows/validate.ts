@@ -24,6 +24,7 @@
  */
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
+import { CONTACT_FIELDS_FROM_FLOW } from "./types";
 
 export interface ValidationIssue {
   severity: "error" | "warning";
@@ -536,8 +537,21 @@ function validateNode(
       const cfg = node.config as {
         prompt_text?: string;
         var_key?: string;
+        save_to_contact?: string;
         next_node_key?: string;
       };
+      if (
+        cfg.save_to_contact &&
+        !(CONTACT_FIELDS_FROM_FLOW as readonly string[]).includes(cfg.save_to_contact)
+      ) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "save_to_contact",
+          message: `Can't save the answer to contact field "${cfg.save_to_contact}".`,
+        });
+      }
       if (!cfg.prompt_text?.trim()) {
         issues.push({
           severity: "error",

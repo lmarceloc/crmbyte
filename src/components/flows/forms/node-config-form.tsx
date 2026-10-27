@@ -49,6 +49,9 @@ import { uploadAccountMedia, MEDIA_MAX_BYTES } from "@/lib/storage/upload-media"
 import { slugify, type BuilderNode } from "../shared";
 import { NextNodeRow, NodeKeySelect, TextRow } from "./fields";
 
+// Radix Select não aceita value="" — sentinela para "não salvar".
+const NAO_SALVAR = "__nao_salvar__";
+
 interface NodeConfigFormProps {
   node: BuilderNode;
   allNodes: BuilderNode[];
@@ -156,6 +159,31 @@ export function NodeConfigForm({
                 {"}}"}
               </code>
               .
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">
+              Salvar a resposta no contato
+            </label>
+            <Select
+              value={(cfg as { save_to_contact?: string }).save_to_contact ?? NAO_SALVAR}
+              onValueChange={(v) =>
+                onUpdateConfig({ save_to_contact: v === NAO_SALVAR ? undefined : v })
+              }
+            >
+              <SelectTrigger className="bg-muted">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NAO_SALVAR}>Não salvar</SelectItem>
+                <SelectItem value="name">Nome</SelectItem>
+                <SelectItem value="email">E-mail</SelectItem>
+                <SelectItem value="company">Empresa</SelectItem>
+                <SelectItem value="job_title">Cargo</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Substitui o valor atual do campo. Em E-mail, respostas que não são e-mail são ignoradas.
             </p>
           </div>
           <NextNodeRow

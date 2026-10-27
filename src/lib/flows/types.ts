@@ -132,9 +132,18 @@ export interface CollectInputNodeConfig {
   validation?: "any" | "email" | "phone" | "regex";
   /** Used only when `validation === 'regex'`. */
   regex?: string;
+  /**
+   * Also write the captured text onto this column of the contact
+   * (overwriting it). Unset = the answer lives only in `flow_runs.vars`.
+   */
+  save_to_contact?: ContactFieldFromFlow;
   /** Node to advance to after capture. */
   next_node_key: string;
 }
+
+/** Contact columns a collect_input answer can be written to. */
+export const CONTACT_FIELDS_FROM_FLOW = ["name", "email", "company", "job_title"] as const;
+export type ContactFieldFromFlow = (typeof CONTACT_FIELDS_FROM_FLOW)[number];
 
 export type ConditionOperator =
   | "equals"

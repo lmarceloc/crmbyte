@@ -41,7 +41,9 @@ import {
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import {
+  CONTACT_FIELDS_FROM_FLOW,
   type CollectInputNodeConfig,
+  type ContactFieldFromFlow,
   type ConditionNodeConfig,
   type DispatchInboundInput,
   type DispatchInboundResult,
@@ -447,11 +449,74 @@ async function executeHandoff(
       .update(convUpdate)
       .eq("id", run.conversation_id);
   }
+  const note = cfg.note ? interpolateVars(cfg.note, run.vars).trim() : "";
+  // The note is meant for the agent picking up, so it goes on the
+  // contact too — the run log alone isn't visible from the inbox.
+  if (note && run.contact_id) {
+    const { error } = await db.from("contact_notes").insert({
+      account_id: run.account_id,
+      contact_id: run.contact_id,
+      user_id: run.user_id,
+      note_text: note,
+    });
+    if (error) console.error("[flows] handoff note insert error:", error.message);
+  }
   await logEvent(db, run.id, "handoff", node.node_key, {
-    note: cfg.note ?? null,
+    note: note || null,
     assigned_to: cfg.assign_to ?? null,
   });
   await endRun(db, run.id, "handed_off", "handoff_node");
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Contact column update for a collect_input answer, or null when the
+ * answer can't go in that field (unknown field, or not an e-mail for
+ * the email column). Exported pure for unit testing.
+ */
+export function contactUpdateFromAnswer(
+  field: string,
+  answer: string,
+): Partial<Record<ContactFieldFromFlow, string>> | null {
+  const value = answer.trim();
+  if (!value || !(CONTACT_FIELDS_FROM_FLOW as readonly string[]).includes(field)) return null;
+  if (field === "email") return EMAIL_RE.test(value) ? { email: value.toLowerCase() } : null;
+  return { [field]: value };
+}
+
+/**
+ * Write a collect_input answer onto the contact. Best-effort: a
+ * skipped or failed write is logged on the run and the flow carries on.
+ */
+async function saveAnswerToContact(
+  db: AdminClient,
+  run: FlowRunRow,
+  nodeKey: string,
+  field: ContactFieldFromFlow,
+  answer: string,
+): Promise<void> {
+  if (!run.contact_id) return;
+  const update = contactUpdateFromAnswer(field, answer);
+  if (!update) {
+    await logEvent(db, run.id, "node_entered", nodeKey, {
+      reason: `contact_not_updated:invalid_${field}`,
+    });
+    return;
+  }
+  const { error } = await db
+    .from("contacts")
+    .update({ ...update, updated_at: new Date().toISOString() })
+    .eq("id", run.contact_id)
+    .eq("account_id", run.account_id);
+  if (error) {
+    await logEvent(db, run.id, "error", nodeKey, {
+      reason: "contact_update_failed",
+      detail: error.message,
+    });
+    return;
+  }
+  await logEvent(db, run.id, "node_entered", nodeKey, { saved_to_contact: field });
 }
 
 /**
@@ -956,6 +1021,9 @@ async function handleReplyForActiveRun(
           captured_key: cfg.var_key,
           captured_length: captured.length,
         });
+        if (cfg.save_to_contact) {
+          await saveAnswerToContact(db, run, currentNode.node_key, cfg.save_to_contact, captured);
+        }
         matched = cfg.next_node_key;
       }
     }
