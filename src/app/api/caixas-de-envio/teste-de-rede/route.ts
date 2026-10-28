@@ -9,8 +9,15 @@ export const dynamic = "force-dynamic";
  * Diagnóstico de rede das caixas SMTP da conta (admin+): de dentro da Cloudflare,
  * tenta abrir conexão com os servidores SMTP (587 e 465) e IMAP (993) cadastrados
  * e devolve o resultado com horário, para mandar ao suporte do provedor.
- * Só testa hosts das próprias caixas da conta (nada de host arbitrário).
+ * Testa só os hosts das caixas da conta mais uma lista fixa de comparação
+ * (Umbler e Gmail) — nada de host arbitrário vindo da requisição.
  */
+const COMPARACAO = [
+  { provedor: "Umbler", host: "smtp.umbler.com", portas: [587, 465] },
+  { provedor: "Umbler", host: "imap.umbler.com", portas: [993] },
+  { provedor: "Gmail", host: "smtp.gmail.com", portas: [587, 465] },
+  { provedor: "Gmail", host: "imap.gmail.com", portas: [993] },
+];
 export async function GET() {
   try {
     const ctx = await requireRole("admin");
@@ -21,11 +28,14 @@ export async function GET() {
       .eq("account_id", ctx.accountId);
     if (error) throw error;
 
-    const alvos = new Map<string, { host: string; porta: number }>();
-    for (const c of data ?? []) {
+    const alvos = new Map<string, { provedor: string; host: string; porta: number }>();
+    for (const { provedor, host, portas } of COMPARACAO)
+      for (const porta of portas) alvos.set(`${host}:${porta}`, { provedor, host, porta });
+    for (const c of (data ?? []).slice(0, 5)) {
       if (c.provedor === "microsoft") continue;
-      for (const porta of [587, 465]) if (c.smtp_host) alvos.set(`${c.smtp_host}:${porta}`, { host: c.smtp_host, porta });
-      if (c.imap_host) alvos.set(`${c.imap_host}:993`, { host: c.imap_host, porta: 993 });
+      for (const porta of [587, 465])
+        if (c.smtp_host) alvos.set(`${c.smtp_host}:${porta}`, { provedor: `caixa ${c.email}`, host: c.smtp_host, porta });
+      if (c.imap_host) alvos.set(`${c.imap_host}:993`, { provedor: `caixa ${c.email}`, host: c.imap_host, porta: 993 });
     }
 
     // IP de saída das requisições HTTP do Worker (o de socket costuma ser da mesma faixa)
@@ -34,8 +44,13 @@ export async function GET() {
       .catch(() => "");
     const campo = (k: string) => trace.match(new RegExp(`^${k}=(.*)$`, "m"))?.[1] ?? null;
 
-    const testes = [];
-    for (const { host, porta } of [...alvos.values()].slice(0, 6)) testes.push(await testarPorta(host, porta));
+    // em paralelo: a resposta volta em ~10 s mesmo com vários timeouts
+    const testes = await Promise.all(
+      [...alvos.values()].slice(0, 16).map(async ({ provedor, host, porta }) => ({
+        provedor,
+        ...(await testarPorta(host, porta)),
+      })),
+    );
 
     const agora = new Date();
     return json({
