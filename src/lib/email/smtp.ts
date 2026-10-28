@@ -1,4 +1,6 @@
 import { randomUUID } from "crypto";
+import net from "net";
+import tls from "tls";
 import nodemailer, { type Transporter } from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
 import { assertDestinoResolvidoSeguro } from "./ssrf";
@@ -52,6 +54,43 @@ function nomeEhlo(): string | undefined {
   }
 }
 
+const CONEXAO_MS = 15_000;
+
+type OpcoesDoSocket = { host?: string; port?: number | string; secure?: boolean };
+type RetornoDoSocket = (erro: Error | null, socket?: { connection: net.Socket; secured: boolean } | false) => void;
+
+/**
+ * Abre o socket pelo NOME do servidor. Sem isto o nodemailer resolve o DNS e conecta
+ * no IP — e, a partir da Cloudflare, smtp.umbler.com:587 dava timeout pelo IP no mesmo
+ * minuto em que conectava pelo nome. 465 já chega em TLS (secured); 587 segue com
+ * STARTTLS pelo próprio nodemailer.
+ */
+export function socketPeloNome(opcoes: OpcoesDoSocket, retorno: RetornoDoSocket): void {
+  const host = opcoes.host;
+  if (!host) return retorno(null, false);
+  const secure = !!opcoes.secure;
+  const port = Number(opcoes.port) || (secure ? 465 : 587);
+  const socket = secure ? tls.connect({ host, port, servername: host }) : net.connect({ host, port });
+  let fim = false;
+  const terminar = (erro: Error | null) => {
+    if (fim) return;
+    fim = true;
+    clearTimeout(relogio);
+    socket.removeListener("error", terminar);
+    if (erro) {
+      socket.destroy();
+      return retorno(erro);
+    }
+    retorno(null, { connection: socket, secured: secure });
+  };
+  const relogio = setTimeout(
+    () => terminar(Object.assign(new Error(`connect ETIMEDOUT ${host}:${port}`), { code: "ETIMEDOUT" })),
+    CONEXAO_MS,
+  );
+  socket.once(secure ? "secureConnect" : "connect", () => terminar(null));
+  socket.once("error", terminar);
+}
+
 const CACHE_MAX = 50;
 const cache = new Map<string, Transporter>();
 
@@ -68,6 +107,7 @@ function transporte(cfg: ConfigSmtp): Transporter {
     requireTLS: cfg.security === "starttls",
     ignoreTLS: cfg.security === "none",
     auth: cfg.username ? { user: cfg.username, pass: cfg.password } : undefined,
+    getSocket: socketPeloNome,
   });
   if (cache.size >= CACHE_MAX) {
     const velha = cache.keys().next().value;
