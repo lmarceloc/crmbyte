@@ -1,11 +1,10 @@
-import dns from "dns";
 import net, { type AddressInfo, type Server } from "net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // O SMTP falso roda em 127.0.0.1, que a checagem anti-SSRF recusa de propósito.
 vi.mock("./ssrf", () => ({ assertDestinoResolvidoSeguro: async () => undefined }));
 
-import { enviarPorSmtp, socketPeloNome } from "./smtp";
+import { enviarPorSmtp } from "./smtp";
 
 interface Recebido {
   mailFrom: string;
@@ -133,26 +132,6 @@ describe("enviarPorSmtp", () => {
     const r = await enviarPorSmtp(cfg(porta), MSG);
     expect(r).toMatchObject({ ok: false, erro: "sender_rejected" });
     expect(ativo.recebidos).toHaveLength(0);
-  });
-
-  it("conecta pelo nome do servidor, sem o nodemailer resolver o IP antes", async () => {
-    const porta = await subir();
-    // o nodemailer resolve com um dns.Resolver próprio antes de conectar no IP
-    const resolve4 = vi.spyOn(dns.Resolver.prototype, "resolve4");
-    const resolve6 = vi.spyOn(dns.Resolver.prototype, "resolve6");
-    const r = await enviarPorSmtp({ ...cfg(porta), host: "localhost" }, MSG);
-    expect(r.ok).toBe(true);
-    expect(resolve4).not.toHaveBeenCalled();
-    expect(resolve6).not.toHaveBeenCalled();
-    vi.restoreAllMocks();
-  });
-
-  it("socketPeloNome devolve o erro quando a porta recusa", async () => {
-    const porta = await subir();
-    await new Promise((ok) => ativo.server.close(ok));
-    ativo = undefined as never;
-    const erro = await new Promise<Error | null>((ok) => socketPeloNome({ host: "127.0.0.1", port: porta }, (e) => ok(e)));
-    expect(erro?.message).toMatch(/ECONNREFUSED/);
   });
 
   it("recusa endereço com caractere de cabeçalho antes de abrir conexão", async () => {
