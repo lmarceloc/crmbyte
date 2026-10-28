@@ -1,6 +1,6 @@
 import net from "net";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { portaComTlsDireto, testarPorta } from "./teste-de-rede";
+import { ipDeSaidaPorSocket, portaComTlsDireto, testarPorta } from "./teste-de-rede";
 import * as ssrf from "./ssrf";
 
 let servidor: net.Server | null = null;
@@ -44,5 +44,26 @@ describe("testarPorta", () => {
     expect(portaComTlsDireto(465)).toBe(true);
     expect(portaComTlsDireto(993)).toBe(true);
     expect(portaComTlsDireto(587)).toBe(false);
+  });
+});
+
+describe("ipDeSaidaPorSocket", () => {
+  function subirHttp(corpo: string): Promise<number> {
+    return new Promise((resolve) => {
+      servidor = net.createServer((s) => s.once("data", () => s.end(`HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n${corpo}`)));
+      servidor.listen(0, "127.0.0.1", () => resolve((servidor!.address() as net.AddressInfo).port));
+    });
+  }
+
+  it("lê o IP do corpo da resposta", async () => {
+    const porta = await subirHttp("203.0.113.7");
+    expect(await ipDeSaidaPorSocket("127.0.0.1", porta, 3000)).toMatchObject({ ip: "203.0.113.7", erro: null });
+  });
+
+  it("corpo que não é IP vira erro", async () => {
+    const porta = await subirHttp("<html>bloqueado</html>");
+    const r = await ipDeSaidaPorSocket("127.0.0.1", porta, 3000);
+    expect(r.ip).toBeNull();
+    expect(r.erro).toMatch(/inesperada/);
   });
 });

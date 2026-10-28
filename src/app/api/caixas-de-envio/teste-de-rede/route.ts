@@ -1,14 +1,15 @@
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { json, toErrorResponse } from "@/lib/api-utils";
 import { requireRole } from "@/lib/auth/account";
-import { testarPorta } from "@/lib/email/teste-de-rede";
+import { ipDeSaidaPorSocket, testarPorta } from "@/lib/email/teste-de-rede";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Diagnóstico de rede das caixas SMTP da conta (admin+): de dentro da Cloudflare,
  * tenta abrir conexão com os servidores SMTP (587 e 465) e IMAP (993) cadastrados
- * e devolve o resultado com horário, para mandar ao suporte do provedor.
+ * e devolve o resultado com horário, para mandar ao suporte do provedor — junto com
+ * o IPv4 de saída dos sockets, que é o que aparece no firewall dele.
  * Testa só os hosts das caixas da conta mais uma lista fixa de comparação
  * (Umbler e Gmail) — nada de host arbitrário vindo da requisição.
  */
@@ -44,6 +45,9 @@ export async function GET() {
       .catch(() => "");
     const campo = (k: string) => trace.match(new RegExp(`^${k}=(.*)$`, "m"))?.[1] ?? null;
 
+    // IPv4 de saída dos sockets (o que o firewall do provedor de e-mail registra),
+    // medido antes e depois dos testes: o Worker pode sair por IPs diferentes
+    const ipv4Antes = await ipDeSaidaPorSocket();
     // em paralelo: a resposta volta em ~10 s mesmo com vários timeouts
     const testes = await Promise.all(
       [...alvos.values()].slice(0, 16).map(async ({ provedor, host, porta }) => ({
@@ -51,12 +55,18 @@ export async function GET() {
         ...(await testarPorta(host, porta)),
       })),
     );
+    const ipv4Depois = await ipDeSaidaPorSocket();
 
     const agora = new Date();
     return json({
       quando_utc: agora.toISOString(),
       quando_brasilia: agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
-      origem: { rede: "Cloudflare Workers", ip_de_saida_http: campo("ip"), datacenter: campo("colo") },
+      origem: {
+        rede: "Cloudflare Workers",
+        ipv4_de_saida_socket: { antes_dos_testes: ipv4Antes, depois_dos_testes: ipv4Depois },
+        ip_de_saida_http: campo("ip"),
+        datacenter: campo("colo"),
+      },
       caixas: (data ?? []).map((c) => c.email),
       testes,
     });

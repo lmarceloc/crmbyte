@@ -63,3 +63,41 @@ export async function testarPorta(host: string, porta: number, limiteMs = 10_000
     socket.once("error", (e: Error) => terminar({ resultado: "falhou", saudacao: null, erro: e.message.slice(0, 300) }));
   });
 }
+
+export interface IpDeSaida {
+  /** IP que o serviço externo viu (IPv4 quando o destino só fala IPv4). */
+  ip: string | null;
+  quando_utc: string;
+  erro: string | null;
+}
+
+/**
+ * IP de saída das conexões TCP do Worker — o mesmo caminho dos testes SMTP/IMAP
+ * (socket puro, não fetch). api.ipify.org só tem IPv4, então a resposta é o IPv4
+ * que o provedor de e-mail vê no firewall; o fetch sai por IPv6 e não serve para isso.
+ */
+export async function ipDeSaidaPorSocket(host = "api.ipify.org", porta = 80, limiteMs = 5000): Promise<IpDeSaida> {
+  const quando_utc = new Date().toISOString();
+  return new Promise((resolve) => {
+    let fim = false;
+    let resposta = "";
+    const socket = net.connect({ host, port: porta });
+    const terminar = (r: Pick<IpDeSaida, "ip" | "erro">) => {
+      if (fim) return;
+      fim = true;
+      clearTimeout(relogio);
+      socket.destroy();
+      resolve({ quando_utc, ...r });
+    };
+    const relogio = setTimeout(() => terminar({ ip: null, erro: `Sem resposta em ${limiteMs / 1000}s (timeout).` }), limiteMs);
+    socket.once("connect", () => socket.write(`GET / HTTP/1.0\r\nHost: ${host}\r\n\r\n`));
+    socket.on("data", (d: Buffer) => {
+      resposta += d.toString("utf8");
+    });
+    socket.once("end", () => {
+      const corpo = resposta.split("\r\n\r\n")[1]?.trim() ?? "";
+      terminar(net.isIP(corpo) ? { ip: corpo, erro: null } : { ip: null, erro: `Resposta inesperada: ${corpo.slice(0, 100)}` });
+    });
+    socket.once("error", (e: Error) => terminar({ ip: null, erro: e.message.slice(0, 300) }));
+  });
+}
