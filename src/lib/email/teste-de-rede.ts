@@ -75,13 +75,19 @@ export interface IpDeSaida {
  * IP de saída das conexões TCP do Worker — o mesmo caminho dos testes SMTP/IMAP
  * (socket puro, não fetch). api.ipify.org só tem IPv4, então a resposta é o IPv4
  * que o provedor de e-mail vê no firewall; o fetch sai por IPv6 e não serve para isso.
+ * Vai por TLS na 443: a Cloudflare recusa socket com HTTP em texto puro ("use fetch").
  */
-export async function ipDeSaidaPorSocket(host = "api.ipify.org", porta = 80, limiteMs = 5000): Promise<IpDeSaida> {
+export async function ipDeSaidaPorSocket(
+  host = "api.ipify.org",
+  porta = 443,
+  limiteMs = 5000,
+  usaTls = true,
+): Promise<IpDeSaida> {
   const quando_utc = new Date().toISOString();
   return new Promise((resolve) => {
     let fim = false;
     let resposta = "";
-    const socket = net.connect({ host, port: porta });
+    const socket = usaTls ? tls.connect({ host, port: porta, servername: host }) : net.connect({ host, port: porta });
     const terminar = (r: Pick<IpDeSaida, "ip" | "erro">) => {
       if (fim) return;
       fim = true;
@@ -90,7 +96,7 @@ export async function ipDeSaidaPorSocket(host = "api.ipify.org", porta = 80, lim
       resolve({ quando_utc, ...r });
     };
     const relogio = setTimeout(() => terminar({ ip: null, erro: `Sem resposta em ${limiteMs / 1000}s (timeout).` }), limiteMs);
-    socket.once("connect", () => socket.write(`GET / HTTP/1.0\r\nHost: ${host}\r\n\r\n`));
+    socket.once(usaTls ? "secureConnect" : "connect", () => socket.write(`GET / HTTP/1.0\r\nHost: ${host}\r\n\r\n`));
     socket.on("data", (d: Buffer) => {
       resposta += d.toString("utf8");
     });

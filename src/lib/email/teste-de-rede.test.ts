@@ -57,12 +57,12 @@ describe("ipDeSaidaPorSocket", () => {
 
   it("lê o IP do corpo da resposta", async () => {
     const porta = await subirHttp("203.0.113.7");
-    expect(await ipDeSaidaPorSocket("127.0.0.1", porta, 3000)).toMatchObject({ ip: "203.0.113.7", erro: null });
+    expect(await ipDeSaidaPorSocket("127.0.0.1", porta, 3000, false)).toMatchObject({ ip: "203.0.113.7", erro: null });
   });
 
   it("corpo que não é IP vira erro", async () => {
     const porta = await subirHttp("<html>bloqueado</html>");
-    const r = await ipDeSaidaPorSocket("127.0.0.1", porta, 3000);
+    const r = await ipDeSaidaPorSocket("127.0.0.1", porta, 3000, false);
     expect(r.ip).toBeNull();
     expect(r.erro).toMatch(/inesperada/);
   });
