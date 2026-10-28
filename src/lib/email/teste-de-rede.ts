@@ -73,12 +73,13 @@ export interface IpDeSaida {
 
 /**
  * IP de saída das conexões TCP do Worker — o mesmo caminho dos testes SMTP/IMAP
- * (socket puro, não fetch). api.ipify.org só tem IPv4, então a resposta é o IPv4
- * que o provedor de e-mail vê no firewall; o fetch sai por IPv6 e não serve para isso.
- * Vai por TLS na 443: a Cloudflare recusa socket com HTTP em texto puro ("use fetch").
+ * (socket puro, não fetch). checkip.amazonaws.com só tem IPv4, então a resposta é o
+ * IPv4 que o provedor de e-mail vê no firewall; o fetch sai por IPv6 e não serve para isso.
+ * Precisa ser um serviço fora da Cloudflare: socket do Worker para IP da Cloudflare
+ * é recusado (api.ipify.org e icanhazip.com estão atrás dela).
  */
 export async function ipDeSaidaPorSocket(
-  host = "api.ipify.org",
+  host = "checkip.amazonaws.com",
   porta = 443,
   limiteMs = 5000,
   usaTls = true,
@@ -96,7 +97,7 @@ export async function ipDeSaidaPorSocket(
       resolve({ quando_utc, ...r });
     };
     const relogio = setTimeout(() => terminar({ ip: null, erro: `Sem resposta em ${limiteMs / 1000}s (timeout).` }), limiteMs);
-    socket.once(usaTls ? "secureConnect" : "connect", () => socket.write(`GET / HTTP/1.0\r\nHost: ${host}\r\n\r\n`));
+    socket.once(usaTls ? "secureConnect" : "connect", () => socket.write(`GET / HTTP/1.0\r\nHost: ${host}\r\nConnection: close\r\n\r\n`));
     socket.on("data", (d: Buffer) => {
       resposta += d.toString("utf8");
     });
