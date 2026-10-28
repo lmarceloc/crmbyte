@@ -28,6 +28,13 @@ describe("validarItem", () => {
     expect(validarItem({ name: "Ana", linkedin_url: "https://linkedin.com/in/ana" }).ok).toBe(true);
   });
 
+  it("descarta o e-mail não liberado do Apollo (não é de ninguém)", () => {
+    const r = validarItem({ name: "Ana", email: "email_not_unlocked@domain.com", phone: "5511999990000" });
+    expect(r.ok && r.contato.email).toBeNull();
+    // sem e-mail de verdade, precisa de telefone ou LinkedIn
+    expect(validarItem({ name: "Ana", email: "Email_Not_Unlocked@domain.com" }).ok).toBe(false);
+  });
+
   it("recusa e-mail inválido e campo desconhecido, com mensagem", () => {
     const r = validarItem({ name: "Ana", email: "sem-arroba" });
     expect(r.ok === false && r.erro).toContain("E-mail inválido.");

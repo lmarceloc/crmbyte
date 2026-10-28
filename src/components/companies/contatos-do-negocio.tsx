@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { DealContactsSection, type MembroDoNegocio } from "@/components/pipelines/deal-contacts-section"
 import { useAuth } from "@/hooks/use-auth"
+import { mensagemContatoRepetido } from "@/lib/contacts/dedupe"
 import { createClient } from "@/lib/supabase/client"
 import type { Contact } from "@/types"
 
@@ -168,7 +169,7 @@ export function ContatosDoNegocio({
       .single()
     if (error || !data) {
       toast.error(
-        error?.code === "23505" ? "Já existe um contato com esse telefone." : "Não foi possível criar o contato.",
+        error?.code === "23505" ? mensagemContatoRepetido(error) : "Não foi possível criar o contato.",
       )
       return
     }

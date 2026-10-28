@@ -74,6 +74,23 @@ export function isUniqueViolation(error: unknown): boolean {
   return (error as { code?: string }).code === "23505";
 }
 
+/** Índice único de e-mail por conta (migração 054). */
+export const INDICE_EMAIL_UNICO = "idx_contacts_account_email_unico";
+
+/** A violação de unicidade veio do e-mail (e não do telefone)? */
+export function isEmailUniqueViolation(error: unknown): boolean {
+  if (!isUniqueViolation(error)) return false;
+  const { message, details } = error as { message?: string; details?: string };
+  return `${message ?? ""} ${details ?? ""}`.includes(INDICE_EMAIL_UNICO);
+}
+
+/** Mensagem para o usuário quando o banco recusa um contato repetido. */
+export function mensagemContatoRepetido(error: unknown): string {
+  return isEmailUniqueViolation(error)
+    ? "Já existe um contato com esse e-mail."
+    : "Já existe um contato com esse telefone.";
+}
+
 /**
  * De-duplicate parsed CSV rows by normalized phone, keeping the first
  * occurrence of each. Rows with an empty normalized phone are dropped
