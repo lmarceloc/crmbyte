@@ -2,7 +2,8 @@
 // Apollo, um formulário, outro CRM... Rodar a mesma lista de novo não duplica:
 // o contato é reconhecido pelo e-mail, senão pelo telefone, senão pelo LinkedIn,
 // e no reencontro só os campos VAZIOS são completados — nunca sobrescreve o que o
-// vendedor já editou.
+// vendedor já editou. O banco garante e-mail e telefone únicos por conta, então
+// pedidos simultâneos com o mesmo contato também não duplicam.
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { obterOuCriarEmpresa } from "@/lib/companies";
@@ -12,6 +13,9 @@ import { findExistingContact, isUniqueViolation } from "@/lib/contacts/dedupe";
 type Admin = SupabaseClient;
 
 export const MAX_CONTATOS_POR_PEDIDO = 100;
+
+/** Marcador que o Apollo põe no lugar do e-mail ainda não liberado. Não é de ninguém. */
+const EMAIL_NAO_LIBERADO = /^email_not_unlocked@/i;
 
 const texto = (max: number) =>
   z
@@ -33,7 +37,7 @@ export const contatoSchema = z
   .object({
     name: z.string().trim().min(1, "Informe o nome do contato.").max(200),
     email: texto(320)
-      .transform((v) => v?.toLowerCase() ?? null)
+      .transform((v) => (v && !EMAIL_NAO_LIBERADO.test(v) ? v.toLowerCase() : null))
       .refine((v) => !v || EMAIL.test(v), "E-mail inválido."),
     phone: texto(40),
     job_title: texto(200),
@@ -126,12 +130,14 @@ async function acharExistente(admin: Admin, accountId: string, c: ContatoEntrada
 async function completar(admin: Admin, id: string, patch: Record<string, string>): Promise<void> {
   if (!Object.keys(patch).length) return;
   let { error } = await admin.from("contacts").update(patch).eq("id", id);
-  // telefone já é de OUTRO contato da conta (índice único): completa o resto sem ele
-  if (isUniqueViolation(error) && patch.phone) {
-    const semTelefone = { ...patch };
-    delete semTelefone.phone;
-    if (!Object.keys(semTelefone).length) return;
-    ({ error } = await admin.from("contacts").update(semTelefone).eq("id", id));
+  // telefone ou e-mail já é de OUTRO contato da conta (índices únicos): completa
+  // o resto sem eles
+  if (isUniqueViolation(error) && (patch.phone || patch.email)) {
+    const semChaves = { ...patch };
+    delete semChaves.phone;
+    delete semChaves.email;
+    if (!Object.keys(semChaves).length) return;
+    ({ error } = await admin.from("contacts").update(semChaves).eq("id", id));
   }
   if (error) throw new Error(error.message);
 }

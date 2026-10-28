@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { mensagemContatoRepetido } from "@/lib/contacts/dedupe";
 import { CURRENCIES } from "@/lib/currency";
 import type {
   Company,
@@ -408,7 +409,7 @@ export function DealForm({
     if (error || !data) {
       toast.error(
         error?.code === "23505"
-          ? "Já existe um contato com esse telefone."
+          ? mensagemContatoRepetido(error)
           : "Não foi possível criar o contato.",
       );
       return;
