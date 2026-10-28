@@ -1,3 +1,4 @@
+import dns from "dns/promises";
 import net from "net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ipDeSaidaPorSocket, portaComTlsDireto, testarPorta } from "./teste-de-rede";
@@ -33,6 +34,14 @@ describe("testarPorta", () => {
     const r = await testarPorta("127.0.0.1", porta, 300);
     expect(r.resultado).toBe("conectou");
     expect(r.erro).toMatch(/saudação/);
+  });
+
+  it("via ip conecta no IP resolvido", async () => {
+    vi.spyOn(ssrf, "ipEInterno").mockReturnValue(false);
+    const porta = await subir("220 pronto\r\n");
+    vi.spyOn(dns, "lookup").mockResolvedValue([{ address: "127.0.0.1", family: 4 }] as never);
+    const r = await testarPorta("smtp.teste", porta, 3000, "ip");
+    expect(r).toMatchObject({ via: "ip", resultado: "conectou", saudacao: "220 pronto" });
   });
 
   it("recusa host interno sem conectar", async () => {

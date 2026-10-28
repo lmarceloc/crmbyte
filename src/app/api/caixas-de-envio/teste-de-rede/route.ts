@@ -29,9 +29,12 @@ export async function GET() {
       .eq("account_id", ctx.accountId);
     if (error) throw error;
 
-    const alvos = new Map<string, { provedor: string; host: string; porta: number }>();
+    type Via = "nome" | "ip";
+    const alvos = new Map<string, { provedor: string; host: string; porta: number; via?: Via }>();
     for (const { provedor, host, portas } of COMPARACAO)
       for (const porta of portas) alvos.set(`${host}:${porta}`, { provedor, host, porta });
+    // o envio (nodemailer) conecta pelo IP resolvido, não pelo nome: testa esse caminho também
+    alvos.set("smtp.umbler.com:587:ip", { provedor: "Umbler", host: "smtp.umbler.com", porta: 587, via: "ip" });
     for (const c of (data ?? []).slice(0, 5)) {
       if (c.provedor === "microsoft") continue;
       for (const porta of [587, 465])
@@ -50,9 +53,9 @@ export async function GET() {
     const ipv4Antes = await ipDeSaidaPorSocket();
     // em paralelo: a resposta volta em ~10 s mesmo com vários timeouts
     const testes = await Promise.all(
-      [...alvos.values()].slice(0, 16).map(async ({ provedor, host, porta }) => ({
+      [...alvos.values()].slice(0, 17).map(async ({ provedor, host, porta, via }) => ({
         provedor,
-        ...(await testarPorta(host, porta)),
+        ...(await testarPorta(host, porta, undefined, via)),
       })),
     );
     const ipv4Depois = await ipDeSaidaPorSocket();

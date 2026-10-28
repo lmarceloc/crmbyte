@@ -19,15 +19,22 @@ export interface ResultadoDoTeste {
   saudacao: string | null;
   erro: string | null;
   inicio: string;
+  /** "nome" = socket aberto pelo hostname; "ip" = pelo IP resolvido, como o nodemailer faz no envio. */
+  via: "nome" | "ip";
 }
 
 /** 465 e 993 são TLS desde o primeiro byte; as demais começam em texto (STARTTLS depois). */
 export const portaComTlsDireto = (porta: number) => porta === 465 || porta === 993;
 
-export async function testarPorta(host: string, porta: number, limiteMs = 10_000): Promise<ResultadoDoTeste> {
+export async function testarPorta(
+  host: string,
+  porta: number,
+  limiteMs = 10_000,
+  via: "nome" | "ip" = "nome",
+): Promise<ResultadoDoTeste> {
   const inicio = new Date();
   const usaTls = portaComTlsDireto(porta);
-  const base = { host, porta, tls: usaTls, inicio: inicio.toISOString() };
+  const base = { host, porta, tls: usaTls, inicio: inicio.toISOString(), via };
   const ips = net.isIP(host) ? [host] : (await dns.lookup(host, { all: true }).catch(() => [])).map((r) => r.address);
   if (ips.length === 0) return { ...base, ips, resultado: "falhou", ms: 0, saudacao: null, erro: "DNS não resolveu o host." };
   if (ips.some(ipEInterno)) return { ...base, ips, resultado: "falhou", ms: 0, saudacao: null, erro: "Host aponta para endereço interno." };
@@ -35,8 +42,11 @@ export async function testarPorta(host: string, porta: number, limiteMs = 10_000
   return new Promise((resolve) => {
     let conectouEm: number | null = null;
     let fim = false;
-    // conecta pelo NOME (como um cliente de e-mail), não pelo IP resolvido
-    const socket = usaTls ? tls.connect({ host, port: porta, servername: host }) : net.connect({ host, port: porta });
+    // por padrão conecta pelo NOME (como um cliente de e-mail); via "ip" repete o que o nodemailer faz
+    const destino = via === "ip" ? ips[0] : host;
+    const socket = usaTls
+      ? tls.connect({ host: destino, port: porta, servername: host })
+      : net.connect({ host: destino, port: porta });
     const terminar = (r: Pick<ResultadoDoTeste, "resultado" | "saudacao" | "erro">) => {
       if (fim) return;
       fim = true;
