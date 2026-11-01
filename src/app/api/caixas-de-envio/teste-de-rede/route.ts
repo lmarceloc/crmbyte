@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { json, toErrorResponse } from "@/lib/api-utils";
 import { requireRole } from "@/lib/auth/account";
+import { relayAtivo } from "@/lib/email/relay";
 import { ipDeSaidaPorSocket, testarPorta } from "@/lib/email/teste-de-rede";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +60,12 @@ export async function GET() {
       })),
     );
     const ipv4Depois = await ipDeSaidaPorSocket();
+    // com o relay de e-mail ligado, SMTP/IMAP saem dele (IP fixo), não do Worker
+    const relay = relayAtivo()
+      ? await fetch(`${process.env.EMAIL_RELAY_URL!.trim().replace(/\/+$/, "")}/saude`, { signal: AbortSignal.timeout(10_000) })
+          .then(async (r) => ({ status: r.status, ...((await r.json().catch(() => ({}))) as object) }))
+          .catch((e: Error) => ({ status: null, erro: e.message }))
+      : null;
 
     const agora = new Date();
     return json({
@@ -70,6 +77,7 @@ export async function GET() {
         ip_de_saida_http: campo("ip"),
         datacenter: campo("colo"),
       },
+      relay_de_email: relay,
       caixas: (data ?? []).map((c) => c.email),
       testes,
     });

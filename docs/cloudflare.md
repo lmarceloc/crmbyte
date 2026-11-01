@@ -30,7 +30,7 @@ storage, realtime) não muda.
 `AUTOMATION_CRON_SECRET`, `META_APP_ID`, `META_APP_SECRET`, `MICROSOFT_CLIENT_ID`,
 `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI` (opcional), `SMTP_HOST`, `SMTP_PORT`,
 `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`,
-`ABACATEPAY_API_KEY`, `ABACATEPAY_WEBHOOK_SECRET`, `ALLOWED_INVITE_HOSTS`, `CADENCIA_LIMITE_EMAILS_POR_DIA`, `WHATSAPP_TEMPLATES_DRY_RUN` (as opcionais só se existiam na Vercel).
+`ABACATEPAY_API_KEY`, `ABACATEPAY_WEBHOOK_SECRET`, `EMAIL_RELAY_URL`, `EMAIL_RELAY_SECRET`, `ALLOWED_INVITE_HOSTS`, `CADENCIA_LIMITE_EMAILS_POR_DIA`, `WHATSAPP_TEMPLATES_DRY_RUN` (as opcionais só se existiam na Vercel).
 
 > `ENCRYPTION_KEY` e `CADENCIA_TOKEN_SECRET` têm que ser **idênticas** às da Vercel:
 > a primeira decifra senhas/tokens salvos no banco; a segunda valida links de descadastro/pixel já enviados.
@@ -49,6 +49,10 @@ depois da virada. Logs: Worker → Observability.
 SMTP (`nodemailer`) e IMAP (`imapflow`) usam sockets TCP do Workers (`nodejs_compat`).
 Testado localmente no workerd: SMTP e upgrade STARTTLS funcionam. Cloudflare bloqueia a porta 25
 de saída — use 587 (STARTTLS) ou 465 (TLS), que é o que Umbler/Microsoft 365 usam.
+
+Os IPs de saída do Worker são compartilhados e mudam, e a Umbler bloqueia parte deles. Com
+`EMAIL_RELAY_URL` + `EMAIL_RELAY_SECRET`, SMTP/IMAP saem de um relay com IP fixo fora da
+Cloudflare — ver [relay-email.md](relay-email.md).
 
 ## Local
 `npm run preview` (build + wrangler dev com `.dev.vars`) · `npm run deploy`.

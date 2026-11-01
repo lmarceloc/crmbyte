@@ -15,6 +15,9 @@ const eslintConfig = defineConfig([
     // Saída do build OpenNext/Cloudflare.
     ".open-next/**",
     ".wrangler/**",
+    // Bundle do relay de e-mail (relay-email/).
+    "relay-email/dist/**",
+    "relay-email/node_modules/**",
     // Vendored minified opus-recorder encoder worker (served statically).
     "public/opus/**",
   ]),

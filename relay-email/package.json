@@ -1,0 +1,19 @@
+{
+  "name": "crmbyte-relay-email",
+  "private": true,
+  "description": "Relay SMTP/IMAP do CRM fora da Cloudflare (IP de saída fixo).",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "esbuild servidor.ts --bundle --platform=node --target=node22 --format=cjs --external:nodemailer --external:imapflow --outfile=dist/servidor.cjs",
+    "start": "node dist/servidor.cjs"
+  },
+  "dependencies": {
+    "imapflow": "2.2.5",
+    "nodemailer": "10.0.13"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

@@ -5,6 +5,7 @@
 // provedores não fazem isso sozinhos. Falha aqui NUNCA pode derrubar nem repetir
 // um envio: `copiarParaEnviados` não lança, devolve o erro para quem chamou.
 import { ImapFlow } from "imapflow";
+import { chamarRelay, relayAtivo } from "./relay";
 import { assertDestinoResolvidoSeguro, DestinoInseguroError } from "./ssrf";
 
 export type SegurancaImap = "tls" | "starttls";
@@ -149,8 +150,24 @@ async function acharPasta(cliente: ClienteImap, cfg: ConfigImap): Promise<string
 
 export type ResultadoDaCopia = { ok: true; pasta: string } | { ok: false; erro: string };
 
-/** Grava `mensagem` (MIME completo) na pasta de enviados, marcada como lida. Nunca lança. */
+/**
+ * Grava `mensagem` (MIME completo) na pasta de enviados, marcada como lida. Nunca lança.
+ * Com EMAIL_RELAY_URL, quem conecta no IMAP é o relay de e-mail.
+ */
 export async function copiarParaEnviados(
+  cfg: ConfigImap,
+  mensagem: Buffer,
+  deps: DependenciasImap = {},
+): Promise<ResultadoDaCopia> {
+  if (!relayAtivo() || deps.criarCliente) return copiarParaEnviadosDireto(cfg, mensagem, deps);
+  try {
+    return await chamarRelay<ResultadoDaCopia>("imap/copiar", { cfg, raw: mensagem.toString("base64") });
+  } catch (e) {
+    return { ok: false, erro: (e as Error).message };
+  }
+}
+
+export async function copiarParaEnviadosDireto(
   cfg: ConfigImap,
   mensagem: Buffer,
   deps: DependenciasImap = {},
@@ -174,6 +191,18 @@ export type ResultadoDaVerificacaoImap =
 
 /** Conecta, autentica e confirma que a pasta de enviados existe — sem gravar nada. */
 export async function verificarImap(
+  cfg: ConfigImap,
+  deps: DependenciasImap = {},
+): Promise<ResultadoDaVerificacaoImap> {
+  if (!relayAtivo() || deps.criarCliente) return verificarImapDireto(cfg, deps);
+  try {
+    return await chamarRelay<ResultadoDaVerificacaoImap>("imap/verificar", { cfg });
+  } catch (e) {
+    return { ok: false, tipo: "connection_failed", detalhe: (e as Error).message };
+  }
+}
+
+export async function verificarImapDireto(
   cfg: ConfigImap,
   deps: DependenciasImap = {},
 ): Promise<ResultadoDaVerificacaoImap> {
