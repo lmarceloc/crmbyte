@@ -4,6 +4,7 @@
 // últimos dias, para não varrer anos de e-mail.
 import { lerCabecalhos, pareceBounce, type MensagemDaEntrada } from "./entrada";
 import { comConexao, descreverErroImap, type ClienteImap, type ConfigImap, type DependenciasImap } from "./imap";
+import { chamarRelay, relayAtivo } from "./relay";
 
 interface EnvelopeImap {
   date?: Date | string;
@@ -78,8 +79,38 @@ function paraMensagem(m: MensagemImap): MensagemDaEntrada {
   };
 }
 
-/** Lê as mensagens novas da INBOX desde `estado`. Nunca lança. */
+/** Como "imap/ler" trafega no relay (JSON): datas viram texto ISO. */
+export interface PedidoDeLeituraNoRelay {
+  cfg: ConfigImap;
+  estado: EstadoDaEntrada;
+  opcoes: Omit<OpcoesDaLeitura, "agora"> & { agora?: string };
+}
+export type ResultadoDaLeituraNoRelay =
+  | { ok: true; estado: EstadoDaEntrada; mensagens: (Omit<MensagemDaEntrada, "data"> & { data: string | null })[] }
+  | { ok: false; erro: string };
+
+/**
+ * Lê as mensagens novas da INBOX desde `estado`. Nunca lança.
+ * Com EMAIL_RELAY_URL, quem conecta no IMAP é o relay de e-mail.
+ */
 export async function lerCaixaDeEntrada(
+  cfg: ConfigImap,
+  estado: EstadoDaEntrada,
+  opcoes: OpcoesDaLeitura = {},
+  deps: DependenciasImap<ClienteImapLeitura> = {},
+): Promise<ResultadoDaLeitura> {
+  if (!relayAtivo() || deps.criarCliente) return lerCaixaDeEntradaDireto(cfg, estado, opcoes, deps);
+  try {
+    const pedido: PedidoDeLeituraNoRelay = { cfg, estado, opcoes: { ...opcoes, agora: opcoes.agora?.toISOString() } };
+    const r = await chamarRelay<ResultadoDaLeituraNoRelay>("imap/ler", pedido);
+    if (!r.ok) return r;
+    return { ...r, mensagens: r.mensagens.map((m) => ({ ...m, data: m.data ? new Date(m.data) : null })) };
+  } catch (e) {
+    return { ok: false, erro: (e as Error).message };
+  }
+}
+
+export async function lerCaixaDeEntradaDireto(
   cfg: ConfigImap,
   estado: EstadoDaEntrada,
   opcoes: OpcoesDaLeitura = {},

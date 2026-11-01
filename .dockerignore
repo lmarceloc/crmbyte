@@ -1,0 +1,8 @@
+# Só o relay de e-mail (relay-email/Dockerfile) usa build Docker.
+**/node_modules
+**/dist
+.next
+.open-next
+.wrangler
+.git
+.env*

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import nodemailer, { type Transporter } from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
+import { chamarRelay, relayAtivo } from "./relay";
 import { assertDestinoResolvidoSeguro } from "./ssrf";
 
 export type SegurancaSmtp = "starttls" | "tls" | "none";
@@ -111,7 +112,27 @@ export function enderecosSeguros(msg: MensagemDeEmail): boolean {
   return emailSeguro(msg.fromEmail) && emailSeguro(msg.to);
 }
 
-export async function enviarPorSmtp(
+/** Resposta do relay para "smtp/enviar": o MIME volta em base64. */
+export type ResultadoDoEnvioNoRelay =
+  | { ok: true; raw: string; messageId: string }
+  | { ok: false; erro: ErroDeEntrega; detalhe: string };
+
+/** Envia pelo SMTP — pelo relay de e-mail quando EMAIL_RELAY_URL está definida. */
+export async function enviarPorSmtp(cfg: ConfigSmtp, msg: MensagemDeEmail): Promise<ResultadoDoEnvio> {
+  if (!enderecosSeguros(msg)) {
+    return { ok: false, erro: "sender_rejected", detalhe: "Endereço inválido." };
+  }
+  if (!relayAtivo()) return enviarPorSmtpDireto(cfg, msg);
+  try {
+    const r = await chamarRelay<ResultadoDoEnvioNoRelay>("smtp/enviar", { cfg, msg });
+    return r.ok ? { ok: true, raw: Buffer.from(r.raw, "base64"), messageId: r.messageId } : r;
+  } catch (e) {
+    return { ok: false, erro: "send_failed", detalhe: (e as Error).message };
+  }
+}
+
+/** Abre o socket SMTP daqui mesmo (no relay, ou no Worker sem relay). */
+export async function enviarPorSmtpDireto(
   cfg: ConfigSmtp,
   msg: MensagemDeEmail,
 ): Promise<ResultadoDoEnvio> {
@@ -136,9 +157,21 @@ export async function enviarPorSmtp(
   }
 }
 
-export async function verificarSmtp(
-  cfg: ConfigSmtp,
-): Promise<{ ok: true } | { ok: false; tipo: "authentication_failed" | "connection_failed"; detalhe: string }> {
+export type ResultadoDaVerificacaoSmtp =
+  | { ok: true }
+  | { ok: false; tipo: "authentication_failed" | "connection_failed"; detalhe: string };
+
+/** Confere conexão e login — pelo relay de e-mail quando EMAIL_RELAY_URL está definida. */
+export async function verificarSmtp(cfg: ConfigSmtp): Promise<ResultadoDaVerificacaoSmtp> {
+  if (!relayAtivo()) return verificarSmtpDireto(cfg);
+  try {
+    return await chamarRelay<ResultadoDaVerificacaoSmtp>("smtp/verificar", { cfg });
+  } catch (e) {
+    return { ok: false, tipo: "connection_failed", detalhe: (e as Error).message };
+  }
+}
+
+export async function verificarSmtpDireto(cfg: ConfigSmtp): Promise<ResultadoDaVerificacaoSmtp> {
   try {
     await assertDestinoResolvidoSeguro(cfg.host);
     await transporte(cfg).verify();
