@@ -273,6 +273,67 @@ export function AbaConfiguracoes({ config, somenteLeitura, onChange, podeMudarLi
         </p>
       </Secao>
 
+      <Secao titulo="Interesse: puxar para a agenda">
+        <div className="space-y-1.5">
+          <Label htmlFor="link-agenda">Link da agenda</Label>
+          <Input
+            id="link-agenda"
+            type="url"
+            placeholder="https://calendly.com/seu-nome/30min"
+            value={config.linkAgenda}
+            maxLength={500}
+            disabled={somenteLeitura}
+            onChange={(e) => set({ linkAgenda: e.target.value.trim() })}
+          />
+          {config.linkAgenda && !/^https?:\/\/\S+$/i.test(config.linkAgenda) ? (
+            <p className="text-xs text-destructive">O link precisa começar com https:// (e não pode ter espaços).</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Calendly, Google Agenda, Cal.com… Use {"{{link_agenda}}"} no texto dos e-mails para inserir o link.
+            </p>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="interesse-ativo">Ligar o caminho de interesse</Label>
+          <Switch
+            id="interesse-ativo"
+            checked={config.interesse.ativo}
+            disabled={somenteLeitura}
+            onCheckedChange={(v) => set({ interesse: { ...config.interesse, ativo: v } })}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="interesse-aberturas">Quando o lead abrir o mesmo e-mail</Label>
+          <select
+            id="interesse-aberturas"
+            className="h-9 rounded-md border bg-background px-2 text-sm"
+            disabled={somenteLeitura}
+            value={config.interesse.aberturas}
+            onChange={(e) => set({ interesse: { ...config.interesse, aberturas: Number(e.target.value) } })}
+          >
+            {Array.from({ length: 9 }, (_, i) => i + 2).map((n) => (
+              <option key={n} value={n}>
+                {n} vezes ou mais
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="interesse-avisar">Avisar o vendedor (cria tarefa de reunião)</Label>
+          <Switch
+            id="interesse-avisar"
+            checked={config.interesse.avisarVendedor}
+            disabled={somenteLeitura}
+            onCheckedChange={(v) => set({ interesse: { ...config.interesse, avisarVendedor: v } })}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          A qualquer momento da sequência, quem abrir o mesmo e-mail esse número de vezes sai do fluxo principal e
+          segue o caminho do gatilho “Interesse” no canvas (ex.: espera de 1 dia → e-mail com o link da agenda → Fim).
+          O vendedor recebe uma tarefa em Tarefas e no sininho. As paradas abaixo continuam valendo.
+        </p>
+      </Secao>
+
       <Secao titulo="Quando para">
         {paradas.map((p) => (
           <div key={p.k} className="flex items-center justify-between gap-3">

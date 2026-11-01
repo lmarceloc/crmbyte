@@ -17,6 +17,7 @@ import {
   desligar,
   duplicarNaFloresta,
   encontrarNaFloresta,
+  estaNoInteresse,
   inserirNaFloresta,
   ligar,
   moverSolto,
@@ -42,12 +43,14 @@ export function Construtor({ id }: { id: string }) {
   // passos recém-inseridos/duplicados piscam no canvas
   const [destaques, setDestaques] = useState<Record<string, number>>({})
 
+  const interesse = cadencia?.configuracao?.interesse?.passos
   const floresta = useMemo<Floresta>(
-    () => ({ passos: cadencia?.passos ?? [], soltos: cadencia?.soltos ?? [] }),
-    [cadencia?.passos, cadencia?.soltos],
+    () => ({ passos: cadencia?.passos ?? [], soltos: cadencia?.soltos ?? [], interesse: interesse ?? [] }),
+    [cadencia?.passos, cadencia?.soltos, interesse],
   )
   const passos = floresta.passos
-  const numeros = useMemo(() => numerarPassos(passos), [passos])
+  // numeração seguida: fluxo principal, depois o caminho de interesse
+  const numeros = useMemo(() => numerarPassos([...passos, ...(floresta.interesse ?? [])]), [passos, floresta.interesse])
   const erros = useMemo(() => validarFloresta(floresta), [floresta])
 
   if (erro) return <div className="p-6 text-sm text-destructive">{erro}</div>
@@ -60,14 +63,21 @@ export function Construtor({ id }: { id: string }) {
 
   const ativa = cadencia.status === "ativa"
   const somenteLeitura = ativa || !podeEditar
-  const config = { ...configuracaoPadrao(), ...cadencia.configuracao }
+  const base = configuracaoPadrao()
+  const config = {
+    ...base,
+    ...cadencia.configuracao,
+    interesse: { ...base.interesse, ...cadencia.configuracao?.interesse },
+  }
   const passoSel = selecionado ? encontrarNaFloresta(floresta, selecionado) : null
 
-  /** Grava só o que mudou (passos e/ou caixas soltas). */
+  /** Grava só o que mudou (passos, caixas soltas e/ou o caminho de interesse, que mora na configuração). */
   const aplicar = (nova: Floresta) => {
-    const mudanca: Partial<Pick<Cadencia, "passos" | "soltos">> = {}
+    const mudanca: Partial<Pick<Cadencia, "passos" | "soltos" | "configuracao">> = {}
     if (nova.passos !== floresta.passos) mudanca.passos = nova.passos
     if (nova.soltos !== floresta.soltos) mudanca.soltos = nova.soltos
+    if (nova.interesse && nova.interesse !== floresta.interesse)
+      mudanca.configuracao = { ...config, interesse: { ...config.interesse, passos: nova.interesse } }
     if (Object.keys(mudanca).length) editar(mudanca)
   }
 
@@ -98,6 +108,8 @@ export function Construtor({ id }: { id: string }) {
     if (config.janela.dias.length === 0) problemas.push("Escolha ao menos um dia da semana na janela de envio.")
     if (erros.size > 0) problemas.push("Há passos incompletos ou caminho sem caixa Fim (veja os avisos em vermelho).")
     if (floresta.soltos.length > 0) problemas.push("Há caixas soltas no canvas: ligue-as ao fluxo ou exclua.")
+    if (config.interesse.ativo && !config.interesse.passos.some((p) => p.tipo !== "fim"))
+      problemas.push("O caminho de interesse está ligado mas vazio: monte os passos dele no canvas ou desligue nas Configurações.")
     if (problemas.length) return toast.error(problemas.join(" "))
     setMudando(true)
     if (await mudarStatus("ativa")) toast.success("Cadência ativada")
@@ -188,7 +200,8 @@ export function Construtor({ id }: { id: string }) {
             <PainelDoPasso
               key={passoSel.id}
               passo={passoSel}
-              todos={passos}
+              todos={estaNoInteresse(floresta, passoSel.id) ? (floresta.interesse ?? []) : passos}
+              jaRecebeuEmail={estaNoInteresse(floresta, passoSel.id)}
               somenteLeitura={somenteLeitura}
               onChange={(novo) => aplicar(atualizarNaFloresta(floresta, passoSel.id, () => novo))}
               onFechar={() => setSelecionado(null)}
@@ -210,7 +223,7 @@ export function Construtor({ id }: { id: string }) {
         </TabsContent>
 
         <TabsContent value="inscritos" className="overflow-auto">
-          <AbaInscritos cadenciaId={cadencia.id} ativa={ativa} passos={cadencia.passos} />
+          <AbaInscritos cadenciaId={cadencia.id} ativa={ativa} passos={cadencia.passos} interesse={config.interesse.passos} />
         </TabsContent>
       </Tabs>
     </div>

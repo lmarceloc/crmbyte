@@ -55,7 +55,11 @@ export async function PATCH(request: Request, { params }: Params) {
       if (s.data.status === "ativa") {
         const passos = atual.passos as Passo[];
         const emails = todosOsPassos(passos).filter((p) => p.tipo === "email");
-        const cfg = atual.configuracao as { janela?: { dias?: string[] }; tagDoSegmento?: string };
+        const cfg = atual.configuracao as {
+          janela?: { dias?: string[] };
+          tagDoSegmento?: string;
+          interesse?: { ativo?: boolean; passos?: Passo[] };
+        };
         if (passos.length === 0 || emails.length === 0)
           return fail("cadencia_sem_passos", "Adicione pelo menos um passo de e-mail antes de ativar.", 422);
         if (validarPassos(passos).size > 0)
@@ -68,6 +72,13 @@ export async function PATCH(request: Request, { params }: Params) {
           return fail("cadencia_sem_passos", "Há caixas soltas no canvas: ligue-as ao fluxo ou exclua antes de ativar.", 422);
         if (!cfg.janela?.dias?.length)
           return fail("cadencia_sem_passos", "Escolha ao menos um dia da semana na janela de envio.", 422);
+        if (cfg.interesse?.ativo) {
+          const caminho = cfg.interesse.passos ?? [];
+          if (!caminho.some((p) => p.tipo !== "fim"))
+            return fail("cadencia_sem_passos", "O caminho de interesse está ligado mas vazio: monte os passos dele no canvas ou desligue.", 422);
+          if (validarPassos(caminho).size > 0)
+            return fail("cadencia_sem_passos", "O caminho de interesse tem passos incompletos ou sem caixa Fim.", 422);
+        }
       }
       const { data, error } = await admin
         .from("email_cadences")

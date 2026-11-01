@@ -30,6 +30,7 @@ export const TIPOS_DE_EVENTO_DA_CADENCIA = [
   "respondido",
   "bounce",
   "negocio_criado",
+  "interesse_detectado",
 ] as const;
 
 export type StatusDaInscricao = (typeof STATUS_DA_INSCRICAO)[number];

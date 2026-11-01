@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   Ban,
   Briefcase,
+  CalendarCheck,
   CircleCheck,
   Eye,
   Flag,
@@ -292,6 +293,7 @@ const ICONE_EVENTO: Record<string, LucideIcon> = {
   bounce: MailWarning,
   anexo_aberto: Paperclip,
   negocio_criado: Briefcase,
+  interesse_detectado: CalendarCheck,
 }
 
 export function textoDoEvento(e: Pick<EventoDaLinha, "tipo" | "metadata">): string {
@@ -301,6 +303,10 @@ export function textoDoEvento(e: Pick<EventoDaLinha, "tipo" | "metadata">): stri
       return "Inscrito na cadência"
     case "negocio_criado":
       return "Negócio criado a partir da cadência"
+    case "interesse_detectado":
+      return typeof m.aberturas === "number"
+        ? `Interesse: abriu ${m.aberturas}x o mesmo e-mail (foi para o caminho da agenda)`
+        : "Interesse: foi para o caminho da agenda"
     case "reinscrito":
       return "Reinscrito na cadência"
     case "email_enviado":

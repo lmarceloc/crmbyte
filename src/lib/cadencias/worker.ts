@@ -20,7 +20,15 @@ import { dentroDaJanela } from "./janela";
 import { passoParaExecutar, primeiroDoLado, proximoIrmao } from "./proximo-passo";
 import { primeiroNome, renderizar, type DadosDoLead } from "./renderizar";
 import { assinarToken } from "./token";
-import { configuracaoPadrao, type ConfiguracaoDaCadencia, type Passo, type PassoEmail, type PassoRamo } from "./tipos";
+import {
+  configuracaoPadrao,
+  interessePadrao,
+  type ConfiguracaoDaCadencia,
+  type InteresseDaCadencia,
+  type Passo,
+  type PassoEmail,
+  type PassoRamo,
+} from "./tipos";
 import type { MotivoDeParada, TipoDeEventoDaCadencia } from "./vocabulario";
 
 const LOTE = 50;
@@ -110,6 +118,31 @@ export function avaliarRamo(
         : !!insc.respondeu_em;
   if (atendeu) return true;
   return prazoVenceu ? false : null;
+}
+
+/** Maior número de aberturas de um mesmo e-mail (passo) entre os eventos "aberto" da inscrição. */
+export function maiorAberturasNoMesmoEmail(eventos: { passo_id: string | null }[]): number {
+  const porPasso = new Map<string, number>();
+  for (const e of eventos) {
+    if (!e.passo_id) continue;
+    porPasso.set(e.passo_id, (porPasso.get(e.passo_id) ?? 0) + 1);
+  }
+  return Math.max(0, ...porPasso.values());
+}
+
+/**
+ * O lead deve ir para o caminho de interesse agora? Só se o recurso está ligado,
+ * o caminho tem algo a fazer, ele ainda está no fluxo principal e algum e-mail
+ * foi aberto `aberturas` vezes.
+ */
+export function deveIrParaInteresse(
+  interesse: InteresseDaCadencia,
+  jaNoInteresse: boolean,
+  maiorAberturas: number,
+): boolean {
+  if (!interesse.ativo || jaNoInteresse) return false;
+  if (!interesse.passos.some((p) => p.tipo !== "fim")) return false;
+  return maiorAberturas >= interesse.aberturas;
 }
 
 export function acharPassoPorId(passos: Passo[], id: string | null): Passo | null {
@@ -313,7 +346,8 @@ async function executarEmail(
   ctx: Ctx,
   i: Inscricao,
   passo: PassoEmail,
-  cadencia: { passos: Passo[]; configuracao: ConfiguracaoDaCadencia },
+  /** `passos` = a árvore onde o passo está (navegação); `todos` = fluxo + interesse (assunto do "Re:"). */
+  cadencia: { passos: Passo[]; todos: Passo[]; configuracao: ConfiguracaoDaCadencia },
   deal: Responsavel,
   contato: {
     name: string | null;
@@ -373,13 +407,15 @@ async function executarEmail(
     cargo: contato.job_title,
     vendedor: dono.nome,
     segmento: cfg.tagDoSegmento || null,
+    link_agenda: cfg.linkAgenda || null,
   };
   const assunto = passo.mesmaConversa
-    ? assuntoDaResposta(cadencia.passos, i.ultimo_email_passo_id, dados)
+    ? assuntoDaResposta(cadencia.todos, i.ultimo_email_passo_id, dados)
     : renderizar(passo.assunto, dados);
   // valores do lead entram "escapados" para um nome com ** ou [x](url) não virar formatação
   const dadosDoCorpo = Object.fromEntries(
-    Object.entries(dados).map(([k, v]) => [k, typeof v === "string" ? escaparMarkdown(v) : v]),
+    // o link da agenda é uma URL validada: entra como está para virar link (rastreado)
+    Object.entries(dados).map(([k, v]) => [k, typeof v === "string" && k !== "link_agenda" ? escaparMarkdown(v) : v]),
   ) as DadosDoLead;
   const corpo = renderizar(passo.corpo, dadosDoCorpo);
 
@@ -444,6 +480,59 @@ async function executarEmail(
   if (caixa) await guardarCopiaEmEnviados(ctx, i, caixa, resposta.raw);
 }
 
+/** Aberturas do e-mail mais aberto desta inscrição. */
+async function maiorAberturasDaInscricao(ctx: Ctx, i: Inscricao): Promise<number> {
+  const { data } = await ctx.admin
+    .from("email_cadence_events")
+    .select("passo_id")
+    .eq("enrollment_id", i.id)
+    .eq("account_id", i.account_id)
+    .eq("tipo", "aberto")
+    .limit(2000);
+  return maiorAberturasNoMesmoEmail((data ?? []) as { passo_id: string | null }[]);
+}
+
+/** Passo fictício das tarefas de alerta de interesse (uma por inscrição). */
+const PASSO_ALERTA_INTERESSE = "__interesse";
+
+/**
+ * Leva a inscrição para o começo do caminho de interesse, já para executar, e
+ * avisa o vendedor com uma tarefa (aparece em /tarefas e no sininho).
+ */
+async function irParaInteresse(
+  ctx: Ctx,
+  i: Inscricao,
+  interesse: InteresseDaCadencia,
+  aberturas: number,
+  deal: Responsavel & { companies?: unknown },
+) {
+  await evento(ctx, i, "interesse_detectado", i.ultimo_email_passo_id, { aberturas });
+  if (interesse.avisarVendedor) {
+    const dono = await resolverDono(ctx, deal);
+    const { data: c } = await ctx.admin.from("contacts").select("name,email").eq("id", i.contact_id).maybeSingle();
+    const quem = c?.name?.trim() || c?.email?.trim() || "Lead";
+    const { error } = await ctx.admin.from("tarefas").upsert(
+      {
+        account_id: i.account_id,
+        titulo: `${quem} abriu ${aberturas}x o mesmo e-mail: tente agendar uma reunião`.slice(0, 300),
+        tipo: "reuniao",
+        contact_id: i.contact_id,
+        deal_id: i.deal_id,
+        enrollment_id: i.id,
+        passo_id: PASSO_ALERTA_INTERESSE,
+        origem: "cadencia",
+        responsavel_id: dono.userId ?? i.inscrito_por ?? deal.user_id,
+        criada_por: i.inscrito_por,
+        prazo_em: ctx.agora.toISOString(),
+      },
+      { onConflict: "enrollment_id,passo_id", ignoreDuplicates: true },
+    );
+    // o alerta é conforto: falhar aqui não pode travar o lead
+    if (error) console.error("[cadencia-worker] alerta de interesse", error.message);
+  }
+  await atualizar(ctx, i, { passo_atual_id: interesse.passos[0].id, proximo_em: ctx.agora.toISOString() });
+}
+
 async function processarInscricao(ctx: Ctx, i: Inscricao) {
   const { data: cadencia } = await ctx.admin
     .from("email_cadences")
@@ -453,8 +542,12 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
     .maybeSingle();
   if (!cadencia || cadencia.status !== "ativa") return liberarSemAvancar(ctx, i, MIN_CADENCIA_INATIVA);
 
-  const passos = cadencia.passos as Passo[];
+  const principal = cadencia.passos as Passo[];
   const cfg: ConfiguracaoDaCadencia = { ...configuracaoPadrao(), ...(cadencia.configuracao as object) };
+  const interesse: InteresseDaCadencia = { ...interessePadrao(), ...cfg.interesse };
+  // o passo atual mora no fluxo principal ou no caminho de interesse (ids únicos na cadência)
+  const noInteresse = !!acharPassoPorId(interesse.passos, i.passo_atual_id);
+  const passos = noInteresse ? interesse.passos : principal;
 
   // Sem negócio: o dono é quem inscreveu e a empresa vem do contato.
   let deal: Responsavel & { companies?: unknown } = { assigned_to: null, user_id: i.inscrito_por, companies: null };
@@ -470,6 +563,12 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
     deal = data;
   }
 
+  // abriu N vezes o mesmo e-mail: sai do fluxo principal e segue o caminho de interesse
+  if (interesse.ativo && !noInteresse && i.aberturas >= interesse.aberturas) {
+    const maior = await maiorAberturasDaInscricao(ctx, i);
+    if (deveIrParaInteresse(interesse, noInteresse, maior)) return irParaInteresse(ctx, i, interesse, maior, deal);
+  }
+
   const passo = passoParaExecutar(passos, i.passo_atual_id);
   if (!passo) return concluir(ctx, i);
 
@@ -481,7 +580,7 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
         .eq("id", i.contact_id)
         .eq("account_id", i.account_id)
         .maybeSingle();
-      return executarEmail(ctx, i, passo, { passos, configuracao: cfg }, deal, {
+      return executarEmail(ctx, i, passo, { passos, todos: [...principal, ...interesse.passos], configuracao: cfg }, deal, {
         name: c?.name ?? null,
         email: c?.email ?? null,
         // empresa: a do negócio → a do contato → texto legado do contato
@@ -511,6 +610,7 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
         cargo: c?.job_title,
         vendedor: dono.nome,
         segmento: cfg.tagDoSegmento || null,
+        link_agenda: cfg.linkAgenda || null,
       });
       const { data: tarefa, error } = await ctx.admin
         .from("tarefas")

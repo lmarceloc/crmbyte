@@ -68,6 +68,18 @@ export interface BlocoSolto {
 
 export type DiaDaSemana = "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom";
 
+/**
+ * Interesse: o lead abriu `aberturas` vezes o MESMO e-mail. A qualquer momento,
+ * ele sai do fluxo principal e segue `passos` (desenhados no canvas, a partir do
+ * gatilho "Interesse"), e o vendedor pode ganhar uma tarefa de alerta.
+ */
+export interface InteresseDaCadencia {
+  ativo: boolean;
+  aberturas: number;
+  avisarVendedor: boolean;
+  passos: Passo[];
+}
+
 export interface ConfiguracaoDaCadencia {
   /** Nome da tag que segmenta o público (informativo + inscrição em massa). */
   tagDoSegmento: string;
@@ -92,6 +104,13 @@ export interface ConfiguracaoDaCadencia {
    * sem negócio. null = primeiro funil da conta / primeira etapa dele.
    */
   negocio: { pipelineId: string | null; stageId: string | null };
+  /** Link de agendamento do vendedor (Calendly, Google Agenda…): variável {{link_agenda}}. */
+  linkAgenda: string;
+  interesse: InteresseDaCadencia;
+}
+
+export function interessePadrao(): InteresseDaCadencia {
+  return { ativo: false, aberturas: 3, avisarVendedor: true, passos: [] };
 }
 
 export interface Cadencia {
@@ -128,5 +147,7 @@ export function configuracaoPadrao(): ConfiguracaoDaCadencia {
       ganhoOuPerdido: true,
     },
     negocio: { pipelineId: null, stageId: null },
+    linkAgenda: "",
+    interesse: interessePadrao(),
   };
 }

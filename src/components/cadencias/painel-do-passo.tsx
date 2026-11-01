@@ -19,6 +19,8 @@ import { rotuloDoTipo } from "./status"
 interface Props {
   passo: Passo
   todos: Passo[]
+  /** Caminho de interesse: o lead já recebeu (e abriu) e-mail antes, então dá para responder na mesma conversa. */
+  jaRecebeuEmail?: boolean
   somenteLeitura: boolean
   onChange: (p: Passo) => void
   onFechar: () => void
@@ -33,7 +35,7 @@ const Aviso = ({ children }: { children: React.ReactNode }) => (
 
 const num = (v: string, min: number, max: number) => Math.max(min, Math.min(max, Math.floor(Number(v)) || min))
 
-export function PainelDoPasso({ passo, todos, somenteLeitura, onChange, onFechar }: Props) {
+export function PainelDoPasso({ passo, todos, jaRecebeuEmail, somenteLeitura, onChange, onFechar }: Props) {
   const assuntoRef = useRef<HTMLInputElement>(null)
   const corpoRef = useRef<HTMLTextAreaElement | null>(null)
   const ultimoFocado = useRef<"assunto" | "corpo">("corpo")
@@ -88,7 +90,7 @@ export function PainelDoPasso({ passo, todos, somenteLeitura, onChange, onFechar
             <Switch
               id="mesma"
               checked={passo.mesmaConversa}
-              disabled={somenteLeitura || !haEmailAntes(todos, passo.id)}
+              disabled={somenteLeitura || !(jaRecebeuEmail || haEmailAntes(todos, passo.id))}
               onCheckedChange={(v) => onChange({ ...passo, mesmaConversa: v })}
             />
           </div>

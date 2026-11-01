@@ -88,9 +88,17 @@ function descreverPasso(p: Passo, numero?: number): string {
 }
 
 /** Em que etapa o lead está: passo_atual_id é o PRÓXIMO passo a executar (null = ainda não começou). */
-function etapaDoInscrito(i: Inscricao, passos: Passo[], numeros: Map<string, number>, total: number): string {
+function etapaDoInscrito(
+  i: Inscricao,
+  passos: Passo[],
+  numeros: Map<string, number>,
+  total: number,
+  interesse: Passo[],
+): string {
   if (i.status === "concluida") return "Cadência concluída"
   if (!i.passo_atual_id) return i.status === "ativa" ? "Aguardando o primeiro passo" : "Não chegou a começar"
+  const noInteresse = encontrarPasso(interesse, i.passo_atual_id)
+  if (noInteresse) return `Caminho de interesse: ${descreverPasso(noInteresse, undefined)}`
   const passo = encontrarPasso(passos, i.passo_atual_id)
   if (!passo) return "Passo removido da cadência"
   const prefixo = i.status === "ativa" ? "Próximo" : "Parou em"
@@ -100,7 +108,18 @@ function etapaDoInscrito(i: Inscricao, passos: Passo[], numeros: Map<string, num
 
 const um = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v)
 
-export function AbaInscritos({ cadenciaId, ativa, passos }: { cadenciaId: string; ativa: boolean; passos: Passo[] }) {
+export function AbaInscritos({
+  cadenciaId,
+  ativa,
+  passos,
+  interesse = [],
+}: {
+  cadenciaId: string
+  ativa: boolean
+  passos: Passo[]
+  /** Passos do caminho de interesse (o lead pode estar num deles). */
+  interesse?: Passo[]
+}) {
   const numeros = numerarPassos(passos)
   const totalDePassos = todosOsPassos(passos).filter((p) => p.tipo !== "fim").length
   const podeInscrever = useCan("send-messages")
@@ -490,7 +509,7 @@ export function AbaInscritos({ cadenciaId, ativa, passos }: { cadenciaId: string
                       >
                         <Info className="size-3.5" />
                       </TooltipTrigger>
-                      <TooltipContent>{etapaDoInscrito(i, passos, numeros, totalDePassos)}</TooltipContent>
+                      <TooltipContent>{etapaDoInscrito(i, passos, numeros, totalDePassos, interesse)}</TooltipContent>
                     </Tooltip>
                   </span>
                 </td>
