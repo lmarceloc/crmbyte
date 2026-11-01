@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Loader2, Mail, Plus, Trash2 } from "lucide-react"
+import { Copy, Loader2, Mail, Plus, Trash2 } from "lucide-react"
 
 import { useCan } from "@/hooks/use-can"
 import { Button } from "@/components/ui/button"
@@ -42,6 +42,7 @@ export default function CadenciasPage() {
   const [criando, setCriando] = useState(false)
   const [excluir, setExcluir] = useState<Item | null>(null)
   const [excluindo, setExcluindo] = useState(false)
+  const [duplicando, setDuplicando] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
     const res = await fetch("/api/cadencias")
@@ -66,6 +67,16 @@ export default function CadenciasPage() {
     setCriando(false)
     if (!res.ok) return toast.error(body?.error ?? "Falha ao criar a cadência.")
     router.push(`/cadencias/${body.cadencia.id}`)
+  }
+
+  async function duplicar(c: Item) {
+    setDuplicando(c.id)
+    const res = await fetch(`/api/cadencias/${c.id}/duplicar`, { method: "POST" })
+    const body = await res.json().catch(() => ({}))
+    setDuplicando(null)
+    if (!res.ok) return toast.error(body?.error ?? "Falha ao duplicar.")
+    toast.success(`Cópia criada: “${body.cadencia.name}” (rascunho, sem leads)`)
+    carregar()
   }
 
   async function confirmarExclusao() {
@@ -123,15 +134,27 @@ export default function CadenciasPage() {
                 </div>
               </Link>
               {canEdit && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  disabled={c.status === "ativa"}
-                  title={c.status === "ativa" ? "Pause a cadência antes de excluir" : "Excluir"}
-                  onClick={() => setExcluir(c)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                <div className="flex shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={duplicando === c.id}
+                    title="Duplicar"
+                    aria-label={`Duplicar ${c.name}`}
+                    onClick={() => duplicar(c)}
+                  >
+                    {duplicando === c.id ? <Loader2 className="size-4 animate-spin" /> : <Copy className="size-4" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={c.status === "ativa"}
+                    title={c.status === "ativa" ? "Pause a cadência antes de excluir" : "Excluir"}
+                    onClick={() => setExcluir(c)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               )}
             </div>
           ))}
