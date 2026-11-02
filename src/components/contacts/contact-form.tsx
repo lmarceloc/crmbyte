@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { erroDoContatoNovo } from '@/lib/contato-obrigatorio';
+import { camposDeNome, juntarNome, partesDoNome } from '@/lib/contacts/nome';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
@@ -52,7 +53,8 @@ export function ContactForm({
   const { accountId } = useAuth();
   const isEdit = !!contact;
 
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
@@ -76,7 +78,9 @@ export function ContactForm({
 
   useEffect(() => {
     if (open) {
-      setName(contact?.name ?? '');
+      const partes = partesDoNome(contact);
+      setFirstName(partes.nome ?? '');
+      setLastName(partes.sobrenome ?? '');
       setPhone(contact?.phone ?? '');
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
@@ -135,7 +139,7 @@ export function ContactForm({
     // Para criar à mão bastam nome e e-mail; telefone é opcional. Quem edita um
     // contato que veio do WhatsApp (só telefone) não é obrigado a ganhar e-mail.
     if (!isEdit) {
-      const erro = erroDoContatoNovo({ nome: name, email });
+      const erro = erroDoContatoNovo({ nome: juntarNome(firstName, lastName), email });
       if (erro) {
         toast.error(erro);
         return;
@@ -171,7 +175,7 @@ export function ContactForm({
         const { error } = await supabase
           .from('contacts')
           .update({
-            name: name.trim() || null,
+            ...camposDeNome(firstName, lastName),
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
@@ -188,7 +192,7 @@ export function ContactForm({
           .insert({
             user_id: user.id,
             account_id: accountId,
-            name: name.trim() || null,
+            ...camposDeNome(firstName, lastName),
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
@@ -267,17 +271,31 @@ export function ContactForm({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="cf-name" className="text-muted-foreground">
-              Name {!isEdit && <span className="text-red-400">*</span>}
-            </Label>
-            <Input
-              id="cf-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="John Doe"
-              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="cf-first-name" className="text-muted-foreground">
+                First name {!isEdit && <span className="text-red-400">*</span>}
+              </Label>
+              <Input
+                id="cf-first-name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="John"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cf-last-name" className="text-muted-foreground">
+                Last name
+              </Label>
+              <Input
+                id="cf-last-name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Doe"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

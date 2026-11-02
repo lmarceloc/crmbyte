@@ -6,6 +6,9 @@
 export interface ParsedContactRow {
   phone: string;
   name?: string;
+  /** Colunas `first_name`/`last_name` (ou `sobrenome`): nome e sobrenome separados. */
+  firstName?: string;
+  lastName?: string;
   email?: string;
   company?: string;
   /** Tag names from the optional `tags` column (comma/semicolon separated). */
@@ -55,6 +58,12 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
   }
 
   const nameIdx = headers.indexOf('name');
+  const firstNameIdx = headers.findIndex((h) =>
+    ['first_name', 'firstname', 'first name'].includes(h),
+  );
+  const lastNameIdx = headers.findIndex((h) =>
+    ['last_name', 'lastname', 'last name', 'sobrenome'].includes(h),
+  );
   const emailIdx = headers.indexOf('email');
   const companyIdx = headers.indexOf('company');
   const tagsIdx = headers.indexOf('tags');
@@ -74,6 +83,14 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
       name:
         nameIdx >= 0
           ? values[nameIdx]?.replace(/["']/g, '').trim() || undefined
+          : undefined,
+      firstName:
+        firstNameIdx >= 0
+          ? values[firstNameIdx]?.replace(/["']/g, '').trim() || undefined
+          : undefined,
+      lastName:
+        lastNameIdx >= 0
+          ? values[lastNameIdx]?.replace(/["']/g, '').trim() || undefined
           : undefined,
       email:
         emailIdx >= 0

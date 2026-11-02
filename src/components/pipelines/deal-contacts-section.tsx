@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { erroDoContatoNovo } from "@/lib/contato-obrigatorio";
+import { juntarNome } from "@/lib/contacts/nome";
 
 export interface MembroDoNegocio {
   contactId: string;
@@ -23,7 +24,7 @@ interface Props {
   onAdicionar: (contactId: string) => void | Promise<void>;
   onRemover: (contactId: string) => void | Promise<void>;
   onPrincipal: (contactId: string) => void | Promise<void>;
-  onCriar: (dados: { nome: string; email: string; telefone: string }) => Promise<void>;
+  onCriar: (dados: { nome: string; sobrenome: string; email: string; telefone: string }) => Promise<void>;
 }
 
 const campo =
@@ -44,6 +45,7 @@ export function DealContactsSection({
   const [criando, setCriando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [nome, setNome] = useState("");
+  const [sobrenome, setSobrenome] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
 
@@ -51,14 +53,15 @@ export function DealContactsSection({
   const naoVinculados = contatos.filter((c) => !membros.some((m) => m.contactId === c.id));
 
   // Nome e e-mail para salvar; telefone é opcional.
-  const podeCriar = erroDoContatoNovo({ nome, email }) === null;
+  const podeCriar = erroDoContatoNovo({ nome: juntarNome(nome, sobrenome), email }) === null;
 
   async function criar() {
     if (!podeCriar) return;
     setSalvando(true);
     try {
-      await onCriar({ nome: nome.trim(), email: email.trim(), telefone: telefone.trim() });
+      await onCriar({ nome: nome.trim(), sobrenome: sobrenome.trim(), email: email.trim(), telefone: telefone.trim() });
       setNome("");
+      setSobrenome("");
       setEmail("");
       setTelefone("");
       setCriando(false);
@@ -162,9 +165,15 @@ export function DealContactsSection({
 
       {criando ? (
         <div className="space-y-2 rounded-md border border-border/60 bg-background/40 p-2">
-          <div className="grid gap-1.5">
-            <Label className="text-xs text-muted-foreground">Nome *</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} className="border-border bg-muted text-foreground" />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">Nome *</Label>
+              <Input value={nome} onChange={(e) => setNome(e.target.value)} className="border-border bg-muted text-foreground" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">Sobrenome</Label>
+              <Input value={sobrenome} onChange={(e) => setSobrenome(e.target.value)} className="border-border bg-muted text-foreground" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="grid gap-1.5">

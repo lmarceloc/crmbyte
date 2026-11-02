@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { DealContactsSection, type MembroDoNegocio } from "@/components/pipelines/deal-contacts-section"
 import { useAuth } from "@/hooks/use-auth"
 import { mensagemContatoRepetido } from "@/lib/contacts/dedupe"
+import { camposDeNome } from "@/lib/contacts/nome"
 import { createClient } from "@/lib/supabase/client"
 import type { Contact } from "@/types"
 
@@ -149,7 +150,7 @@ export function ContatosDoNegocio({
     onMudou()
   }
 
-  async function criar(d: { nome: string; email: string; telefone: string }) {
+  async function criar(d: { nome: string; sobrenome: string; email: string; telefone: string }) {
     if (!accountId || !user) {
       toast.error("Seu perfil não está vinculado a uma conta.")
       return
@@ -159,7 +160,7 @@ export function ContatosDoNegocio({
       .insert({
         account_id: accountId,
         user_id: user.id,
-        name: d.nome,
+        ...camposDeNome(d.nome, d.sobrenome),
         email: d.email || null,
         phone: d.telefone, // vazio é permitido ('' não entra no índice único)
         company: empresa.name,

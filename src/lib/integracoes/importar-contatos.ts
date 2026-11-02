@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { obterOuCriarEmpresa } from "@/lib/companies";
 import { EMAIL } from "@/lib/contato-obrigatorio";
 import { findExistingContact, isUniqueViolation } from "@/lib/contacts/dedupe";
+import { camposDeNome } from "@/lib/contacts/nome";
 
 type Admin = SupabaseClient;
 
@@ -25,6 +26,14 @@ const texto = (max: number) =>
     .nullish()
     .transform((v) => v || null);
 
+// Ausente fica `undefined` (diferente de `texto`, que vira null): nome e sobrenome são opcionais.
+const parteDoNome = z
+  .string()
+  .trim()
+  .max(100)
+  .nullish()
+  .transform((v) => v || undefined);
+
 const empresaSchema = z
   .object({
     name: z.string().trim().min(1, "Informe o nome da empresa.").max(200),
@@ -35,7 +44,10 @@ const empresaSchema = z
 
 export const contatoSchema = z
   .object({
-    name: z.string().trim().min(1, "Informe o nome do contato.").max(200),
+    // `name` é o nome completo; alternativamente `first_name` (+ `last_name`), como o Apollo manda
+    name: texto(200),
+    first_name: parteDoNome,
+    last_name: parteDoNome,
     email: texto(320)
       .transform((v) => (v && !EMAIL_NAO_LIBERADO.test(v) ? v.toLowerCase() : null))
       .refine((v) => !v || EMAIL.test(v), "E-mail inválido."),
@@ -46,10 +58,19 @@ export const contatoSchema = z
     source_metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .strict()
+  .refine((c) => c.name || c.first_name, { message: "Informe o nome do contato.", path: ["name"] })
   .refine((c) => c.email || (c.phone && c.phone.replace(/\D/g, "")) || c.linkedin_url, {
     message: "Informe ao menos e-mail, telefone ou LinkedIn do contato.",
   });
 export type ContatoEntrada = z.infer<typeof contatoSchema>;
+
+/**
+ * O que gravar de nome. Com `last_name`, a separação é guardada (o `name` vira
+ * "Nome Sobrenome"); sem ele vale o `name` inteiro, que as cadências dividem.
+ */
+export function nomeDaEntrada(c: Pick<ContatoEntrada, "name" | "first_name" | "last_name">) {
+  return camposDeNome(c.first_name || c.name, c.last_name);
+}
 
 export const pedidoSchema = z
   .object({
@@ -77,6 +98,8 @@ export function validarItem(item: unknown): { ok: true; contato: ContatoEntrada 
 interface Existente {
   id: string;
   name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
   job_title: string | null;
@@ -94,7 +117,20 @@ export function camposParaCompletar(
 ): Record<string, string> {
   const patch: Record<string, string> = {};
   const vazio = (v: string | null) => !v?.trim();
-  if (vazio(atual.name)) patch.name = novo.name;
+  const nome = nomeDaEntrada(novo);
+  if (vazio(atual.name)) {
+    if (nome.name) patch.name = nome.name;
+    if (nome.first_name) patch.first_name = nome.first_name;
+    if (nome.last_name) patch.last_name = nome.last_name;
+  } else if (!atual.first_name && !atual.last_name && nome.last_name && nome.first_name) {
+    // o contato só tinha o primeiro nome (ou o nome inteiro): completa a separação
+    // quando o que chegou é a mesma pessoa
+    const mesmo = (atual.name ?? "").trim().toLowerCase();
+    if (mesmo === nome.first_name.toLowerCase() || mesmo === nome.name?.toLowerCase()) {
+      patch.first_name = nome.first_name;
+      patch.last_name = nome.last_name;
+    }
+  }
   if (vazio(atual.email) && novo.email) patch.email = novo.email;
   if (vazio(atual.phone) && novo.phone) patch.phone = novo.phone;
   if (vazio(atual.job_title) && novo.job_title) patch.job_title = novo.job_title;
@@ -107,7 +143,7 @@ export function camposParaCompletar(
   return patch;
 }
 
-const COLUNAS = "id,name,email,phone,job_title,linkedin_url,company,company_id,email_unsubscribed_at";
+const COLUNAS = "id,name,first_name,last_name,email,phone,job_title,linkedin_url,company,company_id,email_unsubscribed_at";
 
 async function acharExistente(admin: Admin, accountId: string, c: ContatoEntrada): Promise<Existente | null> {
   const base = () => admin.from("contacts").select(COLUNAS).eq("account_id", accountId).limit(1);
@@ -175,7 +211,7 @@ async function importarUm(
     .insert({
       account_id: conta.accountId,
       user_id: conta.userId,
-      name: c.name,
+      ...nomeDaEntrada(c),
       email: c.email,
       phone: c.phone ?? "",
       job_title: c.job_title,

@@ -20,6 +20,7 @@ A primeira tela depois do login. Mostra como a operação está agora:
 ## Contatos e empresas
 
 - Cadastro de **contatos** (pessoas) e **empresas**, ligados entre si.
+- **Nome e sobrenome** em campos separados (formulário, importação em CSV com `first_name`/`last_name` e API). Contatos antigos, sem a separação, continuam funcionando: o nome é dividido na primeira palavra.
 - **Etiquetas** e **campos personalizados** para guardar o que for importante para o seu negócio.
 - **Sem duplicidade:** o CRM reconhece o mesmo contato pelo e-mail, pelo telefone ou pelo LinkedIn.
 - Na ficha da empresa aparecem os contatos, os negócios, as tarefas e o histórico dela.
@@ -71,7 +72,7 @@ Sequências automáticas de e-mails de prospecção, montadas visualmente.
   úteis), **Tarefa**, **Condição** e **Fim**.
 - **Condições:** o fluxo segue caminhos diferentes conforme o lead **abriu**, **clicou** ou
   **respondeu**.
-- **Personalização:** `{{nome}}`, `{{sobrenome}}`, `{{empresa}}`, `{{cargo}}`, `{{vendedor}}` e outros campos são
+- **Personalização:** `{{nome}}` (primeiro nome), `{{sobrenome}}`, `{{nome_completo}}`, `{{empresa}}`, `{{cargo}}`, `{{vendedor}}` e outros campos são
   preenchidos para cada lead.
 - **E-mails "na mesma conversa":** o próximo e-mail pode sair como resposta ao anterior (`Re:`).
 - **Rastreio:** aberturas, cliques, respostas e e-mails que voltaram (bounce).

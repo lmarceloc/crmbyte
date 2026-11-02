@@ -5,6 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { obterOuCriarEmpresa } from "@/lib/companies";
 import { isEmailUniqueViolation } from "@/lib/contacts/dedupe";
+import { camposDeNome } from "@/lib/contacts/nome";
 import type { Lead } from "./treg";
 
 type Admin = SupabaseClient;
@@ -58,7 +59,7 @@ export async function criarContatoB2b(
       account_id: origem.accountId,
       user_id: userId,
       phone: "",
-      name: lead.fullName,
+      ...(lead.firstName && lead.lastName ? camposDeNome(lead.firstName, lead.lastName) : { name: lead.fullName }),
       email,
       company: lead.companyName,
       company_id: companyId,

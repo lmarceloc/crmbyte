@@ -1,3 +1,5 @@
+import { partesDoNome, separarNome, type NomeDoContato } from "@/lib/contacts/nome";
+
 // Variáveis {{chave}} em assunto/corpo. Variável desconhecida ou sem dado
 // FICA VISÍVEL no texto — sinal de dado faltando é menos enganoso que vazio.
 
@@ -45,21 +47,14 @@ export function variaveisDesconhecidas(texto: string): string[] {
 }
 
 export function primeiroNome(nome: string | null | undefined): string | null {
-  const n = nome?.trim();
-  return n ? n.split(/\s+/)[0] : null;
-}
-
-/** Tudo depois do primeiro nome ("Mariana Souza Lima" → "Souza Lima"). */
-export function sobrenome(nome: string | null | undefined): string | null {
-  const partes = nome?.trim().split(/\s+/) ?? [];
-  return partes.length > 1 ? partes.slice(1).join(" ") : null;
+  return separarNome(nome).nome;
 }
 
 /**
- * O contato guarda o nome inteiro num campo só (vem assim do CSV, das integrações e do
- * WhatsApp); aqui ele é separado para as variáveis `{{nome}}` e `{{sobrenome}}`.
+ * Variáveis de nome do lead. Se o contato tem nome e sobrenome gravados em campos
+ * separados, são eles; senão o `name` é dividido na primeira palavra.
  */
-export function variaveisDeNome(nomeCompleto: string | null | undefined): DadosDoLead {
-  const nome = primeiroNome(nomeCompleto);
-  return { nome, primeiro_nome: nome, sobrenome: sobrenome(nomeCompleto), nome_completo: nomeCompleto?.trim() || null };
+export function variaveisDeNome(contato: NomeDoContato | null | undefined): DadosDoLead {
+  const { nome, sobrenome, completo } = partesDoNome(contato);
+  return { nome, primeiro_nome: nome, sobrenome, nome_completo: completo };
 }

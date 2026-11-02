@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { comemorar } from "@/lib/comemorar";
+import { camposDeNome } from "@/lib/contacts/nome";
 
 interface DealFormProps {
   open: boolean;
@@ -380,7 +381,7 @@ export function DealForm({
     setMembros((ms) => ms.map((m) => ({ ...m, isPrimary: m.contactId === cid })));
   }
 
-  async function criarContatoRapido(d: { nome: string; email: string; telefone: string }) {
+  async function criarContatoRapido(d: { nome: string; sobrenome: string; email: string; telefone: string }) {
     if (!accountId) {
       toast.error("Seu perfil não está vinculado a uma conta.");
       return;
@@ -398,7 +399,7 @@ export function DealForm({
       .insert({
         account_id: accountId,
         user_id: user.id,
-        name: d.nome,
+        ...camposDeNome(d.nome, d.sobrenome),
         email: d.email || null,
         phone: d.telefone, // vazio é permitido ('' não entra no índice único)
         company: empresa?.name ?? null,

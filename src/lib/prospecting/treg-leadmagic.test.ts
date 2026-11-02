@@ -32,6 +32,9 @@ describe("treg.people.search servido pelo leadmagic (role-finder)", () => {
     expect(normalizeLead(roleFinder, { title: "Gerente de logística", companyDomain: "www.sylvamo.com" })).toEqual({
       key: "Henrique Andrade Godoy:sylvamo.com",
       fullName: "Henrique Andrade Godoy",
+      // nome e sobrenome separados; os nomes do meio ficam no sobrenome
+      firstName: "Henrique",
+      lastName: "Andrade Godoy",
       title: "Gerente de logística",
       companyName: "Sylvamo",
       companyDomain: "sylvamo.com",

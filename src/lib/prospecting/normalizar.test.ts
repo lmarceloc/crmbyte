@@ -25,6 +25,8 @@ describe("normalizeLead", () => {
     const b = normalizeLead({ first_name: "Bia", last_name: "Souza", company_url: "https://www.y.com/" });
     expect(b?.fullName).toBe("Bia Souza");
     expect(b?.key).toBe("Bia Souza:www.y.com");
+    expect(b).toMatchObject({ firstName: "Bia", lastName: "Souza" });
+    expect(a?.firstName).toBeUndefined(); // sem nome e sobrenome da fonte, o contato divide o nome completo
     expect(normalizeLead({ title: "sem nome" })).toBeNull();
   });
 });

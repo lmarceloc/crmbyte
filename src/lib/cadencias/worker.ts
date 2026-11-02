@@ -351,6 +351,8 @@ async function executarEmail(
   deal: Responsavel,
   contato: {
     name: string | null;
+    first_name: string | null;
+    last_name: string | null;
     email: string | null;
     company: string | null;
     job_title: string | null;
@@ -401,7 +403,7 @@ async function executarEmail(
 
   // montagem
   const dados: DadosDoLead = {
-    ...variaveisDeNome(contato.name),
+    ...variaveisDeNome(contato),
     empresa: contato.company,
     cargo: contato.job_title,
     vendedor: dono.nome,
@@ -575,12 +577,14 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
     case "email": {
       const { data: c } = await ctx.admin
         .from("contacts")
-        .select("name,email,company,job_title,email_unsubscribed_at,email_bounced_at,companies(name)")
+        .select("name,first_name,last_name,email,company,job_title,email_unsubscribed_at,email_bounced_at,companies(name)")
         .eq("id", i.contact_id)
         .eq("account_id", i.account_id)
         .maybeSingle();
       return executarEmail(ctx, i, passo, { passos, todos: [...principal, ...interesse.passos], configuracao: cfg }, deal, {
         name: c?.name ?? null,
+        first_name: c?.first_name ?? null,
+        last_name: c?.last_name ?? null,
         email: c?.email ?? null,
         // empresa: a do negócio → a do contato → texto legado do contato
         company: nomeDaEmpresa(deal.companies) ?? nomeDaEmpresa(c?.companies) ?? c?.company ?? null,
@@ -598,12 +602,12 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
       const dono = await resolverDono(ctx, deal);
       const { data: c } = await ctx.admin
         .from("contacts")
-        .select("name,company,job_title,companies(name)")
+        .select("name,first_name,last_name,company,job_title,companies(name)")
         .eq("id", i.contact_id)
         .maybeSingle();
       const prazo = avancarDiasUteis(ctx.agora, passo.prazoDias);
       const titulo = renderizar(passo.titulo, {
-        ...variaveisDeNome(c?.name),
+        ...variaveisDeNome(c),
         empresa: nomeDaEmpresa(deal.companies) ?? nomeDaEmpresa(c?.companies) ?? c?.company,
         cargo: c?.job_title,
         vendedor: dono.nome,

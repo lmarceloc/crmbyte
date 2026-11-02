@@ -4,10 +4,12 @@
 // sem o vendedor sair do painel. Nome e e-mail são obrigatórios (regra única em
 // `contato-obrigatorio.ts`); telefone e cargo são opcionais — `phone` vazio não
 // entra no índice único.
+import { camposDeNome, juntarNome } from "./contacts/nome";
 import { erroDoContatoNovo } from "./contato-obrigatorio";
 
 export interface ContatoDaEmpresaEntrada {
   nome: string;
+  sobrenome?: string;
   cargo?: string;
   email?: string;
   telefone?: string;
@@ -20,6 +22,8 @@ export interface ContatoDaEmpresaLinha {
   account_id: string;
   user_id: string;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   email: string;
   phone: string;
   job_title: string | null;
@@ -31,16 +35,15 @@ export interface ContatoDaEmpresaLinha {
 export function montarContatoDaEmpresa(
   e: ContatoDaEmpresaEntrada,
 ): { ok: true; contato: ContatoDaEmpresaLinha } | { ok: false; erro: string } {
-  const erro = erroDoContatoNovo({ nome: e.nome, email: e.email });
+  const erro = erroDoContatoNovo({ nome: juntarNome(e.nome, e.sobrenome), email: e.email });
   if (erro) return { ok: false, erro };
-  const nome = e.nome.trim();
   const email = (e.email ?? "").trim();
   return {
     ok: true,
     contato: {
       account_id: e.accountId,
       user_id: e.userId,
-      name: nome,
+      ...(camposDeNome(e.nome, e.sobrenome) as { name: string; first_name: string | null; last_name: string | null }),
       email,
       phone: (e.telefone ?? "").trim(),
       job_title: (e.cargo ?? "").trim() || null,

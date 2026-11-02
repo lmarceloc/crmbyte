@@ -22,7 +22,8 @@ Authorization: Bearer wacrm_…
 {
   "source": "apollo",
   "contatos": [{
-    "name": "João Silva",
+    "first_name": "João",
+    "last_name": "Silva",
     "email": "joao@xyz.com.br",
     "phone": "5511999990000",
     "job_title": "Gerente de Logística",
@@ -147,7 +148,7 @@ export function ApiAccessKeys({ editavel }: { editavel: boolean }) {
       <details className="rounded-xl border p-3 text-xs">
         <summary className="cursor-pointer font-medium">Como enviar contatos</summary>
         <p className="mt-2 text-muted-foreground">
-          Até 100 contatos por chamada. Cada contato precisa de nome e de e-mail, telefone ou LinkedIn; a empresa é opcional.
+          Até 100 contatos por chamada. Cada contato precisa de nome (<code>first_name</code> e <code>last_name</code>, ou <code>name</code> com o nome completo) e de e-mail, telefone ou LinkedIn; a empresa é opcional.
         </p>
         <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 font-mono">{EXEMPLO}</pre>
       </details>

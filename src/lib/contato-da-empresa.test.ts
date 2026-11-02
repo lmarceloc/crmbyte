@@ -14,6 +14,8 @@ describe("montarContatoDaEmpresa", () => {
         account_id: "acc-1",
         user_id: "usr-1",
         name: "Henrique Godoy",
+        first_name: null,
+        last_name: null,
         email: "h@sylvamo.com",
         phone: "11 99999-0000",
         job_title: "Gerente de logística",
@@ -21,6 +23,11 @@ describe("montarContatoDaEmpresa", () => {
         company_id: "emp-1",
       },
     });
+  });
+
+  it("com sobrenome, grava nome e sobrenome separados e o nome completo", () => {
+    const r = montarContatoDaEmpresa({ ...base, nome: " Henrique ", sobrenome: " Godoy " });
+    expect(r.ok && r.contato).toMatchObject({ name: "Henrique Godoy", first_name: "Henrique", last_name: "Godoy" });
   });
 
   it("nome e e-mail bastam: telefone e cargo vazios viram vazio / null", () => {

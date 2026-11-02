@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { camposParaCompletar, pedidoSchema, resumir, validarItem } from "./importar-contatos";
+import { camposParaCompletar, nomeDaEntrada, pedidoSchema, resumir, validarItem } from "./importar-contatos";
 import { chaveDoPedido, gerarChave, hashDaChave } from "./api-keys";
 
-const vazio = { name: null, email: null, phone: null, job_title: null, linkedin_url: null, company: null, company_id: null };
+const vazio = { name: null, first_name: null, last_name: null, email: null, phone: null, job_title: null, linkedin_url: null, company: null, company_id: null };
 
 describe("validarItem", () => {
   it("normaliza: apara, e-mail minúsculo, vazios viram null", () => {
@@ -18,6 +18,11 @@ describe("validarItem", () => {
         empresa: { name: "XYZ", website: null, linkedin_url: null },
       },
     });
+  });
+
+  it("aceita first_name/last_name no lugar de name", () => {
+    expect(validarItem({ first_name: " Ana ", last_name: "Souza", email: "a@x.com" }).ok).toBe(true);
+    expect(validarItem({ last_name: "Souza", email: "a@x.com" }).ok).toBe(false);
   });
 
   it("exige nome e ao menos e-mail, telefone ou LinkedIn", () => {
@@ -42,6 +47,17 @@ describe("validarItem", () => {
   });
 });
 
+describe("nomeDaEntrada", () => {
+  it("com last_name grava a separação; sem ele, só o nome", () => {
+    expect(nomeDaEntrada({ name: undefined, first_name: "Ana Paula", last_name: "Souza" } as never)).toEqual({
+      name: "Ana Paula Souza",
+      first_name: "Ana Paula",
+      last_name: "Souza",
+    });
+    expect(nomeDaEntrada({ name: "Ana Souza" } as never)).toEqual({ name: "Ana Souza", first_name: null, last_name: null });
+  });
+});
+
 describe("pedidoSchema", () => {
   it("source padrão 'api' e limite de 100 contatos", () => {
     expect(pedidoSchema.parse({ contatos: [{}] }).source).toBe("api");
@@ -51,7 +67,7 @@ describe("pedidoSchema", () => {
 });
 
 describe("camposParaCompletar", () => {
-  const novo = { name: "Ana", email: "a@x.com", phone: "11999", job_title: "CEO", linkedin_url: "li", empresa: null };
+  const novo = { name: "Ana", first_name: undefined, last_name: undefined, email: "a@x.com", phone: "11999", job_title: "CEO", linkedin_url: "li", empresa: null };
 
   it("completa só o que está vazio", () => {
     const atual = { ...vazio, name: "Ana Souza", email: "a@x.com", job_title: "Diretora" };
@@ -72,6 +88,27 @@ describe("camposParaCompletar", () => {
     });
     expect(camposParaCompletar({ ...vazio, name: "Ana", company: "Antiga" }, novo, { id: "emp-1", nome: "XYZ" })).not.toHaveProperty(
       "company",
+    );
+  });
+
+  it("contato sem nome recebe nome e sobrenome", () => {
+    const n = { ...novo, name: undefined, first_name: "Ana", last_name: "Souza" } as never;
+    expect(camposParaCompletar(vazio, n, { id: null, nome: null })).toMatchObject({
+      name: "Ana Souza",
+      first_name: "Ana",
+      last_name: "Souza",
+    });
+  });
+
+  it("contato que só tinha o primeiro nome ganha o sobrenome; nome de outra pessoa não é mexido", () => {
+    const n = { ...novo, name: undefined, first_name: "Ana", last_name: "Souza" } as never;
+    expect(camposParaCompletar({ ...vazio, name: "Ana" }, n, { id: null, nome: null })).toMatchObject({
+      first_name: "Ana",
+      last_name: "Souza",
+    });
+    expect(camposParaCompletar({ ...vazio, name: "Bia" }, n, { id: null, nome: null })).not.toHaveProperty("last_name");
+    expect(camposParaCompletar({ ...vazio, name: "Ana", first_name: "Ana", last_name: "Lima" }, n, { id: null, nome: null })).not.toHaveProperty(
+      "last_name",
     );
   });
 });
