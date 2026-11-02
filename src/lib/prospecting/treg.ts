@@ -6,6 +6,9 @@ import { MSG_SEM_CONFIRMACAO, ProspectingError } from "./errors";
 export interface Lead {
   key: string;
   fullName: string;
+  /** Só quando a fonte entregou nome e sobrenome separados (os dois). */
+  firstName?: string;
+  lastName?: string;
   title: string | null;
   companyName: string | null;
   companyDomain: string | null;
@@ -140,6 +143,11 @@ export function normalizeLead(raw: unknown, dicas: DicasDaBusca = {}): Lead | nu
     str([str(p.firstName, 100), str(p.lastName, 100)].filter(Boolean).join(" "), 200) ??
     str([str(p.first_name, 100), str(p.last_name, 100)].filter(Boolean).join(" "), 200);
   if (!fullName) return null;
+  const nome = str(p.firstName, 100) ?? str(p.first_name, 100);
+  // o sobrenome é tudo depois do nome no nome completo ("Henrique Andrade Godoy" →
+  // "Andrade Godoy"): o `last_name` da fonte costuma vir sem os nomes do meio
+  const resto = nome && fullName.toLowerCase().startsWith(`${nome.toLowerCase()} `) ? fullName.slice(nome.length).trim() : null;
+  const sobrenome = resto || str(p.lastName, 100) || str(p.last_name, 100);
 
   const companyDomain =
     dominio(company?.domain ?? p.company_domain ?? p.companyDomain ?? p.email_domain ?? p.company_url) ??
@@ -157,6 +165,7 @@ export function normalizeLead(raw: unknown, dicas: DicasDaBusca = {}): Lead | nu
   return {
     key,
     fullName,
+    ...(nome && sobrenome ? { firstName: nome, lastName: sobrenome } : {}),
     title: primeiroStr(300, jobTitle?.title, p.title, p.job_title, dicas.title),
     companyName: primeiroStr(300, company?.name, p.company_name, p.companyName),
     companyDomain,

@@ -44,6 +44,7 @@ export function NovoContatoForm({
 
   const [modo, setModo] = useState<"novo" | "existente">("novo")
   const [nome, setNome] = useState("")
+  const [sobrenome, setSobrenome] = useState("")
   const [cargo, setCargo] = useState("")
   const [email, setEmail] = useState("")
   const [telefone, setTelefone] = useState("")
@@ -77,7 +78,7 @@ export function NovoContatoForm({
       toast.error("Seu perfil não está vinculado a uma conta.")
       return
     }
-    const montado = montarContatoDaEmpresa({ nome, cargo, email, telefone, empresa, accountId, userId: user.id })
+    const montado = montarContatoDaEmpresa({ nome, sobrenome, cargo, email, telefone, empresa, accountId, userId: user.id })
     if (!montado.ok) {
       toast.error(montado.erro)
       return
@@ -140,9 +141,15 @@ export function NovoContatoForm({
 
       {modo === "novo" ? (
         <form onSubmit={criar} className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="novo-contato-nome">Nome do contato *</Label>
-            <Input id="novo-contato-nome" value={nome} onChange={(e) => setNome(e.target.value)} autoFocus />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="novo-contato-nome">Nome *</Label>
+              <Input id="novo-contato-nome" value={nome} onChange={(e) => setNome(e.target.value)} autoFocus />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="novo-contato-sobrenome">Sobrenome</Label>
+              <Input id="novo-contato-sobrenome" value={sobrenome} onChange={(e) => setSobrenome(e.target.value)} />
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="novo-contato-cargo">Cargo</Label>

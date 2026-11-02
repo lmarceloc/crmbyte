@@ -100,6 +100,14 @@ always did.
 
 ### Added
 
+- **Contacts have separate first and last name.** New
+  `contacts.first_name` / `last_name` columns (`name` stays the full
+  name; a trigger keeps the three in sync). The contact forms, the CSV
+  import (`first_name`, `last_name` or `sobrenome` columns), the
+  contacts API and B2B prospecting fill them. Cadence emails get
+  `{{nome}}` (first name), `{{sobrenome}}` and `{{nome_completo}}`;
+  contacts without the split are divided at the first space.
+  **Migration required:** `supabase/migrations/056_contact_nome_sobrenome.sql`.
 - **Duplicate phone numbers are now prevented across contacts.** A
   phone number can no longer become more than one contact in the same
   account. Adding a contact whose number already exists is blocked

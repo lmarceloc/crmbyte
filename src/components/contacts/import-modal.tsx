@@ -28,6 +28,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { camposDeNome } from '@/lib/contacts/nome';
 import {
   Upload,
   FileText,
@@ -273,7 +274,7 @@ export function ImportModal({
           user_id: user.id,
           account_id: accountId,
           phone: row.phone,
-          name: row.name || null,
+          ...camposDeNome(row.firstName || row.name, row.lastName),
           email: row.email || null,
           company: row.company || null,
         }));
@@ -412,8 +413,16 @@ export function ImportModal({
               column. Optional:{' '}
               <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">
                 name
+              </code>{' '}
+              (or{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">
+                first_name
+              </code>{' '}
+              +{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">
+                last_name
               </code>
-              ,{' '}
+              ),{' '}
               <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">
                 email
               </code>

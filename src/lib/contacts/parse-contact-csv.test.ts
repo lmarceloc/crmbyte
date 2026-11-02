@@ -70,4 +70,12 @@ describe('parseContactCsv', () => {
       ],
     });
   });
+
+  it('reads separate first_name / last_name (or sobrenome) columns', () => {
+    const csv = `phone,first_name,sobrenome
++15551234567,Alice,Silva`;
+
+    const { rows } = parseContactCsv(csv);
+    expect(rows[0]).toMatchObject({ firstName: 'Alice', lastName: 'Silva' });
+  });
 });
