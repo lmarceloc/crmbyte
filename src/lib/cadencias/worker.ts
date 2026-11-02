@@ -18,7 +18,7 @@ import { avancarDiasUteis } from "./dias-uteis";
 import { corpoEmHtml, corpoEmTexto, escaparMarkdown } from "./corpo-rico";
 import { dentroDaJanela } from "./janela";
 import { passoParaExecutar, primeiroDoLado, proximoIrmao } from "./proximo-passo";
-import { primeiroNome, renderizar, type DadosDoLead } from "./renderizar";
+import { renderizar, variaveisDeNome, type DadosDoLead } from "./renderizar";
 import { assinarToken } from "./token";
 import {
   configuracaoPadrao,
@@ -401,8 +401,7 @@ async function executarEmail(
 
   // montagem
   const dados: DadosDoLead = {
-    primeiro_nome: primeiroNome(contato.name),
-    nome: contato.name,
+    ...variaveisDeNome(contato.name),
     empresa: contato.company,
     cargo: contato.job_title,
     vendedor: dono.nome,
@@ -604,8 +603,7 @@ async function processarInscricao(ctx: Ctx, i: Inscricao) {
         .maybeSingle();
       const prazo = avancarDiasUteis(ctx.agora, passo.prazoDias);
       const titulo = renderizar(passo.titulo, {
-        primeiro_nome: primeiroNome(c?.name),
-        nome: c?.name,
+        ...variaveisDeNome(c?.name),
         empresa: nomeDaEmpresa(deal.companies) ?? nomeDaEmpresa(c?.companies) ?? c?.company,
         cargo: c?.job_title,
         vendedor: dono.nome,

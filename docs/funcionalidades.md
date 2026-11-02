@@ -71,7 +71,7 @@ Sequências automáticas de e-mails de prospecção, montadas visualmente.
   úteis), **Tarefa**, **Condição** e **Fim**.
 - **Condições:** o fluxo segue caminhos diferentes conforme o lead **abriu**, **clicou** ou
   **respondeu**.
-- **Personalização:** `{primeiro_nome}`, `{empresa}`, `{cargo}`, `{vendedor}` e outros campos são
+- **Personalização:** `{{nome}}`, `{{sobrenome}}`, `{{empresa}}`, `{{cargo}}`, `{{vendedor}}` e outros campos são
   preenchidos para cada lead.
 - **E-mails "na mesma conversa":** o próximo e-mail pode sair como resposta ao anterior (`Re:`).
 - **Rastreio:** aberturas, cliques, respostas e e-mails que voltaram (bounce).
