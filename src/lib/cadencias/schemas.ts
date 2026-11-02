@@ -98,6 +98,20 @@ export const configuracaoSchema = z.object({
   negocio: z
     .object({ pipelineId: z.string().uuid().nullable(), stageId: z.string().uuid().nullable() })
     .default({ pipelineId: null, stageId: null }),
+  linkAgenda: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((v) => v === "" || /^https?:\/\/\S+$/i.test(v), "O link da agenda precisa começar com http:// ou https://")
+    .default(""),
+  interesse: z
+    .object({
+      ativo: z.boolean(),
+      aberturas: z.number().int().min(1).max(20),
+      avisarVendedor: z.boolean(),
+      passos: z.array(passoSchema).max(200),
+    })
+    .default({ ativo: false, aberturas: 3, avisarVendedor: true, passos: [] }),
 });
 
 export const criarCadenciaSchema = z

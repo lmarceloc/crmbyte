@@ -15,19 +15,24 @@ import {
   type PontoDeInsercao,
   type Problema,
 } from "./arvore";
-import { ID_GATILHO, type SaidaDoNo } from "./grafo";
+import { ID_GATILHO, ID_GATILHO_INTERESSE, type SaidaDoNo } from "./grafo";
 import type { BlocoSolto, Passo } from "./tipos";
 
-export { ID_GATILHO };
+export { ID_GATILHO, ID_GATILHO_INTERESSE };
 
-/** O fluxo (ligado ao gatilho) e as caixas soltas no canvas. */
+/** O fluxo (ligado ao gatilho), o caminho de interesse e as caixas soltas no canvas. */
 export interface Floresta {
   passos: Passo[];
   soltos: BlocoSolto[];
+  /** Caminho de interesse (ligado ao gatilho "Interesse"); ausente = vazio. */
+  interesse?: Passo[];
 }
 
 export type Saida = SaidaDoNo;
 const FLUXO = "fluxo";
+/** Bloco e chave da lista do caminho de interesse. */
+const INTERESSE = "interesse";
+const interesseDe = (f: Floresta) => f.interesse ?? [];
 const chaveDoSolto = (id: string) => `solto:${id}`;
 
 interface Local {
@@ -52,7 +57,7 @@ function acharEmLista(lista: Passo[], id: string, chave: string, bloco: string):
 }
 
 export function localizar(f: Floresta, id: string): Local | null {
-  const noFluxo = acharEmLista(f.passos, id, "raiz", FLUXO);
+  const noFluxo = acharEmLista(f.passos, id, "raiz", FLUXO) ?? acharEmLista(interesseDe(f), id, INTERESSE, INTERESSE);
   if (noFluxo) return noFluxo;
   for (const s of f.soltos) {
     const r = acharEmLista(s.passos, id, chaveDoSolto(s.id), s.id);
@@ -66,15 +71,22 @@ export function encontrarNaFloresta(f: Floresta, id: string): Passo | null {
   return l ? l.lista[l.indice] : null;
 }
 
-/** Bloco solto de um passo (null se o passo está no fluxo). */
+/** Bloco solto de um passo (null se o passo está no fluxo ou no caminho de interesse). */
 export function blocoDoPasso(f: Floresta, id: string): string | null {
   const l = localizar(f, id);
-  return l && l.bloco !== FLUXO ? l.bloco : null;
+  return l && l.bloco !== FLUXO && l.bloco !== INTERESSE ? l.bloco : null;
+}
+
+/** O passo está no caminho de interesse? */
+export function estaNoInteresse(f: Floresta, id: string): boolean {
+  return localizar(f, id)?.bloco === INTERESSE;
 }
 
 /** A lista que uma saída alimenta e se ela está livre (nada ligado depois). */
 export function listaDaSaida(f: Floresta, origem: string, saida: Saida): { bloco: string; chave: string; livre: boolean } | null {
   if (origem === ID_GATILHO) return saida === "out" ? { bloco: FLUXO, chave: "raiz", livre: f.passos.length === 0 } : null;
+  if (origem === ID_GATILHO_INTERESSE)
+    return saida === "out" ? { bloco: INTERESSE, chave: INTERESSE, livre: interesseDe(f).length === 0 } : null;
   const l = localizar(f, origem);
   if (!l) return null;
   const p = l.lista[l.indice];
@@ -123,8 +135,11 @@ export function ligar(f: Floresta, origem: string, saida: Saida, destino: string
   const de = listaDaSaida(f, origem, saida)!;
   const bloco = f.soltos.find((s) => s.passos[0]?.id === destino)!;
   const restantes = f.soltos.filter((s) => s.id !== bloco.id);
-  if (de.bloco === FLUXO) return { passos: anexar(f.passos, de.chave, "raiz", bloco.passos), soltos: restantes };
+  if (de.bloco === FLUXO) return { ...f, passos: anexar(f.passos, de.chave, "raiz", bloco.passos), soltos: restantes };
+  if (de.bloco === INTERESSE)
+    return { ...f, interesse: anexar(interesseDe(f), de.chave, INTERESSE, bloco.passos), soltos: restantes };
   return {
+    ...f,
     passos: f.passos,
     soltos: restantes.map((s) =>
       s.id === de.bloco ? { ...s, passos: anexar(s.passos, de.chave, chaveDoSolto(s.id), bloco.passos) } : s,
@@ -152,8 +167,11 @@ export function desligar(f: Floresta, destino: string, x: number, y: number): Fl
   if (l.bloco !== FLUXO && l.chave === chaveDoSolto(l.bloco) && l.indice === 0) return f; // já é o começo de um bloco
   const separados = l.lista.slice(l.indice);
   const novo: BlocoSolto = { id: novoId(), x, y, passos: separados };
-  if (l.bloco === FLUXO) return { passos: cortar(f.passos, l.chave, "raiz", l.indice), soltos: [...f.soltos, novo] };
+  if (l.bloco === FLUXO) return { ...f, passos: cortar(f.passos, l.chave, "raiz", l.indice), soltos: [...f.soltos, novo] };
+  if (l.bloco === INTERESSE)
+    return { ...f, interesse: cortar(interesseDe(f), l.chave, INTERESSE, l.indice), soltos: [...f.soltos, novo] };
   return {
+    ...f,
     passos: f.passos,
     soltos: [
       ...f.soltos.map((s) => (s.id === l.bloco ? { ...s, passos: cortar(s.passos, l.chave, chaveDoSolto(s.id), l.indice) } : s)),
@@ -172,6 +190,7 @@ export function moverSolto(f: Floresta, id: string, x: number, y: number): Flore
 
 const emTudo = (f: Floresta, fn: (lista: Passo[]) => Passo[]): Floresta => ({
   passos: fn(f.passos),
+  ...(f.interesse ? { interesse: fn(f.interesse) } : {}),
   soltos: f.soltos.map((s) => ({ ...s, passos: fn(s.passos) })).filter((s) => s.passos.length > 0),
 });
 
@@ -183,6 +202,7 @@ export const duplicarNaFloresta = (f: Floresta, id: string) => emTudo(f, (l) => 
 /** Insere pelo "+" de uma ligação (ponto relativo à lista onde a ligação está). */
 export function inserirNaFloresta(f: Floresta, ponto: PontoDeInsercao, novo: Passo): Floresta {
   if (ponto.lista === "raiz") return { ...f, passos: inserirPasso(f.passos, ponto, novo) };
+  if (ponto.lista === INTERESSE) return { ...f, interesse: inserirPasso(interesseDe(f), { ...ponto, lista: "raiz" }, novo) };
   if (ponto.lista.startsWith("solto:")) {
     const id = ponto.lista.slice("solto:".length);
     return {
@@ -196,6 +216,7 @@ export function inserirNaFloresta(f: Floresta, ponto: PontoDeInsercao, novo: Pas
 /** Problemas por passo: o fluxo exige caixa Fim em todo caminho; soltos só validam os campos. */
 export function validarFloresta(f: Floresta): Map<string, Problema[]> {
   const erros = validarPassos(f.passos);
+  for (const [id, ps] of validarPassos(interesseDe(f))) erros.set(id, ps);
   for (const s of f.soltos) {
     for (const [id, ps] of validarPassos(s.passos, { exigirFim: false })) erros.set(id, ps);
   }
@@ -204,5 +225,6 @@ export function validarFloresta(f: Floresta): Map<string, Problema[]> {
 
 export const todosNaFloresta = (f: Floresta): Passo[] => [
   ...todosOsPassos(f.passos),
+  ...todosOsPassos(interesseDe(f)),
   ...f.soltos.flatMap((s) => todosOsPassos(s.passos)),
 ];

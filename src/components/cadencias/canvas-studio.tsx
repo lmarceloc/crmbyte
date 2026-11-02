@@ -32,7 +32,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react"
-import { Clock, Copy, Flag, GitFork, ListTodo, Mail, MessageCircle, Plus, X, Zap } from "lucide-react"
+import { CalendarCheck, Clock, Copy, Flag, GitFork, ListTodo, Mail, MessageCircle, Plus, X, Zap } from "lucide-react"
 import { toast } from "sonner"
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -59,6 +59,7 @@ import { resumirPasso } from "./canvas"
 
 const COR = {
   gatilho: "#3b82f6",
+  interesse: "#14b8a6",
   email: "#ec3ea9",
   whatsapp: "#49d18d",
   espera: "#f5d63b",
@@ -296,7 +297,39 @@ function NoGatilho({ data }: NodeProps<NoRf>) {
   )
 }
 
-const TIPOS_DE_NO = { passo: NoPasso, gatilho: NoGatilho, fim: NoFim }
+function NoGatilhoInteresse({ data }: NodeProps<NoRf>) {
+  const c = useCanvas()
+  const i = c.configuracao.interesse
+  return (
+    <div
+      className={cn("cs-node", !i.ativo && "opacity-70")}
+      style={{ "--cs-cor": COR.interesse, "--cs-porta": COR.interesse, height: data.no.altura } as CSSProperties}
+      title="Abrir configurações"
+    >
+      <div className="cs-head">
+        <span className="cs-head-ico">
+          <CalendarCheck />
+        </span>
+        <span className="cs-title">Gatilho · Interesse</span>
+      </div>
+      <div className="cs-body">
+        <div className="cs-desc">
+          <div className="cs-line forte">
+            Abriu {i.aberturas}x o mesmo e-mail{i.ativo ? "" : " (desligado)"}
+          </div>
+          <div className="cs-line">
+            {i.ativo
+              ? `Sai do fluxo acima e segue por aqui${i.avisarVendedor ? " · avisa o vendedor" : ""}`
+              : "Ligue em Configurações → Interesse"}
+          </div>
+        </div>
+        <Saida id="out" rotulo="Saída" />
+      </div>
+    </div>
+  )
+}
+
+const TIPOS_DE_NO = { passo: NoPasso, gatilho: NoGatilho, gatilho_interesse: NoGatilhoInteresse, fim: NoFim }
 
 // ---------- ligações ----------
 
@@ -532,6 +565,7 @@ function corDaLigacao(l: LigacaoDoGrafo, nos: Map<string, NoDoGrafo>): string {
   if (l.saida === "sim") return COR.sim
   if (l.saida === "nao") return COR.nao
   const origem = nos.get(l.origem)
+  if (origem?.tipo === "gatilho_interesse") return COR.interesse
   return origem?.passo ? COR[origem.passo.tipo] : COR.gatilho
 }
 
@@ -542,7 +576,10 @@ function Interno(props: PropsDoCanvasStudio) {
   // bloco solto sendo arrastado: desloca todas as caixas dele juntas
   const [arrastoDoBloco, setArrastoDoBloco] = useState<{ bloco: string; dx: number; dy: number } | null>(null)
 
-  const grafo = useMemo(() => montarGrafo(floresta.passos, floresta.soltos), [floresta])
+  const grafo = useMemo(
+    () => montarGrafo(floresta.passos, floresta.soltos, floresta.interesse ?? []),
+    [floresta],
+  )
 
   const nodes = useMemo(() => {
     return grafo.nos.map<NoRf>((n) => {
@@ -699,7 +736,7 @@ function Interno(props: PropsDoCanvasStudio) {
             }}
             onNodeClick={(_e, n) => {
               if (n.type === "passo" || n.type === "fim") onSelecionar(n.id)
-              else if (n.type === "gatilho") onAbrirConfig()
+              else if (n.type === "gatilho" || n.type === "gatilho_interesse") onAbrirConfig()
             }}
             onPaneClick={() => onSelecionar(null)}
           >

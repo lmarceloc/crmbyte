@@ -21,7 +21,7 @@ export const ALTURA = {
   fim: 56,
 } as const;
 
-export type TipoDeNoDoGrafo = "gatilho" | "passo" | "fim";
+export type TipoDeNoDoGrafo = "gatilho" | "gatilho_interesse" | "passo" | "fim";
 /** Saída do nó de onde a ligação parte. */
 export type SaidaDoNo = "out" | "sim" | "nao";
 
@@ -46,6 +46,10 @@ export interface LigacaoDoGrafo {
 }
 
 export const ID_GATILHO = "__gatilho";
+/** Gatilho do caminho de interesse (lead abriu N vezes o mesmo e-mail). */
+export const ID_GATILHO_INTERESSE = "__gatilho_interesse";
+/** Espaço vertical entre o fluxo principal e o caminho de interesse. */
+const ESPACO_ENTRE_FLUXOS = 120;
 
 function alturaDoPasso(p: Passo) {
   return p.tipo === "ramo" ? ALTURA.ramo : p.tipo === "fim" ? ALTURA.fim : ALTURA.passo;
@@ -70,7 +74,12 @@ export function alturaDaLista(passos: Passo[]): number {
  * cada caminho é a caixa Fim colocada à mão; caminho sem ela termina numa
  * saída livre, pronta para ligar.
  */
-export function montarGrafo(passos: Passo[], soltos: BlocoSolto[] = []): { nos: NoDoGrafo[]; ligacoes: LigacaoDoGrafo[] } {
+export function montarGrafo(
+  passos: Passo[],
+  soltos: BlocoSolto[] = [],
+  /** Caminho de interesse: undefined = não desenha o segundo gatilho. */
+  interesse?: Passo[],
+): { nos: NoDoGrafo[]; ligacoes: LigacaoDoGrafo[] } {
   const nos: NoDoGrafo[] = [];
   const ligacoes: LigacaoDoGrafo[] = [];
 
@@ -108,6 +117,15 @@ export function montarGrafo(passos: Passo[], soltos: BlocoSolto[] = []): { nos: 
 
   nos.push({ id: ID_GATILHO, tipo: "gatilho", x: 0, y: -ALTURA.gatilho / 2, altura: ALTURA.gatilho });
   colocar(passos, "raiz", LARGURA_DO_NO + ESPACO_X, 0, { id: ID_GATILHO, saida: "out" }, undefined);
+  if (interesse) {
+    // logo abaixo do fluxo principal
+    const centro =
+      Math.max(alturaDaLista(passos), ALTURA.gatilho) / 2 +
+      ESPACO_ENTRE_FLUXOS +
+      Math.max(alturaDaLista(interesse), ALTURA.gatilho) / 2;
+    nos.push({ id: ID_GATILHO_INTERESSE, tipo: "gatilho_interesse", x: 0, y: centro - ALTURA.gatilho / 2, altura: ALTURA.gatilho });
+    colocar(interesse, "interesse", LARGURA_DO_NO + ESPACO_X, centro, { id: ID_GATILHO_INTERESSE, saida: "out" }, undefined);
+  }
   for (const b of soltos) {
     if (b.passos.length === 0) continue;
     // (x, y) do bloco = canto superior esquerdo da primeira caixa

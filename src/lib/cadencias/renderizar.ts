@@ -8,6 +8,7 @@ export const VARIAVEIS = [
   { chave: "cargo", rotulo: "Cargo", exemplo: "Diretora comercial" },
   { chave: "vendedor", rotulo: "Vendedor", exemplo: "Luiz" },
   { chave: "segmento", rotulo: "Segmento", exemplo: "Papel e celulose" },
+  { chave: "link_agenda", rotulo: "Link da agenda", exemplo: "https://cal.com/luiz/30min" },
 ] as const;
 
 export type DadosDoLead = Partial<Record<(typeof VARIAVEIS)[number]["chave"], string | null>>;

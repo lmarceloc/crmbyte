@@ -18,7 +18,9 @@ Implementado a partir das specs `spec-cadencias-fluxo-email` e
 
 - `049_mailbox_microsoft_oauth.sql` — caixa conectada pelo login da Microsoft (`provedor`, tokens OAuth cifrados). **Rode antes de subir o código**: a listagem de caixas passa a ler essas colunas.
 
-Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 049).
+- `055_cadence_interest_path.sql` — caminho de interesse: evento `interesse_detectado` e a abertura "acorda" a inscrição ao atingir o número da cadência. **Rode antes de subir o código**: o worker grava o evento novo (sem a migration, o desvio falha e a inscrição tenta de novo).
+
+Rode no SQL Editor do Supabase, em ordem (024 → 025 → … → 055).
 
 ## Cron (a cada 10 min na Vercel Hobby; 1×/min onde CPU não é limitada — `Authorization: Bearer $CRON_SECRET`)
 - `GET /api/cadencias/worker` — envia e-mails, espera, ramifica, para.
@@ -66,6 +68,16 @@ O fluxo é montado à mão no canvas da aba *Fluxo*:
   Fim (ou ramo) e não pode haver caixa solta para ativar. Cadências antigas ganham a caixa Fim
   nos caminhos abertos ao abrir o editor (mesmo comportamento de antes).
 - Ramo *Abriu N× em X dias?* conta só as aberturas do **último e-mail** enviado antes dele.
+
+## Caminho de interesse (puxar para a agenda)
+*Configurações → Interesse*: link da agenda (variável `{{link_agenda}}`), ligar/desligar, número de
+aberturas do **mesmo e-mail** (padrão 3) e "avisar o vendedor". No canvas, o gatilho **Interesse**
+(abaixo do fluxo principal) tem o próprio caminho, montado como o fluxo (ex.: Espera 1 dia →
+E-mail com o link → Fim). A qualquer momento, quem atinge o número sai do fluxo principal e segue
+esse caminho (a abertura antecipa a próxima rodada do worker, sem esperar uma Espera longa); o
+vendedor ganha uma tarefa "reunião" (Tarefas e sininho) e a linha do tempo mostra o evento. Acontece
+uma vez por inscrição; as paradas (resposta, descadastro…) continuam valendo. Os passos do caminho
+ficam em `configuracao.interesse.passos`.
 
 ## Leads quentes
 Lead quente = inscrição que somou **N aberturas** (todos os e-mails da cadência). N é de cada
