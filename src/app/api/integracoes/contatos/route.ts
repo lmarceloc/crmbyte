@@ -13,6 +13,7 @@ export async function POST(request: Request) {
     const admin = supabaseAdmin();
     const conta = await autenticarChaveApi(admin, request.headers);
     if (!conta) return fail("unauthorized", "Chave de API ausente, inválida ou revogada.", 401);
+    if (conta.acesso === "leitura") return fail("forbidden", "Esta chave é somente leitura.", 403);
 
     const p = pedidoSchema.safeParse(await request.json().catch(() => null));
     if (!p.success) return validationFailed(p.error);

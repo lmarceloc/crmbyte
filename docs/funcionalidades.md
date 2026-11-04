@@ -149,6 +149,10 @@ prontos para começar.
 - **API do CRM:** sistemas de fora (n8n, formulários, outro CRM, listas do Apollo) **mandam contatos e
   empresas** direto para o CRM. Mandar a mesma lista de novo não duplica nada e não apaga o que o
   vendedor já editou.
+- **MCP para a IA do cliente:** o assistente de IA dele (Claude Code, Cursor, n8n…) se conecta ao CRM com
+  uma chave e **consulta contatos, funis e cadências**; com a chave de escrita também **cria contatos,
+  negócios, tarefas e notas, move negócios e inscreve em cadências**. A chave de leitura não grava nada.
+  Veja `docs/mcp.md`.
 - **Chaves de serviços** (IA, leitura de sites, prospecção) ficam guardadas **cifradas** e nunca
   aparecem no navegador.
 
