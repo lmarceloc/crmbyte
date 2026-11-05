@@ -7,9 +7,9 @@ import { importarCandidatos } from "./import";
 import { MSG_AINDA_PROCURANDO_EMAIL } from "./importavel";
 
 /**
- * Importar para o funil, lado B2B, contra um banco falso que registra o que foi
- * gravado. O que se prova aqui é a LIGAÇÃO: lead sem e-mail verificado vira
- * contato (com a base legal da busca) e negócio; quem pediu para sair, não.
+ * Importar, lado B2B, contra um banco falso que registra o que foi gravado. O
+ * lead vira só CONTATO (com a base legal da busca), sem negócio e sem funil;
+ * quem pediu para sair, não.
  */
 interface Op {
   tabela: string;
@@ -106,8 +106,6 @@ const importar = () =>
     userId: USUARIO,
     kind: "b2b",
     candidateIds: ["cand-1"],
-    pipelineId: "funil-1",
-    stageId: "etapa-1",
   });
 const gravado = (tabela: string, acao: Op["acao"]) => ops.filter((o) => o.tabela === tabela && o.acao === acao);
 
@@ -118,7 +116,7 @@ beforeEach(() => {
 });
 
 describe("importar lead B2B sem e-mail verificado", () => {
-  it("cria o contato com a base legal da busca e leva o negócio ao funil", async () => {
+  it("cria só o contato, com a base legal da busca, sem negócio", async () => {
     cands = [candidato({ status: "skipped" })];
 
     const r = await importar();
@@ -137,18 +135,11 @@ describe("importar lead B2B sem e-mail verificado", () => {
       source: "prospecting",
       consent: { legitimate_interest: { ref: LIA } },
     });
-    const negocio = gravado("deals", "insert")[0]!.linha!;
-    expect(negocio).toMatchObject({
-      contact_id: "contato-novo",
-      company_id: "emp-1",
-      linkedin_url: lead.linkedin,
-      title: "Henrique Andrade Godoy · Sylvamo",
-      pipeline_id: "funil-1",
-      stage_id: "etapa-1",
-      source: "prospecting",
-    });
-    // O candidato fica ligado ao contato e ao negócio criados.
-    expect(gravado("prospecting_candidates", "update").at(-1)!.linha).toEqual({ contact_id: "contato-novo", deal_id: "negocio-1" });
+    // Nada de negócio nem de funil.
+    expect(gravado("deals", "insert")).toHaveLength(0);
+    expect(ops.some((o) => o.tabela === "pipeline_stages")).toBe(false);
+    // O candidato fica ligado ao contato criado.
+    expect(gravado("prospecting_candidates", "update").at(-1)!.linha).toEqual({ contact_id: "contato-novo" });
   });
 
   it("aceita também o lead que falhou na revelação (failed)", async () => {
@@ -164,10 +155,10 @@ describe("importar lead B2B sem e-mail verificado", () => {
 
     expect(r.imported).toBe(1);
     expect(gravado("contacts", "insert")).toHaveLength(0);
-    expect(gravado("deals", "insert")[0]!.linha).toMatchObject({ contact_id: "contato-existente" });
+    expect(gravado("prospecting_candidates", "update").at(-1)!.linha).toEqual({ contact_id: "contato-existente" });
   });
 
-  it("não leva ao funil quem já é contato e pediu para sair", async () => {
+  it("não importa quem já é contato e pediu para sair", async () => {
     cands = [candidato({ status: "skipped" })];
     contatoPorLinkedin = { id: "contato-existente", email_unsubscribed_at: "2026-09-01T00:00:00Z" };
 
@@ -209,14 +200,30 @@ describe("importar lead B2B sem e-mail verificado", () => {
   });
 });
 
-describe("importar lead B2B com e-mail verificado (caminho de sempre)", () => {
-  it("usa o contato que a busca já criou, sem criar outro", async () => {
+describe("importar lead B2B que já é contato", () => {
+  it("e-mail verificado já virou contato na revelação: conta como já estava", async () => {
     cands = [candidato({ status: "enriched", contact_id: "contato-da-busca", error: null })];
 
     const r = await importar();
 
-    expect(r.imported).toBe(1);
+    expect(r).toEqual({ imported: 0, already: 1, skipped: [] });
     expect(gravado("contacts", "insert")).toHaveLength(0);
-    expect(gravado("deals", "insert")[0]!.linha).toMatchObject({ contact_id: "contato-da-busca" });
+    expect(gravado("deals", "insert")).toHaveLength(0);
+  });
+});
+
+describe("importar lead B2B com e-mail achado mas não confirmado", () => {
+  it("o contato nasce com o e-mail que a revelação achou", async () => {
+    cands = [
+      {
+        ...candidato({ status: "skipped" }),
+        data: { ...lead, email: "henrique.godoy@sylvamo.com", emailStatus: "aceita_tudo" },
+      },
+    ];
+
+    const r = await importar();
+
+    expect(r.imported).toBe(1);
+    expect(gravado("contacts", "insert")[0]!.linha).toMatchObject({ email: "henrique.godoy@sylvamo.com" });
   });
 });

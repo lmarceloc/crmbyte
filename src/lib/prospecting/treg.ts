@@ -16,6 +16,8 @@ export interface Lead {
   linkedin: string | null;
   email: string | null;
   emailVerified: boolean;
+  /** Resultado da verificação quando o e-mail foi achado mas não confirmado. */
+  emailStatus?: SituacaoDoEmail;
 }
 
 interface RespostaTreg {
@@ -232,7 +234,38 @@ export async function acharEmail(
   return { email: typeof email === "string" && email.includes("@") ? email.trim().toLowerCase() : null, custoUsd };
 }
 
-export async function verificarEmail(key: string, email: string): Promise<{ valido: boolean; custoUsd: number }> {
+/**
+ * Resultado da verificação:
+ *  - `valido`: a caixa existe;
+ *  - `aceita_tudo`: o domínio aceita qualquer endereço (catch-all), então não dá
+ *    para confirmar a caixa — o e-mail pode existir, mas pode voltar;
+ *  - `invalido`: a caixa não existe;
+ *  - `desconhecido`: o verificador não conseguiu concluir.
+ */
+export type SituacaoDoEmail = "valido" | "aceita_tudo" | "invalido" | "desconhecido";
+
+/**
+ * Lê a resposta do verificador. O formato vem do provedor por trás da Treg:
+ * `{ data: { status: "valid" | "accept_all" | "invalid" | … } }` (Hunter), às
+ * vezes sem o `data`, e o legado `{ valid: true }`.
+ */
+export function situacaoDoEmail(output: unknown): SituacaoDoEmail {
+  const o = obj(output);
+  if (!o) return "desconhecido";
+  const d = obj(o.data) ?? o;
+  if (d.valid === true) return "valido";
+  if (d.valid === false) return "invalido";
+  const status = String(d.status ?? obj(d.verification)?.status ?? "").toLowerCase();
+  if (status === "valid" || status === "deliverable") return "valido";
+  if (status === "accept_all" || status === "catch_all" || status === "accept-all") return "aceita_tudo";
+  if (status === "invalid" || status === "undeliverable") return "invalido";
+  return "desconhecido";
+}
+
+export async function verificarEmail(
+  key: string,
+  email: string,
+): Promise<{ situacao: SituacaoDoEmail; custoUsd: number }> {
   const { output, custoUsd } = await chamar(key, "treg.people.email.verify", { email }, 30_000);
-  return { valido: obj(output)?.valid === true, custoUsd };
+  return { situacao: situacaoDoEmail(output), custoUsd };
 }

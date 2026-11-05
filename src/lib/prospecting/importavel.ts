@@ -34,7 +34,11 @@ export function avaliarImportacaoB2b(c: CandidatoB2b): AvaliacaoB2b {
   return { ok: false, motivo: "Este lead ainda não pode ser importado." };
 }
 
-/** O botão "Importar" aparece quando o lead ainda não está no funil e a avaliação deixa. */
+/**
+ * O botão "Importar" aparece quando o lead ainda não é contato e a avaliação deixa.
+ * A B2B importa só o contato: quem já tem `contact_id` (e-mail verificado na
+ * revelação, ou importado antes) já está em Contatos.
+ */
 export function leadB2bImportavel(c: CandidatoB2b & { deal_id: string | null }): boolean {
-  return !c.deal_id && avaliarImportacaoB2b(c).ok;
+  return !c.contact_id && !c.deal_id && avaliarImportacaoB2b(c).ok;
 }

@@ -6,7 +6,14 @@ import { chaveApify } from "./service";
 import { MSG_PEDIU_PARA_SAIR, ProspectingError } from "./errors";
 import { criarContatoB2b } from "./contato-b2b";
 import { comLock } from "./locks";
-import { acharEmail, verificarEmail, type Lead } from "./treg";
+import { acharEmail, verificarEmail, type Lead, type SituacaoDoEmail } from "./treg";
+
+const MSG_SITUACAO: Record<Exclude<SituacaoDoEmail, "valido">, string> = {
+  aceita_tudo:
+    "E-mail encontrado, mas não confirmado: o domínio aceita qualquer endereço. Importe para usar com cuidado.",
+  desconhecido: "E-mail encontrado, mas o verificador não conseguiu confirmar.",
+  invalido: "E-mail encontrado era inválido.",
+};
 import { obterChave } from "@/lib/integracoes/chaves";
 import { contasBloqueadas } from "@/lib/assinatura/acesso";
 
@@ -102,14 +109,27 @@ export async function revelarEmails(admin: Admin, camp: Campanha): Promise<numbe
     try {
       const achado = await acharEmail(tregChave, lead.fullName, lead.companyDomain);
       custo += achado.custoUsd;
-      let valido = false;
+      let situacao: SituacaoDoEmail | null = null;
       if (achado.email) {
         const v = await verificarEmail(tregChave, achado.email);
         custo += v.custoUsd;
-        valido = v.valido;
+        situacao = v.situacao;
       }
-      if (!achado.email || !valido) {
-        await pular(cand.id, "Sem e-mail comercial verificado.");
+      if (!achado.email) {
+        await pular(cand.id, "E-mail comercial não encontrado.");
+      } else if (situacao !== "valido") {
+        // Achado mas não confirmado: o contato NÃO nasce sozinho (pode voltar e
+        // queimar a caixa de envio), mas o e-mail fica no lead e vai junto se o
+        // vendedor importar. Inválido não fica: não serve para nada.
+        const guardar = situacao === "aceita_tudo" || situacao === "desconhecido";
+        await admin
+          .from("prospecting_candidates")
+          .update({
+            status: "skipped",
+            error: MSG_SITUACAO[situacao ?? "desconhecido"],
+            ...(guardar ? { data: { ...lead, email: achado.email, emailVerified: false, emailStatus: situacao } } : {}),
+          })
+          .eq("id", cand.id);
       } else {
         const contactId = await contatoB2b(admin, camp, lead, achado.email);
         if (!contactId) {

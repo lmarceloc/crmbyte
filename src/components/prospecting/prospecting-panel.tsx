@@ -63,7 +63,7 @@ const STATUS_BUSCA: Record<string, string> = {
 const STATUS_CAND: Record<string, string> = {
   new: "Revelando e-mail",
   enriched: "E-mail verificado",
-  skipped: "Sem e-mail verificado",
+  skipped: "Sem e-mail confirmado",
   failed: "Falhou",
 }
 
@@ -116,7 +116,7 @@ export function ProspectingPanel({ kind }: { kind: Kind }) {
         <h1 className="text-xl font-semibold">{kind === "b2b" ? "Prospecção B2B" : "Prospecção simples"}</h1>
         <p className="text-sm text-muted-foreground">
           {kind === "b2b"
-            ? "Encontre pessoas por cargo e/ou domínio da empresa. Lead com e-mail comercial verificado vira contato sozinho; o que ficar sem e-mail ainda pode ser importado para o funil."
+            ? "Encontre pessoas por cargo e/ou domínio da empresa. Lead com e-mail comercial verificado vira contato sozinho; o que ficar sem e-mail confirmado pode ser importado para os contatos."
             : "Encontre empresas por nicho e região (Google Maps), com telefone, site e e-mails."}
         </p>
       </div>
@@ -491,7 +491,7 @@ function Row({
         {kind === "b2b" ? (
           <>
             {str(d.location)}
-            {str(d.email) && <div>{str(d.email)} {d.emailVerified === true && <Badge variant="outline">verificado</Badge>}</div>}
+            {str(d.email) && <div>{str(d.email)} {d.emailVerified === true && <Badge variant="outline">verificado</Badge>}{d.emailVerified !== true && d.emailStatus === "aceita_tudo" && <Badge variant="outline">não confirmado</Badge>}</div>}
           </>
         ) : (
           <>
@@ -507,7 +507,7 @@ function Row({
         )}
       </td>
       <td className="p-2 text-xs">
-        {c.deal_id ? "No funil" : kind === "b2b" ? STATUS_CAND[c.status] ?? c.status : "Novo"}
+        {c.deal_id ? "No funil" : kind === "b2b" ? (c.contact_id ? "Nos contatos" : STATUS_CAND[c.status] ?? c.status) : "Novo"}
         {c.error && <div className="text-muted-foreground">{c.error}</div>}
       </td>
       <td className="space-x-1 p-2 text-right">
@@ -576,9 +576,8 @@ function ImportPanel({
           body: JSON.stringify({
             kind,
             candidate_ids: alvo.slice(i, i + 100),
-            pipeline_id: pipelineId,
-            stage_id: stageId,
-            ...(kind === "simples" ? { legal_basis_ref: ref } : {}),
+            // a B2B importa só o contato: sem funil
+            ...(kind === "simples" ? { pipeline_id: pipelineId, stage_id: stageId, legal_basis_ref: ref } : {}),
           }),
         })
         const d = await r.json()
@@ -591,7 +590,7 @@ function ImportPanel({
         total.already += d.already
         total.skipped.push(...d.skipped)
       }
-      try { localStorage.setItem(storeKey, JSON.stringify({ pipelineId, stageId })) } catch {}
+      if (kind === "simples") try { localStorage.setItem(storeKey, JSON.stringify({ pipelineId, stageId })) } catch {}
       setResult(total)
       onDone()
     } finally {
@@ -601,7 +600,7 @@ function ImportPanel({
 
   return (
     <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
-      <h3 className="text-sm font-semibold">Importar {alvo.length} para o funil</h3>
+      <h3 className="text-sm font-semibold">Importar {alvo.length} para {kind === "b2b" ? "os contatos" : "o funil"}</h3>
       {result ? (
         <div className="space-y-1 text-sm">
           <p>Importados: {result.imported} · Já estavam: {result.already} · Pulados: {result.skipped.length}</p>
@@ -614,7 +613,7 @@ function ImportPanel({
         </div>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2">
+          {kind === "simples" && <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Funil">
               <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={pipelineId} onChange={(e) => { setPipelineId(e.target.value); setStageId("") }}>
                 <option value="">Escolha…</option>
@@ -627,15 +626,19 @@ function ImportPanel({
                 {opts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </Field>
-          </div>
+          </div>}
           {kind === "simples" && (
             <Field label="Referência do legítimo interesse (LGPD)">
               <Input value={ref} onChange={(e) => setRef(e.target.value)} />
             </Field>
           )}
-          <p className="text-xs text-muted-foreground">Nenhuma abordagem é disparada: o resultado vira Contato + Negócio.</p>
+          <p className="text-xs text-muted-foreground">
+            {kind === "b2b"
+              ? "Nenhuma abordagem é disparada: o lead vira Contato. O negócio você cria depois, quando ele evoluir."
+              : "Nenhuma abordagem é disparada: o resultado vira Contato + Negócio."}
+          </p>
           <div className="flex gap-2">
-            <Button size="sm" onClick={run} disabled={busy || alvo.length === 0 || !pipelineId || !stageId || (kind === "simples" && ref.trim().length < 3)}>
+            <Button size="sm" onClick={run} disabled={busy || alvo.length === 0 || (kind === "simples" && (!pipelineId || !stageId || ref.trim().length < 3))}>
               {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Importar{alvo.length > 1 ? ` (${alvo.length})` : ""}
             </Button>
             <Button size="sm" variant="ghost" onClick={onClose}>Cancelar</Button>
