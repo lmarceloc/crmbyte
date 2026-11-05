@@ -209,6 +209,21 @@ export async function sincronizarBusca(admin: Admin, camp: Campanha): Promise<vo
   }
 }
 
+/**
+ * Ids das buscas B2B concluídas que ainda têm lead esperando a revelação do
+ * e-mail (`status = 'new'`). Usa o índice (campaign_id, status) dos candidatos.
+ */
+export async function campanhasB2bComPendentes(admin: Admin): Promise<string[]> {
+  const { data } = await admin
+    .from("prospecting_candidates")
+    .select("campaign_id, prospecting_campaigns!inner(kind,search_status)")
+    .eq("status", "new")
+    .eq("prospecting_campaigns.kind", "b2b")
+    .eq("prospecting_campaigns.search_status", "succeeded")
+    .limit(1000);
+  return [...new Set((data ?? []).map((c: { campaign_id: string }) => c.campaign_id))];
+}
+
 export async function processarProspeccao(admin: Admin): Promise<ResultadoDoTick> {
   const inicio = Date.now();
   const r: ResultadoDoTick = { contas: 0, sincronizadas: 0, reveladas: 0 };
@@ -223,14 +238,18 @@ export async function processarProspeccao(admin: Admin): Promise<ResultadoDoTick
     .eq("search_status", "starting")
     .lt("updated_at", new Date(Date.now() - 120_000).toISOString());
 
-  const { data: ativas } = await admin
-    .from("prospecting_campaigns")
-    .select("*")
-    .or(
-      "search_status.eq.running,and(kind.eq.b2b,search_status.eq.succeeded,result_count.gt.0)",
-    )
-    .order("updated_at")
-    .limit(200);
+  // Simples em andamento (sincronizar com o Apify) + B2B com e-mail ainda por revelar.
+  // A B2B NÃO sai de "succeeded" quando termina de revelar: filtrar só pelo status
+  // trazia todas as buscas antigas, e as duas mais antigas da conta (já sem nada
+  // pendente, logo nunca atualizadas) ocupavam a rodada para sempre.
+  const [{ data: emAndamento }, b2bIds] = await Promise.all([
+    admin.from("prospecting_campaigns").select("*").eq("search_status", "running").order("updated_at").limit(200),
+    campanhasB2bComPendentes(admin),
+  ]);
+  const { data: b2bPendentes } = b2bIds.length
+    ? await admin.from("prospecting_campaigns").select("*").in("id", b2bIds).order("updated_at")
+    : { data: [] };
+  const ativas = [...(emAndamento ?? []), ...(b2bPendentes ?? [])];
 
   const porConta = new Map<string, Campanha[]>();
   for (const c of ativas ?? []) porConta.set(c.account_id, [...(porConta.get(c.account_id) ?? []), c]);
