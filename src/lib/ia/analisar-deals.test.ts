@@ -47,7 +47,7 @@ describe("perguntar", () => {
     expect(url).toBe(URL_DO_SERVICO);
     expect(url).toBe("https://api.typesafe.ai/v1/systemone");
     expect(init.method).toBe("POST");
-    expect(init.redirect).toBe("error");
+    expect(init.redirect).toBe("manual");
     const cab = init.headers as Record<string, string>;
     expect(cab.Authorization).toBe(`Bearer ${CHAVE}`);
     expect(cab["Content-Type"]).toBe("application/json");
