@@ -44,9 +44,10 @@ describe("avaliarImportacaoB2b", () => {
 });
 
 describe("leadB2bImportavel", () => {
-  it("só aparece para quem ainda não está no funil", () => {
+  it("só aparece para quem ainda não é contato", () => {
     expect(leadB2bImportavel(cand({ status: "skipped" }))).toBe(true);
     expect(leadB2bImportavel(cand({ status: "skipped", deal_id: "d1" }))).toBe(false);
-    expect(leadB2bImportavel(cand({ status: "enriched", contact_id: "c1", deal_id: "d1" }))).toBe(false);
+    expect(leadB2bImportavel(cand({ status: "skipped", contact_id: "c1" }))).toBe(false);
+    expect(leadB2bImportavel(cand({ status: "enriched", contact_id: "c1" }))).toBe(false);
   });
 });

@@ -118,7 +118,7 @@ anterior. Em Configurações há um botão para mandar uma prévia para você me
   endereço.
 - **Prospecção B2B:** encontra **pessoas** (decisores) nas empresas-alvo e revela o **e-mail
   verificado**, respeitando um teto de custo.
-- **Importar para o funil:** o candidato vira contato e negócio com um clique, sem disparar nenhum
+- **Importar:** na prospecção pelo Google Maps o candidato vira contato e negócio; na B2B vira só contato (o negócio é criado depois). Nenhuma das duas dispara
   e-mail sozinho.
 
 ## IA: rascunho de e-mail de prospecção

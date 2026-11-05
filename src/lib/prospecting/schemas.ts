@@ -52,8 +52,13 @@ export const importSchema = z
   .object({
     kind: z.enum(["simples", "b2b"]),
     candidate_ids: z.array(z.string().uuid()).min(1).max(100),
-    pipeline_id: z.string().uuid(),
-    stage_id: z.string().uuid(),
+    // só a prospecção simples leva ao funil; a B2B importa só o contato
+    pipeline_id: z.string().uuid().optional(),
+    stage_id: z.string().uuid().optional(),
     legal_basis_ref: z.string().trim().min(3).max(500).optional(),
   })
-  .strict();
+  .strict()
+  .refine((d) => d.kind === "b2b" || (!!d.pipeline_id && !!d.stage_id), {
+    message: "Escolha o funil e a etapa de entrada.",
+    path: ["pipeline_id"],
+  });
