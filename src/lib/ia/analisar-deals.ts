@@ -120,7 +120,9 @@ export async function perguntar(
       method: "POST",
       headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: MODELO_DO_SERVICO, state: estado, questions: perguntas }),
-      redirect: "error",
+      // "manual", não "error": o runtime da Cloudflare recusa "error" (TypeError na hora,
+      // sem ir à rede). Um 3xx não é seguido e cai no tratamento de !ok abaixo.
+      redirect: "manual",
       signal: AbortSignal.timeout(tempoMax),
     });
   } catch (e) {

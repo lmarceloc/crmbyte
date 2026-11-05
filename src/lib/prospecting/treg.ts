@@ -42,11 +42,14 @@ async function chamar(
       method: "POST",
       headers,
       body: JSON.stringify(corpo),
-      redirect: "error",
+      // "manual", não "error": o runtime da Cloudflare recusa "error" (TypeError na hora,
+      // sem ir à rede). Um 3xx não é seguido e cai no tratamento de !ok abaixo.
+      redirect: "manual",
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
     });
-  } catch {
+  } catch (e) {
+    console.error(`[treg] ${tool} sem resposta:`, e instanceof Error ? `${e.name}: ${e.message}` : e);
     throw new ProspectingError(MSG_SEM_CONFIRMACAO);
   }
 

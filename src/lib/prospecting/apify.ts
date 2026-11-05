@@ -27,11 +27,14 @@ async function req<T>(key: string, path: string, init?: RequestInit): Promise<T>
         Authorization: `Bearer ${key}`,
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
       },
-      redirect: "error",
+      // "manual", não "error": o runtime da Cloudflare recusa "error" (TypeError na hora,
+      // sem ir à rede). Um 3xx não é seguido e cai no tratamento de !ok abaixo.
+      redirect: "manual",
       cache: "no-store",
       signal: AbortSignal.timeout(25_000),
     });
-  } catch {
+  } catch (e) {
+    console.error(`[apify] ${path} sem resposta:`, e instanceof Error ? `${e.name}: ${e.message}` : e);
     throw new ProspectingError(MSG_SEM_CONFIRMACAO);
   }
   if (res.status === 401) throw new ProspectingError("Chave de busca inválida.");
