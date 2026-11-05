@@ -4,7 +4,7 @@ import { obterOuCriarEmpresa } from "@/lib/companies";
 import { findExistingContact, isEmailUniqueViolation, isUniqueViolation } from "@/lib/contacts/dedupe";
 import type { Prospect } from "./apify";
 import { MSG_PEDIU_PARA_SAIR, ProspectingError } from "./errors";
-import { criarContatoB2b } from "./contato-b2b";
+import { criarContatoB2b, emailNaoConfirmado } from "./contato-b2b";
 import { avaliarImportacaoB2b } from "./importavel";
 import { comLock } from "./locks";
 import type { Lead } from "./treg";
@@ -118,7 +118,7 @@ export async function importarCandidatos(
               admin,
               { campaignId: camp.id, accountId: p.accountId, legalBasisRef: base, quemCria: async () => p.userId },
               c.data as Lead,
-              null,
+              emailNaoConfirmado(c.data as Lead),
             );
             if (!contactId) {
               res.skipped.push({ id: c.id, reason: MSG_PEDIU_PARA_SAIR });

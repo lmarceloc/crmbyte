@@ -491,7 +491,7 @@ function Row({
         {kind === "b2b" ? (
           <>
             {str(d.location)}
-            {str(d.email) && <div>{str(d.email)} {d.emailVerified === true && <Badge variant="outline">verificado</Badge>}</div>}
+            {str(d.email) && <div>{str(d.email)} {d.emailVerified === true && <Badge variant="outline">verificado</Badge>}{d.emailVerified !== true && d.emailStatus === "aceita_tudo" && <Badge variant="outline">não confirmado</Badge>}</div>}
           </>
         ) : (
           <>

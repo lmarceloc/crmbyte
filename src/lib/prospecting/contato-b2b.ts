@@ -85,3 +85,12 @@ export async function criarContatoB2b(
   }
   return data.id;
 }
+
+/**
+ * E-mail que a revelação achou mas não conseguiu confirmar (domínio catch-all ou
+ * verificador sem conclusão). Vai para o contato quando o vendedor importa o lead.
+ * Só esse: e-mail que veio da busca, sem passar pela revelação, não entra.
+ */
+export function emailNaoConfirmado(lead: Lead): string | null {
+  return lead.emailStatus === "aceita_tudo" || lead.emailStatus === "desconhecido" ? lead.email : null;
+}
