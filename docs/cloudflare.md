@@ -20,6 +20,10 @@ storage, realtime) não muda.
 - Build command: `npx opennextjs-cloudflare build`
 - Deploy command: `npx opennextjs-cloudflare deploy`
 - Builds de preview: desligados (ou `npx wrangler versions upload`).
+- O build não aparece no GitHub (não vira check no PR): acompanhe em Workers & Pages → crmbyte →
+  Deployments. Se um merge no `main` não gerou build, confira em Settings → Build se o repositório
+  e a branch `main` continuam conectados (reconecte se preciso) e rode o build de novo por lá.
+  Para subir sem depender disso: `npx wrangler login` e `npm run deploy` na máquina local.
 
 ## Variáveis
 **Build** (Settings → Build → Variables and secrets) — entram no bundle do navegador:
