@@ -1,94 +1,62 @@
-/* Canvas da cadência no visual "Node Flow": fundo escuro com pontos e grade,
-   cartões com portas coloridas, ligações tracejadas animadas com brilho,
-   mini-raio ao encaixar e brilho no cartão novo. Sempre escuro, nos dois temas. */
+/* Canvas da cadência (xyflow): visual sóbrio, em tons neutros do tema.
+   Sem brilhos, sem animações: cartões planos com rótulo acima, ligações
+   cinza contínuas e fundo de pontos. Usa os tokens do tema (claro/escuro). */
 
 .cs-studio {
-  --cs-bg: #0c0d10;
-  --cs-panel: #15171b;
-  --cs-text: #e8e9ed;
-  --cs-muted: #8c909b;
-  --cs-yellow: #f5d63b;
-  --cs-pink: #ec3ea9;
-  --cs-purple: #a855f7;
-  --cs-blue: #3b82f6;
-  --cs-orange: #ff9800;
-  --cs-green: #49d18d;
-  --cs-red: #ef4444;
-
   display: flex;
   min-height: 0;
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  border: 1px solid #1d2025;
-  border-radius: 10px;
-  background-color: var(--cs-bg);
-  background-image: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 24px 24px;
-  color: var(--cs-text);
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+  color: var(--foreground);
   user-select: none;
   -webkit-user-select: none;
 }
 
 /* ---------- Paleta (barra lateral) ---------- */
 .cs-sidebar {
-  width: 200px;
+  width: 196px;
   flex-shrink: 0;
   overflow-y: auto;
-  border-right: 1px solid #22252c;
-  background: var(--cs-panel);
-  padding: 14px;
+  border-right: 1px solid var(--border);
+  background: var(--card);
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .cs-sidebar h3 {
-  margin: 8px 0 4px;
-  font-size: 10px;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: var(--cs-muted);
+  margin: 10px 0 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
 }
 .cs-sidebar p {
   margin: 0 0 4px;
-  font-size: 10px;
-  line-height: 1.4;
-  color: #686d78;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
 }
 .cs-action-card {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   padding: 8px 10px;
-  border: 1px solid #282b34;
-  border-radius: 7px;
-  background: #181a1f;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--cs-text);
+  border-radius: 9px;
+  background: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--foreground);
   cursor: grab;
   touch-action: none;
-  transition: 0.15s;
   text-align: left;
 }
-.cs-action-card:hover {
-  background: #22252d;
-  border-color: #3b3f4d;
-  transform: translateX(2px);
-}
+.cs-action-card:hover { background: var(--accent); }
 .cs-action-card:active { cursor: grabbing; }
-.cs-ico {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border-radius: 5px;
-  background: #22252d;
-  color: var(--cs-cor, var(--cs-orange));
-}
-.cs-ico svg { width: 12px; height: 12px; }
+.cs-action-card svg { width: 14px; height: 14px; color: var(--muted-foreground); flex-shrink: 0; }
 
 /* ---------- Área do fluxo ---------- */
 .cs-canvas { position: relative; flex: 1; min-width: 0; }
@@ -100,353 +68,259 @@
 .cs-canvas .react-flow__pane.dragging { cursor: grabbing; }
 
 .cs-canvas .react-flow__controls {
-  border: 1px solid #2a2d34;
-  border-radius: 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   overflow: hidden;
   box-shadow: none;
 }
 .cs-canvas .react-flow__controls-button {
-  background: #1a1c21;
-  border-bottom: 1px solid #2a2d34;
-  fill: var(--cs-text);
-  color: var(--cs-text);
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
 }
-.cs-canvas .react-flow__controls-button:hover { background: #23262d; }
-.cs-canvas .react-flow__controls-button svg { fill: var(--cs-text); }
+.cs-canvas .react-flow__controls-button:hover { background: var(--muted); }
+.cs-canvas .react-flow__controls-button svg { fill: var(--foreground); }
+
+.cs-canvas .react-flow__minimap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--card);
+}
+/* cores via CSS: os atributos SVG do minimapa não aceitam var() */
+.cs-canvas .react-flow__minimap-node {
+  fill: var(--muted-foreground);
+  fill-opacity: 0.35;
+  stroke: none;
+}
+.cs-canvas .react-flow__minimap-mask {
+  fill: var(--background);
+  fill-opacity: 0.6;
+}
 
 /* ---------- Ligações ---------- */
 .cs-edge-path {
   fill: none;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-dasharray: 8 10;
-  animation: cs-flow 1s linear infinite;
-  filter: drop-shadow(0 0 6px currentColor);
-  transition: stroke-width 0.15s;
+  stroke: var(--muted-foreground);
+  stroke-opacity: 0.6;
+  stroke-width: 1.75;
 }
-.react-flow__edge:hover .cs-edge-path {
-  stroke-width: 5;
-  filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 12px currentColor);
+/* passar o mouse avisa que o clique desfaz a ligação */
+.react-flow__edge:hover .cs-edge-path.desligavel {
+  stroke: var(--destructive);
+  stroke-opacity: 1;
 }
-@keyframes cs-flow { to { stroke-dashoffset: -36; } }
+.react-flow__edge:has(.cs-edge-path.desligavel) { cursor: pointer; }
 
 .cs-edge-label {
   position: absolute;
   pointer-events: none;
-  padding: 1px 6px;
-  border-radius: 10px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted-foreground);
 }
-.cs-edge-label.sim { background: rgba(73, 209, 141, 0.15); color: var(--cs-green); border: 1px solid rgba(73, 209, 141, 0.35); }
-.cs-edge-label.nao { background: rgba(239, 68, 68, 0.15); color: var(--cs-red); border: 1px solid rgba(239, 68, 68, 0.35); }
 
 /* "+" no meio da ligação: insere um passo (clique) ou recebe um passo arrastado */
 .cs-plus {
   position: absolute;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  border: 1.5px solid #3e434f;
-  background: #17191d;
-  color: var(--cs-muted);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
   cursor: pointer;
   pointer-events: all;
-  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, color 0.15s;
 }
 .cs-plus svg { width: 12px; height: 12px; }
-.cs-plus:hover {
-  border-color: var(--cs-orange);
-  color: #fff;
-  box-shadow: 0 0 10px rgba(255, 152, 0, 0.45);
-}
-/* Anel duplo na porta alvo durante o arrasto */
+.cs-plus:hover { background: var(--muted); color: var(--foreground); }
 .cs-plus.snap-target {
-  transform: scale(1.5);
-  border-color: var(--cs-orange);
-  color: #fff;
-  box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.3), 0 0 15px 4px var(--cs-orange);
+  border-color: var(--foreground);
+  background: var(--muted);
+  color: var(--foreground);
 }
 
 /* ---------- Cartões (nós) ---------- */
 .cs-node {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   width: 240px;
-  border: 1px solid #2b2e35;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #181a1f, #15171b);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
-  color: var(--cs-text);
-  transition: border-color 0.3s, box-shadow 0.3s;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 12px;
   cursor: pointer;
 }
-.cs-node:hover { border-color: #3b3f48; }
-.cs-node.selected {
-  border-color: rgba(255, 152, 0, 0.75);
-  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.25), 0 0 18px rgba(255, 152, 0, 0.18), 0 8px 28px rgba(0, 0, 0, 0.35);
-}
-.cs-node.erro:not(.selected) { border-color: rgba(239, 68, 68, 0.45); }
+.cs-node.selected { border-color: var(--foreground); }
+.cs-node.erro:not(.selected) { border-color: color-mix(in oklch, var(--destructive) 60%, var(--border)); }
+.cs-node.solto { border-style: dashed; }
 
-/* Brilho no contorno que acende e some (sem `forwards`, para não travar o hover) */
-.cs-flash {
+/* rótulo acima do cartão: "3. E-mail" + ações */
+.cs-lb {
   position: absolute;
-  inset: -1px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  pointer-events: none;
-  animation: cs-card-flash 1s cubic-bezier(0.22, 1, 0.36, 1);
-}
-@keyframes cs-card-flash {
-  0% { border-color: #fff; box-shadow: 0 0 30px 6px var(--cs-orange), 0 0 10px #fff; }
-  35% { border-color: var(--cs-orange); box-shadow: 0 0 20px 4px var(--cs-orange); }
-  100% { border-color: transparent; box-shadow: 0 0 0 0 transparent; }
-}
-
-.cs-head {
+  top: -22px;
+  left: 4px;
+  right: 0;
   display: flex;
   align-items: center;
-  gap: 7px;
-  height: 36px;
-  padding: 0 8px 0 12px;
-  border-bottom: 1px solid #25282e;
+  gap: 6px;
+  height: 18px;
   font-size: 11px;
-  font-weight: 650;
-  color: #d9dbe1;
+  color: var(--muted-foreground);
 }
-.cs-head .cs-head-ico { display: grid; color: var(--cs-cor, var(--cs-orange)); }
-.cs-head .cs-head-ico svg { width: 13px; height: 13px; }
-.cs-head .cs-title { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.cs-head .cs-num { color: #686d78; font-weight: 600; }
+.cs-lb .cs-lb-txt { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cs-tool {
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #555a66;
+  color: var(--muted-foreground);
   cursor: pointer;
+  opacity: 0;
 }
+.cs-node:hover .cs-tool,
+.cs-node.selected .cs-tool { opacity: 1; }
 .cs-tool svg { width: 12px; height: 12px; }
-.cs-tool:hover { background: #22252d; color: #d9dbe1; }
-.cs-tool.del:hover { color: var(--cs-red); }
+.cs-tool:hover { background: var(--muted); color: var(--foreground); }
+.cs-tool.del:hover { color: var(--destructive); }
 
-.cs-body { padding: 10px; }
+.cs-solta {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+/* linhas internas (como blocos dentro do cartão) */
+.cs-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--muted);
+}
+.cs-row svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--muted-foreground); }
+.cs-row .cs-forte { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
 .cs-desc {
-  height: 45px;
-  margin-bottom: 8px;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
-  padding: 6px 8px;
-  border: 1px solid #22252c;
-  border-radius: 5px;
-  background: #111317;
-  font-size: 9.5px;
-  line-height: 1.4;
-  color: #a4a8b3;
+  padding: 2px 4px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
   word-break: break-word;
 }
-.cs-desc .cs-line { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-.cs-desc .cs-line.forte { color: #d9dbe1; }
-.cs-desc .cs-line.erro { color: var(--cs-red); }
+.cs-desc .cs-line { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cs-desc .cs-line.erro { color: var(--destructive); }
 
+/* portas: Entrada / Saída / Sim / Não */
 .cs-param {
   position: relative;
   display: flex;
   align-items: center;
-  height: 26px;
-  font-size: 10px;
-  color: #a4a8b3;
+  height: 20px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
 }
-.cs-param .cs-name { margin-left: 14px; }
+.cs-param .cs-name { margin-left: 6px; }
 .cs-param.out { justify-content: flex-end; }
-.cs-param.out .cs-name { margin: 0 14px 0 0; }
-.cs-param .cs-check { margin-left: auto; color: var(--cs-green); }
+.cs-param.out .cs-name { margin: 0 6px 0 0; }
 
-/* Portas (handles do React Flow) */
 .cs-node .react-flow__handle {
   width: 10px;
   height: 10px;
   min-width: 10px;
   min-height: 10px;
-  border: 1.5px solid var(--cs-porta, #747985);
+  border: 1.5px solid var(--muted-foreground);
   border-radius: 50%;
-  background: var(--cs-porta, #17191d);
-  box-shadow: 0 0 7px color-mix(in srgb, var(--cs-porta, #747985) 45%, transparent);
+  background: var(--card);
   top: 50%;
   transform: translateY(-50%);
 }
-.cs-node .cs-param.in .react-flow__handle { left: -15px; right: auto; }
-.cs-node .cs-param.out .react-flow__handle { right: -15px; left: auto; }
+.cs-node .cs-param.in .react-flow__handle { left: -14px; right: auto; }
+.cs-node .cs-param.out .react-flow__handle { right: -14px; left: auto; }
+.cs-node .react-flow__handle.connectable { cursor: crosshair; }
 
-/* Cartão de fim de caminho (ramo) */
+/* Porta alvo durante a ligação: contorno forte (aceita) ou vermelho (recusa) */
+.cs-node .react-flow__handle.connectingto.valid {
+  border-color: var(--foreground);
+  background: var(--foreground);
+}
+.cs-node .react-flow__handle.connectingto:not(.valid) {
+  border-color: var(--destructive);
+  background: var(--destructive);
+}
+
+/* Cartão "Fim deste caminho" */
 .cs-node.mini {
-  display: flex;
+  flex-direction: row;
   align-items: center;
   height: 56px;
   padding: 0 12px;
   gap: 8px;
   border-style: dashed;
-  background: rgba(21, 23, 27, 0.7);
-  font-size: 10.5px;
-  color: var(--cs-muted);
-  cursor: default;
+  color: var(--muted-foreground);
 }
+.cs-node.mini svg { color: var(--muted-foreground); }
+.cs-node.mini.selected { border-style: solid; }
 .cs-node.mini .react-flow__handle { left: -6px; }
+.cs-node.mini .cs-tool { margin-left: auto; }
 
-/* ---------- Fio de arrasto e mini-raio (camada acima da página) ---------- */
-.cs-drag-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  width: 100vw;
-  height: 100vh;
-  overflow: visible;
-  pointer-events: none;
-}
+/* ---------- Ligação em andamento ---------- */
 .cs-temp-wire {
   fill: none;
-  stroke: #3b82f6;
-  stroke-width: 2.5;
-  stroke-dasharray: 6 6;
+  stroke: var(--muted-foreground);
+  stroke-width: 1.75;
+  stroke-dasharray: 5 5;
   stroke-linecap: round;
-  animation: cs-flow 0.6s linear infinite;
 }
-.cs-lightning {
-  fill: none;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 12px currentColor);
+/* encaixe recusado: linha vermelha + motivo perto do cursor */
+.cs-temp-wire.invalido { stroke: var(--destructive); }
+.cs-motivo {
+  display: inline-block;
+  max-width: 250px;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in oklch, var(--destructive) 50%, var(--border));
+  border-radius: 8px;
+  background: var(--popover);
+  color: var(--destructive);
+  font-size: 11px;
+  line-height: 1.35;
 }
+
+/* rótulo que segue o cursor ao arrastar da paleta */
 .cs-ghost {
   position: fixed;
   z-index: 61;
   pointer-events: none;
   transform: translate(10px, 10px);
   padding: 5px 9px;
-  border: 1px solid #3b3f4d;
-  border-radius: 7px;
-  background: #1a1c21;
-  font-size: 11px;
-  font-weight: 600;
-  color: #e8e9ed;
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--popover-foreground);
 }
 
 @media (max-width: 767px) {
   .cs-sidebar { display: none; }
 }
-
-/* ---------- Tema claro: mesmo visual, superfícies claras ---------- */
-.cs-studio { --cs-grid: rgba(255, 255, 255, 0.018); }
-
-html[data-mode="light"] .cs-studio {
-  --cs-bg: #f6f7f9;
-  --cs-panel: #ffffff;
-  --cs-text: #1f2328;
-  --cs-muted: #6b7280;
-  --cs-grid: rgba(15, 23, 42, 0.035);
-  border-color: #e3e5ea;
-  background-image: radial-gradient(rgba(15, 23, 42, 0.12) 1px, transparent 1px);
-}
-html[data-mode="light"] .cs-sidebar { border-right-color: #e3e5ea; }
-html[data-mode="light"] .cs-sidebar p { color: #8b919c; }
-html[data-mode="light"] .cs-action-card { background: #f8f9fb; border-color: #e3e5ea; }
-html[data-mode="light"] .cs-action-card:hover { background: #f1f3f6; border-color: #cfd3da; }
-html[data-mode="light"] .cs-ico { background: #eef0f4; }
-
-html[data-mode="light"] .cs-node {
-  border-color: #dfe2e8;
-  background: linear-gradient(180deg, #ffffff, #fafbfc);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-}
-html[data-mode="light"] .cs-node:hover { border-color: #c7ccd4; }
-html[data-mode="light"] .cs-node.selected {
-  border-color: rgba(255, 152, 0, 0.8);
-  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.25), 0 0 18px rgba(255, 152, 0, 0.2), 0 8px 24px rgba(15, 23, 42, 0.08);
-}
-html[data-mode="light"] .cs-head { border-bottom-color: #eceef2; color: #1f2328; }
-html[data-mode="light"] .cs-head .cs-num { color: #9aa0aa; }
-html[data-mode="light"] .cs-tool { color: #9aa0aa; }
-html[data-mode="light"] .cs-tool:hover { background: #f1f3f6; color: #1f2328; }
-html[data-mode="light"] .cs-desc { background: #f6f7f9; border-color: #eceef2; color: #5b616b; }
-html[data-mode="light"] .cs-desc .cs-line.forte { color: #1f2328; }
-html[data-mode="light"] .cs-param { color: #5b616b; }
-html[data-mode="light"] .cs-node.mini { background: rgba(255, 255, 255, 0.8); }
-html[data-mode="light"] .cs-plus { background: #ffffff; border-color: #cfd3da; color: #6b7280; }
-html[data-mode="light"] .cs-plus:hover,
-html[data-mode="light"] .cs-plus.snap-target { color: #1f2328; }
-/* brilho mais contido no claro, para a linha não "borrar" */
-html[data-mode="light"] .cs-edge-path { filter: drop-shadow(0 0 3px currentColor); }
-
-html[data-mode="light"] .cs-canvas .react-flow__controls { border-color: #e3e5ea; }
-html[data-mode="light"] .cs-canvas .react-flow__controls-button { background: #ffffff; border-bottom-color: #e3e5ea; }
-html[data-mode="light"] .cs-canvas .react-flow__controls-button:hover { background: #f1f3f6; }
-html[data-mode="light"] .cs-ghost { background: #ffffff; border-color: #cfd3da; color: #1f2328; }
-
-/* ---------- Montagem manual ---------- */
-/* Caixa solta (fora do fluxo): borda tracejada e etiqueta */
-.cs-node.solto { border-style: dashed; }
-.cs-solta {
-  flex-shrink: 0;
-  padding: 1px 6px;
-  border: 1px solid rgba(245, 214, 59, 0.35);
-  border-radius: 10px;
-  background: rgba(245, 214, 59, 0.12);
-  color: var(--cs-yellow);
-  font-size: 8.5px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-}
-.cs-node.mini.fim { cursor: pointer; }
-.cs-node.mini.fim.selected { border-style: solid; }
-.cs-node.mini .cs-tool { margin-left: auto; }
-
-/* Encaixe recusado: linha vermelha + motivo perto do cursor */
-.cs-temp-wire.invalido {
-  stroke: var(--cs-red, #ef4444);
-  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.6));
-}
-.cs-motivo {
-  display: inline-block;
-  max-width: 250px;
-  padding: 5px 8px;
-  border: 1px solid rgba(239, 68, 68, 0.45);
-  border-radius: 7px;
-  background: #1a1c21;
-  color: #fca5a5;
-  font-size: 10.5px;
-  line-height: 1.35;
-  font-family: Inter, system-ui, -apple-system, sans-serif;
-}
-
-/* Porta alvo durante a ligação: anel laranja (aceita) ou vermelho (recusa) */
-.cs-node .react-flow__handle.connectingto {
-  transform: translateY(-50%) scale(1.7);
-  transition: transform 0.12s, box-shadow 0.12s;
-}
-.cs-node .react-flow__handle.connectingto.valid {
-  box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.3), 0 0 15px 4px var(--cs-orange);
-}
-.cs-node .react-flow__handle.connectingto:not(.valid) {
-  border-color: var(--cs-red, #ef4444);
-  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3), 0 0 12px 3px rgba(239, 68, 68, 0.7);
-}
-.cs-node.mini .react-flow__handle.connectingto { transform: translateY(-50%) scale(1.7); }
-.cs-node .react-flow__handle.connectable { cursor: crosshair; }
-
-/* Ligação: passar o mouse avisa que o clique desfaz (vermelho, como no Node Flow) */
-.react-flow__edge:hover .cs-edge-path.desligavel {
-  stroke-width: 5;
-  filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 12px #ef4444);
-}
-.react-flow__edge:has(.cs-edge-path.desligavel) { cursor: pointer; }
-
-html[data-mode="light"] .cs-motivo { background: #ffffff; color: #b91c1c; }
-html[data-mode="light"] .cs-solta { color: #a16207; background: rgba(245, 214, 59, 0.2); }

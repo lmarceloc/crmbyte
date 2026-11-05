@@ -235,7 +235,8 @@ export function validarPassos(passos: Passo[], opcoes: { exigirFim?: boolean } =
         if (p.diasUteis < 1) add(p.id, "A espera precisa ser de pelo menos 1 dia útil.");
         break;
       case "whatsapp":
-        if (!p.mensagem.trim()) add(p.id, "A mensagem de WhatsApp está vazia.");
+        // a cadência só envia e-mail: passos antigos de WhatsApp precisam sair do fluxo
+        add(p.id, "A cadência só envia e-mail: troque este passo por um e-mail ou exclua.");
         break;
       case "tarefa":
         if (!p.titulo.trim()) add(p.id, "A tarefa precisa de título.");

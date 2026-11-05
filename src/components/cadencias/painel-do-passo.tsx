@@ -223,7 +223,7 @@ export function PainelDoPasso({ passo, todos, jaRecebeuEmail, somenteLeitura, on
       {passo.tipo === "whatsapp" && (
         <>
           <Aviso>
-            O worker ainda não envia WhatsApp: ao chegar neste passo a inscrição é parada com falha.
+            A cadência só envia e-mail. Este passo de WhatsApp é antigo: exclua-o ou troque por um e-mail para poder ativar.
           </Aviso>
           <Textarea
             rows={6}

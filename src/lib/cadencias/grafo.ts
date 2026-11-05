@@ -184,18 +184,3 @@ export function caminhoDaLigacao(a: { x: number; y: number }, b: { x: number; y:
   const dx = Math.max(50, Math.abs(b.x - a.x) * 0.48);
   return `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`;
 }
-
-/** Mini-raio em zigue-zague entre dois pontos (a amplitude encolhe em distâncias curtas). */
-export function caminhoDoRaio(a: { x: number; y: number }, b: { x: number; y: number }, segmentos = 5): string {
-  const dist = Math.hypot(b.x - a.x, b.y - a.y);
-  const amplitude = Math.min(7, dist / 6);
-  const nx = -(b.y - a.y) / (dist || 1);
-  const ny = (b.x - a.x) / (dist || 1);
-  let d = `M ${a.x} ${a.y}`;
-  for (let i = 1; i < segmentos; i++) {
-    const t = i / segmentos;
-    const lado = i % 2 === 0 ? 1 : -1;
-    d += ` L ${a.x + (b.x - a.x) * t + nx * amplitude * lado} ${a.y + (b.y - a.y) * t + ny * amplitude * lado}`;
-  }
-  return `${d} L ${b.x} ${b.y}`;
-}
