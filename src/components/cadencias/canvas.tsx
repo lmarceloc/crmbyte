@@ -157,7 +157,7 @@ function Conector({ ponto, somenteLeitura, onInserir }: Props & { ponto: PontoDe
             <Plus className="size-3.5" />
           </PopoverTrigger>
           <PopoverContent className="w-52 p-1">
-            {TIPOS.map((t) => (
+            {TIPOS.filter((t) => t.tipo !== "whatsapp").map((t) => (
               <button
                 key={t.tipo}
                 type="button"

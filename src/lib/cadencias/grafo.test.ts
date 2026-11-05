@@ -8,7 +8,6 @@ import {
   LARGURA_DO_NO,
   alturaDaLista,
   caminhoDaLigacao,
-  caminhoDoRaio,
   montarGrafo,
 } from "./grafo";
 import type { Passo } from "./tipos";
@@ -99,16 +98,6 @@ describe("caminhos SVG", () => {
   it("a ligação usa alças horizontais de 48% (mínimo 50)", () => {
     expect(caminhoDaLigacao({ x: 0, y: 0 }, { x: 200, y: 40 })).toBe("M 0 0 C 96 0, 104 40, 200 40");
     expect(caminhoDaLigacao({ x: 0, y: 0 }, { x: 20, y: 0 })).toBe("M 0 0 C 50 0, -30 0, 20 0");
-  });
-
-  it("o raio começa e termina nos pontos dados e alterna para os dois lados", () => {
-    const d = caminhoDoRaio({ x: 0, y: 0 }, { x: 100, y: 0 });
-    expect(d.startsWith("M 0 0")).toBe(true);
-    expect(d.endsWith("L 100 0")).toBe(true);
-    const ys = [...d.matchAll(/L [\d.-]+ ([\d.-]+)/g)].map((m) => Number(m[1])).slice(0, 4);
-    expect(ys).toEqual([-7, 7, -7, 7]);
-    const curto = caminhoDoRaio({ x: 0, y: 0 }, { x: 6, y: 0 });
-    expect(Math.max(...[...curto.matchAll(/L [\d.-]+ ([\d.-]+)/g)].map((m) => Math.abs(Number(m[1]))))).toBe(1);
   });
 });
 

@@ -1,18 +1,18 @@
 "use client"
 
-// Canvas da cadência no visual "Node Flow" (fundo escuro, cartões com portas,
-// ligações animadas, mini-raio ao encaixar, brilho no cartão novo).
+// Canvas da cadência (xyflow), em visual sóbrio e neutro.
 //
 // Montagem à mão: clicar na paleta cria a caixa SOLTA no canvas (arrastável);
 // arrastar da saída de uma caixa até a entrada de outra liga as duas — se o
-// encaixe é aceito, a linha brilha com o mini-raio; se não, fica vermelha e
-// diz por quê. Clicar numa ligação desfaz. O fluxo continua sendo uma árvore
-// (regras em lib/cadencias/montagem.ts) e o worker não muda.
+// encaixe não é aceito, a linha fica vermelha e diz por quê. Clicar numa
+// ligação desfaz. O fluxo continua sendo uma árvore (regras em
+// lib/cadencias/montagem.ts) e o worker não muda. A cadência só envia e-mail:
+// não há WhatsApp na paleta (passos antigos ainda aparecem, marcados com erro).
 
 import "@xyflow/react/dist/style.css"
 import "./canvas-studio.css"
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   Background,
@@ -21,6 +21,7 @@ import {
   Controls,
   EdgeLabelRenderer,
   Handle,
+  MiniMap,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -44,7 +45,6 @@ import {
   LARGURA_DO_NO,
   alturaDoTipo,
   caminhoDaLigacao,
-  caminhoDoRaio,
   montarGrafo,
   pontoLivre,
   type LigacaoDoGrafo,
@@ -55,29 +55,12 @@ import { podeLigar, type Floresta } from "@/lib/cadencias/montagem"
 import type { ConfiguracaoDaCadencia, Passo, TipoDePasso } from "@/lib/cadencias/tipos"
 import { resumirPasso } from "./canvas"
 
-// ---------- cores e ícones por tipo ----------
+// ---------- rótulos e ícones por tipo ----------
 
-const COR = {
-  gatilho: "#3b82f6",
-  interesse: "#14b8a6",
-  email: "#ec3ea9",
-  whatsapp: "#49d18d",
-  espera: "#f5d63b",
-  ramo: "#ff9800",
-  tarefa: "#a855f7",
-  fim: "#8c909b",
-  sim: "#49d18d",
-  nao: "#ef4444",
-} as const
+type Item = { tipo: TipoDePasso; rotulo: string; Icone: typeof Mail }
 
-const PALETA: { secao: string; itens: { tipo: TipoDePasso; rotulo: string; Icone: typeof Mail }[] }[] = [
-  {
-    secao: "Comunicação",
-    itens: [
-      { tipo: "email", rotulo: "E-mail", Icone: Mail },
-      { tipo: "whatsapp", rotulo: "WhatsApp", Icone: MessageCircle },
-    ],
-  },
+const PALETA: { secao: string; itens: Item[] }[] = [
+  { secao: "Comunicação", itens: [{ tipo: "email", rotulo: "E-mail", Icone: Mail }] },
   {
     secao: "Controle",
     itens: [
@@ -89,7 +72,9 @@ const PALETA: { secao: string; itens: { tipo: TipoDePasso; rotulo: string; Icone
   { secao: "Encerrar", itens: [{ tipo: "fim", rotulo: "Fim deste caminho", Icone: Flag }] },
 ]
 const ITENS = PALETA.flatMap((s) => s.itens)
-const itemDoTipo = (t: TipoDePasso) => ITENS.find((i) => i.tipo === t)!
+/** Passos antigos de WhatsApp ainda são desenhados (com erro), mas não se criam novos. */
+const LEGADO: Item[] = [{ tipo: "whatsapp", rotulo: "WhatsApp (não suportado)", Icone: MessageCircle }]
+const itemDoTipo = (t: TipoDePasso) => [...ITENS, ...LEGADO].find((i) => i.tipo === t)!
 /** No "+" do meio de uma ligação: tudo menos Fim (Fim no meio cortaria o caminho). */
 const ITENS_DO_MAIS = ITENS.filter((i) => i.tipo !== "fim")
 
@@ -103,8 +88,6 @@ export interface PropsDoCanvasStudio {
   numeros: Map<string, number>
   erros: Map<string, { mensagem: string }[]>
   selecionado: string | null
-  /** id do passo → marca de tempo do último "acender" (passo novo, duplicado ou ligado). */
-  destaques: Record<string, number>
   onSelecionar: (id: string | null) => void
   onAbrirConfig: () => void
   /** "+" de uma ligação: insere entre as duas caixas. */
@@ -123,16 +106,16 @@ const Ctx = createContext<PropsDoCanvasStudio | null>(null)
 const useCanvas = () => useContext(Ctx)!
 
 type DadosDoNo = { no: NoDoGrafo }
-type DadosDaLigacao = { ligacao: LigacaoDoGrafo; cor: string }
+type DadosDaLigacao = { ligacao: LigacaoDoGrafo }
 type NoRf = Node<DadosDoNo>
 type LigacaoRf = Edge<DadosDaLigacao>
 
 // ---------- cartões ----------
 
-function Saida({ id, rotulo, cor }: { id: SaidaDoNo; rotulo: string; cor?: string }) {
+function Saida({ id, rotulo }: { id: SaidaDoNo; rotulo: string }) {
   const { somenteLeitura } = useCanvas()
   return (
-    <div className="cs-param out" style={cor ? ({ "--cs-porta": cor } as CSSProperties) : undefined}>
+    <div className="cs-param out">
       <span className="cs-name">{rotulo}</span>
       <Handle type="source" position={Position.Right} id={id} isConnectable={!somenteLeitura} />
     </div>
@@ -144,8 +127,7 @@ function Entrada({ ligada }: { ligada: boolean }) {
   return (
     <div className="cs-param in">
       <Handle type="target" position={Position.Left} id="in" isConnectable={!somenteLeitura} />
-      <span className="cs-name">Entrada</span>
-      {ligada && <span className="cs-check">✓</span>}
+      <span className="cs-name">{ligada ? "Entrada" : "Entrada (sem ligação)"}</span>
     </div>
   )
 }
@@ -203,43 +185,39 @@ function NoPasso({ data }: NodeProps<NoRf>) {
   const { no } = data
   const passo = no.passo!
   const { rotulo, Icone } = itemDoTipo(passo.tipo)
-  const cor = COR[passo.tipo]
   const erro = c.erros.get(passo.id)?.[0]?.mensagem
   const detalhe = detalheDoPasso(passo)
-  const destaque = c.destaques[passo.id]
   const numero = c.numeros.get(passo.id)
 
   return (
     <div
       className={cn("cs-node", no.solto && "solto", c.selecionado === passo.id && "selected", erro && "erro")}
-      style={{ "--cs-cor": cor, "--cs-porta": cor, height: no.altura } as CSSProperties}
+      style={{ height: no.altura }}
     >
-      {destaque && <span key={destaque} className="cs-flash" />}
-      <div className="cs-head">
-        <span className="cs-head-ico">
-          <Icone />
-        </span>
-        <span className="cs-title">
-          {numero !== undefined && <span className="cs-num">{numero}.</span>} {rotulo}
+      <div className="cs-lb">
+        <span className="cs-lb-txt">
+          {numero !== undefined && `${numero}. `}
+          {rotulo}
         </span>
         {no.solto && <span className="cs-solta">solta</span>}
-        <Ferramentas id={passo.id} duplicar />
+        <Ferramentas id={passo.id} duplicar={passo.tipo !== "whatsapp"} />
       </div>
-      <div className="cs-body">
-        <div className="cs-desc">
-          <div className="cs-line forte">{resumirPasso(passo)}</div>
-          {erro ? <div className="cs-line erro">{erro}</div> : detalhe && <div className="cs-line">{detalhe}</div>}
-        </div>
-        <Entrada ligada={temEntrada(c, no)} />
-        {passo.tipo === "ramo" ? (
-          <>
-            <Saida id="sim" rotulo="Sim" cor={COR.sim} />
-            <Saida id="nao" rotulo="Não" cor={COR.nao} />
-          </>
-        ) : (
-          <Saida id="out" rotulo="Saída" />
-        )}
+      <div className="cs-row">
+        <Icone />
+        <span className="cs-forte">{resumirPasso(passo)}</span>
       </div>
+      <div className="cs-desc">
+        {erro ? <div className="cs-line erro">{erro}</div> : detalhe && <div className="cs-line">{detalhe}</div>}
+      </div>
+      <Entrada ligada={temEntrada(c, no)} />
+      {passo.tipo === "ramo" ? (
+        <>
+          <Saida id="sim" rotulo="Sim" />
+          <Saida id="nao" rotulo="Não" />
+        </>
+      ) : (
+        <Saida id="out" rotulo="Saída" />
+      )}
     </div>
   )
 }
@@ -248,15 +226,12 @@ function NoFim({ data }: NodeProps<NoRf>) {
   const c = useCanvas()
   const { no } = data
   const passo = no.passo!
-  const destaque = c.destaques[passo.id]
   const erro = c.erros.get(passo.id)?.[0]?.mensagem
   return (
     <div
       className={cn("cs-node mini fim", no.solto && "solto", c.selecionado === passo.id && "selected", erro && "erro")}
-      style={{ "--cs-porta": COR.fim } as CSSProperties}
       title={erro ?? "A cadência termina aqui para o lead"}
     >
-      {destaque && <span key={destaque} className="cs-flash" />}
       <Handle type="target" position={Position.Left} id="in" isConnectable={!c.somenteLeitura} />
       <Flag className="size-3.5 shrink-0" />
       <span className="min-w-0 flex-1 truncate">Fim deste caminho</span>
@@ -273,26 +248,21 @@ function NoGatilho({ data }: NodeProps<NoRf>) {
     .filter(Boolean)
     .join(", ")
   return (
-    <div
-      className="cs-node"
-      style={{ "--cs-cor": COR.gatilho, "--cs-porta": COR.gatilho, height: data.no.altura } as CSSProperties}
-      title="Abrir configurações"
-    >
-      <div className="cs-head">
-        <span className="cs-head-ico">
-          <Zap />
-        </span>
-        <span className="cs-title">Gatilho · Inscrição manual</span>
+    <div className="cs-node" style={{ height: data.no.altura }} title="Abrir configurações">
+      <div className="cs-lb">
+        <span className="cs-lb-txt">Gatilho</span>
       </div>
-      <div className="cs-body">
-        <div className="cs-desc">
-          <div className="cs-line forte">
-            Negócios com contato que tenha e-mail{c.configuracao.tagDoSegmento ? ` · tag ${c.configuracao.tagDoSegmento}` : ""}
-          </div>
-          <div className="cs-line">Para em: {paradas || "—"}</div>
+      <div className="cs-row">
+        <Zap />
+        <span className="cs-forte">Inscrição manual</span>
+      </div>
+      <div className="cs-desc">
+        <div className="cs-line">
+          Negócios com contato que tenha e-mail{c.configuracao.tagDoSegmento ? ` · tag ${c.configuracao.tagDoSegmento}` : ""}. Para em:{" "}
+          {paradas || "—"}
         </div>
-        <Saida id="out" rotulo="Saída" />
       </div>
+      <Saida id="out" rotulo="Saída" />
     </div>
   )
 }
@@ -301,30 +271,22 @@ function NoGatilhoInteresse({ data }: NodeProps<NoRf>) {
   const c = useCanvas()
   const i = c.configuracao.interesse
   return (
-    <div
-      className={cn("cs-node", !i.ativo && "opacity-70")}
-      style={{ "--cs-cor": COR.interesse, "--cs-porta": COR.interesse, height: data.no.altura } as CSSProperties}
-      title="Abrir configurações"
-    >
-      <div className="cs-head">
-        <span className="cs-head-ico">
-          <CalendarCheck />
-        </span>
-        <span className="cs-title">Gatilho · Interesse</span>
+    <div className={cn("cs-node", !i.ativo && "opacity-60")} style={{ height: data.no.altura }} title="Abrir configurações">
+      <div className="cs-lb">
+        <span className="cs-lb-txt">Gatilho · Interesse{i.ativo ? "" : " (desligado)"}</span>
       </div>
-      <div className="cs-body">
-        <div className="cs-desc">
-          <div className="cs-line forte">
-            Abriu {i.aberturas}x o mesmo e-mail{i.ativo ? "" : " (desligado)"}
-          </div>
-          <div className="cs-line">
-            {i.ativo
-              ? `Sai do fluxo acima e segue por aqui${i.avisarVendedor ? " · avisa o vendedor" : ""}`
-              : "Ligue em Configurações → Interesse"}
-          </div>
+      <div className="cs-row">
+        <CalendarCheck />
+        <span className="cs-forte">Abriu {i.aberturas}x o mesmo e-mail</span>
+      </div>
+      <div className="cs-desc">
+        <div className="cs-line">
+          {i.ativo
+            ? `Sai do fluxo acima e segue por aqui${i.avisarVendedor ? " · avisa o vendedor" : ""}`
+            : "Ligue em Configurações → Interesse"}
         </div>
-        <Saida id="out" rotulo="Saída" />
       </div>
+      <Saida id="out" rotulo="Saída" />
     </div>
   )
 }
@@ -358,7 +320,7 @@ function BotaoMais({ ponto, x, y }: { ponto: PontoDeInsercao; x: number; y: numb
               c.onInserir(ponto, t.tipo)
             }}
           >
-            <span className="size-2.5 rounded-full" style={{ background: COR[t.tipo] }} />
+            <t.Icone className="size-4 text-muted-foreground" />
             {t.rotulo}
           </button>
         ))}
@@ -369,7 +331,7 @@ function BotaoMais({ ponto, x, y }: { ponto: PontoDeInsercao; x: number; y: numb
 
 function LigacaoStudio({ id, sourceX, sourceY, targetX, targetY, data }: EdgeProps<LigacaoRf>) {
   const c = useCanvas()
-  const { ligacao, cor } = data!
+  const { ligacao } = data!
   const caminho = caminhoDaLigacao({ x: sourceX, y: sourceY }, { x: targetX, y: targetY })
   return (
     <>
@@ -377,7 +339,6 @@ function LigacaoStudio({ id, sourceX, sourceY, targetX, targetY, data }: EdgePro
         id={id}
         path={caminho}
         className={cn("cs-edge-path", !c.somenteLeitura && "desligavel")}
-        style={{ stroke: cor, color: cor }}
         interactionWidth={14}
       />
       <EdgeLabelRenderer>
@@ -400,9 +361,8 @@ function LigacaoStudio({ id, sourceX, sourceY, targetX, targetY, data }: EdgePro
 const TIPOS_DE_LIGACAO = { studio: LigacaoStudio }
 
 /**
- * Linha enquanto se arrasta uma ligação: azul tracejada até o cursor; ao chegar
- * perto de uma entrada que ACEITA, mini-raio do cursor até a porta; se não
- * aceita, a linha fica vermelha e mostra o motivo.
+ * Linha enquanto se arrasta uma ligação: cinza tracejada até o cursor. Perto de
+ * uma entrada que NÃO aceita, a linha fica vermelha e mostra o motivo.
  */
 function LinhaDeLigacao({ fromX, fromY, toX, toY, fromHandle, fromNode, toNode, toHandle, connectionStatus, pointer }: ConnectionLineComponentProps<NoRf>) {
   const c = useCanvas()
@@ -429,15 +389,8 @@ function LinhaDeLigacao({ fromX, fromY, toX, toY, fromHandle, fromNode, toNode, 
       </g>
     )
   }
-  if (connectionStatus === "valid" && toHandle) {
-    const corDaOrigem = fromHandle.id === "sim" ? COR.sim : fromHandle.id === "nao" ? COR.nao : COR.ramo
-    return (
-      <g>
-        <path className="cs-temp-wire" d={fio(cursor)} />
-        <path className="cs-lightning" d={caminhoDoRaio(cursor, { x: toX, y: toY })} style={{ stroke: corDaOrigem, color: corDaOrigem }} />
-      </g>
-    )
-  }
+  // encaixe aceito: a linha vai direto até a porta
+  if (connectionStatus === "valid" && toHandle) return <path className="cs-temp-wire" d={fio({ x: toX, y: toY })} />
   return <path className="cs-temp-wire" d={fio(cursor)} />
 }
 
@@ -542,32 +495,15 @@ function usePaleta(onSoltar: (s: Soltura) => void) {
 
 function CamadaDoArrasto({ arrasto }: { arrasto: Arrasto }) {
   if (!arrasto.moveu) return null
-  const cor = COR[arrasto.tipo]
   return createPortal(
-    <>
-      <svg className="cs-drag-layer">
-        <path className="cs-temp-wire" d={caminhoDaLigacao(arrasto.inicio, arrasto.cursor)} />
-        {arrasto.alvo && (
-          <path className="cs-lightning" d={caminhoDoRaio(arrasto.cursor, arrasto.alvo)} style={{ stroke: cor, color: cor }} />
-        )}
-      </svg>
-      <div className="cs-ghost" style={{ left: arrasto.cursor.x, top: arrasto.cursor.y }}>
-        {itemDoTipo(arrasto.tipo).rotulo}
-      </div>
-    </>,
+    <div className="cs-ghost" style={{ left: arrasto.cursor.x, top: arrasto.cursor.y }}>
+      {itemDoTipo(arrasto.tipo).rotulo}
+    </div>,
     document.body,
   )
 }
 
 // ---------- canvas ----------
-
-function corDaLigacao(l: LigacaoDoGrafo, nos: Map<string, NoDoGrafo>): string {
-  if (l.saida === "sim") return COR.sim
-  if (l.saida === "nao") return COR.nao
-  const origem = nos.get(l.origem)
-  if (origem?.tipo === "gatilho_interesse") return COR.interesse
-  return origem?.passo ? COR[origem.passo.tipo] : COR.gatilho
-}
 
 function Interno(props: PropsDoCanvasStudio) {
   const { floresta, somenteLeitura, onInserir, onSelecionar, onAbrirConfig, onCriarSolto, onLigar, onDesligar, onMoverSolto } = props
@@ -589,6 +525,9 @@ function Interno(props: PropsDoCanvasStudio) {
         type: n.tipo,
         position: { x: n.x + (d?.dx ?? 0), y: n.y + (d?.dy ?? 0) },
         data: { no: n },
+        // tamanho conhecido de antemão (o minimapa precisa dele com nós controlados)
+        width: LARGURA_DO_NO,
+        height: n.altura,
         draggable: !!n.solto && !somenteLeitura,
         selectable: false,
       }
@@ -596,7 +535,6 @@ function Interno(props: PropsDoCanvasStudio) {
   }, [grafo, arrastoDoBloco, somenteLeitura])
 
   const edges = useMemo(() => {
-    const porId = new Map(grafo.nos.map((n) => [n.id, n]))
     return grafo.ligacoes.map<LigacaoRf>((l) => ({
       id: l.id,
       type: "studio",
@@ -606,7 +544,7 @@ function Interno(props: PropsDoCanvasStudio) {
       targetHandle: "in",
       selectable: false,
       focusable: false,
-      data: { ligacao: l, cor: corDaLigacao(l, porId) },
+      data: { ligacao: l },
     }))
   }, [grafo])
 
@@ -659,12 +597,9 @@ function Interno(props: PropsDoCanvasStudio) {
                     key={i.tipo}
                     type="button"
                     className="cs-action-card"
-                    style={{ "--cs-cor": COR[i.tipo] } as CSSProperties}
                     onPointerDown={(e) => iniciar(i.tipo, e)}
                   >
-                    <span className="cs-ico">
-                      <i.Icone />
-                    </span>
+                    <i.Icone />
                     {i.rotulo}
                   </button>
                 ))}
@@ -740,8 +675,9 @@ function Interno(props: PropsDoCanvasStudio) {
             }}
             onPaneClick={() => onSelecionar(null)}
           >
-            <Background id="cs-grade" variant={BackgroundVariant.Lines} gap={48} lineWidth={1} color="var(--cs-grid)" />
+            <Background id="cs-pontos" variant={BackgroundVariant.Dots} gap={18} size={1} color="var(--border)" />
             <Controls position="bottom-left" showInteractive={false} />
+            <MiniMap position="bottom-right" pannable zoomable nodeBorderRadius={6} />
           </ReactFlow>
         </div>
       </div>

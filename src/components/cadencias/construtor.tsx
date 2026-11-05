@@ -22,7 +22,6 @@ import {
   ligar,
   moverSolto,
   removerNaFloresta,
-  todosNaFloresta,
   validarFloresta,
   type Floresta,
 } from "@/lib/cadencias/montagem"
@@ -40,8 +39,6 @@ export function Construtor({ id }: { id: string }) {
   const [aba, setAba] = useState("fluxo")
   const [selecionado, setSelecionado] = useState<string | null>(null)
   const [mudando, setMudando] = useState(false)
-  // passos recém-inseridos/duplicados piscam no canvas
-  const [destaques, setDestaques] = useState<Record<string, number>>({})
 
   const interesse = cadencia?.configuracao?.interesse?.passos
   const floresta = useMemo<Floresta>(
@@ -79,21 +76,6 @@ export function Construtor({ id }: { id: string }) {
     if (nova.interesse && nova.interesse !== floresta.interesse)
       mudanca.configuracao = { ...config, interesse: { ...config.interesse, passos: nova.interesse } }
     if (Object.keys(mudanca).length) editar(mudanca)
-  }
-
-  function acender(ids: string[]) {
-    if (ids.length === 0) return
-    const agora = Date.now()
-    setDestaques((d) => ({ ...d, ...Object.fromEntries(ids.map((i) => [i, agora])) }))
-    setTimeout(
-      () =>
-        setDestaques((d) => {
-          const resto = { ...d }
-          for (const i of ids) if (resto[i] === agora) delete resto[i]
-          return resto
-        }),
-      1200,
-    )
   }
 
   async function alternar() {
@@ -157,7 +139,6 @@ export function Construtor({ id }: { id: string }) {
         <TabsContent value="fluxo" className="flex min-h-0 flex-1 gap-3">
           <CanvasStudio
             floresta={floresta}
-            destaques={destaques}
             configuracao={config}
             somenteLeitura={somenteLeitura}
             numeros={numeros}
@@ -169,28 +150,19 @@ export function Construtor({ id }: { id: string }) {
               const novo = passoVazio(tipo)
               aplicar(inserirNaFloresta(floresta, ponto, novo))
               setSelecionado(novo.id)
-              acender([novo.id])
             }}
             onCriarSolto={(tipo, x, y) => {
               const novo = passoVazio(tipo)
               aplicar(criarSolto(floresta, novo, x, y))
               if (tipo !== "fim") setSelecionado(novo.id)
-              acender([novo.id])
             }}
             onLigar={(origem, saida, destino) => {
               const nova = ligar(floresta, origem, saida, destino)
-              if (nova === floresta) return
-              aplicar(nova)
-              acender([destino])
+              if (nova !== floresta) aplicar(nova)
             }}
             onDesligar={(destino, x, y) => aplicar(desligar(floresta, destino, x, y))}
             onMoverSolto={(bloco, x, y) => aplicar(moverSolto(floresta, bloco, x, y))}
-            onDuplicar={(pid) => {
-              const antes = new Set(todosNaFloresta(floresta).map((p) => p.id))
-              const nova = duplicarNaFloresta(floresta, pid)
-              aplicar(nova)
-              acender(todosNaFloresta(nova).map((p) => p.id).filter((i) => !antes.has(i)))
-            }}
+            onDuplicar={(pid) => aplicar(duplicarNaFloresta(floresta, pid))}
             onExcluir={(pid) => {
               if (selecionado === pid) setSelecionado(null)
               aplicar(removerNaFloresta(floresta, pid))
