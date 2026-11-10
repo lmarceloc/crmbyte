@@ -3,7 +3,7 @@ import * as apify from "./apify";
 import { ProspectingError } from "./errors";
 import { comLock } from "./locks";
 import type { B2bSearchInput } from "./schemas";
-import { situacaoNoPais } from "./pais";
+import { PAIS_EN, situacaoNoPais, type CodigoPais } from "./pais";
 import { buscarPessoas } from "./treg";
 import { obterChave, salvarChave } from "@/lib/integracoes/chaves";
 
@@ -96,6 +96,12 @@ export async function criarBuscaSimples(
   });
 }
 
+/** `location` da Treg: a região por extenso, seguida do país em inglês. */
+function localDaBusca(region: string | undefined, country: CodigoPais | undefined): string | undefined {
+  const partes = [region, country ? PAIS_EN[country] : undefined].filter(Boolean);
+  return partes.length ? partes.join(", ") : undefined;
+}
+
 export async function criarBuscaB2b(
   admin: Admin,
   accountId: string,
@@ -126,11 +132,17 @@ export async function criarBuscaB2b(
     try {
       const { leads, custoUsd } = await buscarPessoas(
         tregChave,
-        { limit: input.search.limit, title: input.search.title, company_domain: input.search.company_domain },
+        {
+          limit: input.search.limit,
+          title: input.search.title,
+          company_domain: input.search.company_domain,
+          country: input.search.country,
+          location: localDaBusca(input.search.region, input.search.country),
+        },
         input.search.budget_usd,
       );
-      // a Treg não filtra por país: quem está claramente fora do país-alvo nem
-      // vira candidato (e não gasta revelação de e-mail)
+      // nem todo provedor da Treg respeita o país: quem está claramente fora do
+      // país-alvo nem vira candidato (e não gasta revelação de e-mail)
       const pais = input.search.country;
       const noPais = pais ? leads.filter((l) => situacaoNoPais(l.location, pais) !== "fora") : leads;
       let inseridos = 0;

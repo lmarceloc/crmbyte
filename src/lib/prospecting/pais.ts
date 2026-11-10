@@ -1,8 +1,8 @@
-// País-alvo da prospecção B2B. A busca da Treg (`treg.people.search`) é feita por
-// cargo e/ou domínio e devolve gente do mundo todo: "supply chain" traz a Argentina
-// junto com o Brasil. O filtro roda sobre a localização que o próprio provedor
-// devolve, ANTES de o lead virar candidato — assim não se paga a revelação do
-// e-mail de quem está fora do país.
+// País-alvo da prospecção B2B. O país vai para a Treg (`country`, ISO), mas ela só
+// o repassa aos provedores que aceitam filtro de país: os outros devolvem gente do
+// mundo todo ("supply chain" trazia a Argentina junto com o Brasil). Por isso o
+// filtro também roda aqui, sobre a localização que o provedor devolve, ANTES de o
+// lead virar candidato — assim não se paga a revelação do e-mail de quem está fora.
 
 export const PAISES = {
   BR: "Brasil",
@@ -18,6 +18,21 @@ export const PAISES = {
   ES: "Espanha",
 } as const;
 export type CodigoPais = keyof typeof PAISES;
+
+/** Nome em inglês, para o campo `location` da Treg (texto livre, repassado aos provedores). */
+export const PAIS_EN: Record<CodigoPais, string> = {
+  BR: "Brazil",
+  PT: "Portugal",
+  AR: "Argentina",
+  CL: "Chile",
+  CO: "Colombia",
+  MX: "Mexico",
+  PE: "Peru",
+  UY: "Uruguay",
+  PY: "Paraguay",
+  US: "United States",
+  ES: "Spain",
+};
 export const CODIGOS_PAIS = Object.keys(PAISES) as [CodigoPais, ...CodigoPais[]];
 
 const UFS = [

@@ -210,12 +210,16 @@ export function extractPeopleRows(output: unknown): Bruto[] {
 
 export async function buscarPessoas(
   key: string,
-  p: { limit: number; title?: string; company_domain?: string },
+  p: { limit: number; title?: string; company_domain?: string; country?: string; location?: string },
   maxCostUsd: number,
 ): Promise<{ leads: Lead[]; custoUsd: number }> {
   const corpo: Record<string, unknown> = { limit: p.limit };
   if (p.title) corpo.title = p.title;
   if (p.company_domain) corpo.company_domain = p.company_domain;
+  // filtros: `country` é ISO ("BR"); `location` é texto livre por extenso
+  // ("Curitiba, Paraná, Brazil"). A Treg repassa só aos provedores que os aceitam.
+  if (p.country) corpo.country = p.country;
+  if (p.location) corpo.location = p.location;
   const { output, custoUsd } = await chamar(key, "treg.people.search", corpo, 60_000, maxCostUsd);
   const dicas = { title: p.title, companyDomain: p.company_domain };
   const leads = extractPeopleRows(output)

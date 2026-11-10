@@ -221,6 +221,7 @@ function SearchForm({
     title: "",
     company_domain: "",
     country: "BR" as CodigoPais | "",
+    region: "",
     niche: "",
     location: "",
     limit: 20,
@@ -244,6 +245,7 @@ function SearchForm({
             ...(f.title.trim() ? { title: f.title } : {}),
             ...(f.company_domain.trim() ? { company_domain: f.company_domain } : {}),
             ...(f.country ? { country: f.country } : {}),
+            ...(f.region.trim() ? { region: f.region } : {}),
             limit: f.limit,
             budget_usd: f.budget_usd,
             legal_basis_ref: f.legal_basis_ref,
@@ -299,6 +301,7 @@ function SearchForm({
               <option value="">Qualquer país</option>
             </select>
           </Field>
+          <Field label="Região (opcional)"><Input value={f.region} onChange={(e) => set("region", e.target.value)} placeholder="Curitiba, Paraná" /></Field>
         </>
       ) : (
         <>
@@ -314,7 +317,7 @@ function SearchForm({
             <Input required minLength={3} value={f.legal_basis_ref} onChange={(e) => set("legal_basis_ref", e.target.value)} placeholder="Ex.: LIA-2026-04 — prospecção B2B de transportadoras" />
           </Field>
           <p className="mt-1 text-xs text-muted-foreground">
-            O e-mail de cada lead é procurado e verificado; quem ficar sem e-mail pode ser importado para o funil só com nome, cargo, empresa e LinkedIn. A quantidade final pode ser menor que o limite (leads de fora do país escolhido são descartados). Pelo menos cargo ou domínio é obrigatório.
+            O e-mail de cada lead é procurado e verificado; quem ficar sem e-mail pode ser importado para o funil só com nome, cargo, empresa e LinkedIn. A quantidade final pode ser menor que o limite (o país vai para a Treg, e leads de fora dele que ainda vierem são descartados). Pelo menos cargo ou domínio é obrigatório.
           </p>
         </div>
       ) : (
