@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CODIGOS_PAIS } from "./pais";
 
 const DOMINIO = /^(?=.{3,255}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i;
 
@@ -16,6 +17,10 @@ export const b2bSearchSchema = z
           .toLowerCase()
           .regex(DOMINIO, "Informe só o domínio, ex.: empresa.com.br (sem https:// nem caminho).")
           .optional(),
+        // país-alvo; ausente = qualquer país (buscas antigas)
+        country: z.enum(CODIGOS_PAIS).optional(),
+        // cidade/estado dentro do país, por extenso ("Curitiba, Paraná")
+        region: z.string().trim().min(2).max(120).optional(),
         limit: z.number().int().min(1).max(100).default(20),
         budget_usd: z.number().min(0.5).max(10).default(1),
         legal_basis_ref: z.string().trim().min(3).max(500),

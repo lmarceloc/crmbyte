@@ -4,6 +4,7 @@ import Link from "next/link"
 import { TelefoneWhatsapp } from "@/components/whatsapp-phone-link"
 import { linkWhatsapp } from "@/lib/whatsapp-link"
 import { leadB2bImportavel } from "@/lib/prospecting/importavel"
+import { PAISES, type CodigoPais } from "@/lib/prospecting/pais"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { ExternalLink, Loader2 } from "lucide-react"
@@ -219,6 +220,8 @@ function SearchForm({
     name: "",
     title: "",
     company_domain: "",
+    country: "BR" as CodigoPais | "",
+    region: "",
     niche: "",
     location: "",
     limit: 20,
@@ -241,6 +244,8 @@ function SearchForm({
             name: f.name,
             ...(f.title.trim() ? { title: f.title } : {}),
             ...(f.company_domain.trim() ? { company_domain: f.company_domain } : {}),
+            ...(f.country ? { country: f.country } : {}),
+            ...(f.region.trim() ? { region: f.region } : {}),
             limit: f.limit,
             budget_usd: f.budget_usd,
             legal_basis_ref: f.legal_basis_ref,
@@ -284,6 +289,19 @@ function SearchForm({
         <>
           <Field label="Cargo-alvo"><Input value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="Diretor de logística" /></Field>
           <Field label="Domínio da empresa"><Input value={f.company_domain} onChange={(e) => set("company_domain", e.target.value)} placeholder="empresa.com.br" /></Field>
+          <Field label="País">
+            <select
+              className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+              value={f.country}
+              onChange={(e) => set("country", e.target.value as CodigoPais | "")}
+            >
+              {Object.entries(PAISES).map(([c, n]) => (
+                <option key={c} value={c}>{n}</option>
+              ))}
+              <option value="">Qualquer país</option>
+            </select>
+          </Field>
+          <Field label="Região (opcional)"><Input value={f.region} onChange={(e) => set("region", e.target.value)} placeholder="Curitiba, Paraná" /></Field>
         </>
       ) : (
         <>
@@ -299,7 +317,7 @@ function SearchForm({
             <Input required minLength={3} value={f.legal_basis_ref} onChange={(e) => set("legal_basis_ref", e.target.value)} placeholder="Ex.: LIA-2026-04 — prospecção B2B de transportadoras" />
           </Field>
           <p className="mt-1 text-xs text-muted-foreground">
-            O e-mail de cada lead é procurado e verificado; quem ficar sem e-mail pode ser importado para o funil só com nome, cargo, empresa e LinkedIn. A quantidade final pode ser menor que o limite. Pelo menos cargo ou domínio é obrigatório.
+            O e-mail de cada lead é procurado e verificado; quem ficar sem e-mail pode ser importado para o funil só com nome, cargo, empresa e LinkedIn. A quantidade final pode ser menor que o limite (o país vai para a Treg, e leads de fora dele que ainda vierem são descartados). Pelo menos cargo ou domínio é obrigatório.
           </p>
         </div>
       ) : (

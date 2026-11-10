@@ -90,3 +90,17 @@ describe("treg.people.search servido pelo leadmagic (role-finder)", () => {
     expect(r.custoUsd).toBeCloseTo(0.02);
   });
 });
+
+describe("treg.people.search com país e região", () => {
+  it("manda country (ISO) e location (texto livre) no corpo", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output: { people: [] } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    await buscarPessoas("k", { limit: 5, title: "Supply Chain", country: "BR", location: "Curitiba, Paraná, Brazil" }, 1);
+    expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual({
+      limit: 5,
+      title: "Supply Chain",
+      country: "BR",
+      location: "Curitiba, Paraná, Brazil",
+    });
+  });
+});
