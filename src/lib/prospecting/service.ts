@@ -3,6 +3,7 @@ import * as apify from "./apify";
 import { ProspectingError } from "./errors";
 import { comLock } from "./locks";
 import type { B2bSearchInput } from "./schemas";
+import { situacaoNoPais } from "./pais";
 import { buscarPessoas } from "./treg";
 import { obterChave, salvarChave } from "@/lib/integracoes/chaves";
 
@@ -128,8 +129,12 @@ export async function criarBuscaB2b(
         { limit: input.search.limit, title: input.search.title, company_domain: input.search.company_domain },
         input.search.budget_usd,
       );
+      // a Treg não filtra por país: quem está claramente fora do país-alvo nem
+      // vira candidato (e não gasta revelação de e-mail)
+      const pais = input.search.country;
+      const noPais = pais ? leads.filter((l) => situacaoNoPais(l.location, pais) !== "fora") : leads;
       let inseridos = 0;
-      for (const lead of leads) {
+      for (const lead of noPais) {
         const { error: e } = await admin.from("prospecting_candidates").insert({
           account_id: accountId,
           campaign_id: camp.id,
@@ -146,7 +151,7 @@ export async function criarBuscaB2b(
           search_status: "succeeded",
           cost_usd: custoUsd,
           result_count: inseridos,
-          skipped_count: leads.length - inseridos,
+          skipped_count: leads.length - inseridos, // repetidos + fora do país
         })
         .eq("id", camp.id)
         .select("*")
